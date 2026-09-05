@@ -1,0 +1,37 @@
+database:
+  busy-timeout-ms: 5000
+mail:
+  return-after-hours: 168
+  purge-returned-after-hours: 168
+  text-retention-hours: 720
+  expiration-check-seconds: 600
+  require-combatlogx: true
+  raw-gold-per-item: 1
+  max-recursive-container-depth: 8
+letters:
+  enabled: true
+  max-pages: 50
+  max-payload-bytes: 262144
+  cooldown-seconds: 10
+announcements:
+  enabled: true
+  cooldown-seconds: 10
+messages:
+  prefix: "&6[Enthusia Express]&r "
+  target-online: "&cThat player is online. Trade with them in person."
+  target-never-joined: "&cThat player is not in this server's player cache."
+  combat-blocked: "&cMail is unavailable while combat protection blocks access."
+  combatlogx-missing: "&cMail is disabled because CombatLogX is required but unavailable."
+  mail-unavailable: "&cMail is unavailable: check your permissions and combat status."
+  no-permission: "&cYou do not have permission to do that."
+  feature-disabled: "&cThis mail feature is disabled."
+  invalid-container: "&cShipments must be packed in a Shulker Box or Bundle."
+  empty-container: "&cThat container is empty."
+  insufficient-gold: "&cYou need {cost} Raw Gold, but only have {have}."
+  package-sent: "&aPackage sent to {target} for {cost} Raw Gold ({items} packed items)."
+  mailbox-empty: "&7No mail on this page."
+  hold-signed-book: "&cHold a signed written book in your main hand. A copy will be sent."
+  book-too-large: "&cThat book exceeds the configured page or payload limit."
+  book-cooldown: "&ePlease wait before sending another book."
+  book-sent: "&aBook delivered to {count} mailbox(es). Your original book is unchanged."
+  database-error: "&cThe mail database operation failed. Please contact an administrator."
