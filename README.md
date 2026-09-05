@@ -22,8 +22,8 @@ The general use, inbox, package and letter permissions default to everyone. Anno
 Set `JAVA_HOME` to a Java 21 JDK. The included Gradle 8.14.3 wrapper checks the distribution's SHA-256.
 
 ```sh
-./gradlew clean build
-./gradlew verifyPaperCompatibility
+sh ./gradlew clean build
+sh ./gradlew verifyPaperCompatibility
 ```
 
 On Windows, use `gradlew.bat`. Install **`build/libs/EnthusiaExpress-1.1.0.jar`**, the shaded JAR. The `-plain.jar` is not the installable artifact. SQLite and its native libraries are included; Paper and CombatLogX are not bundled.
@@ -31,7 +31,7 @@ On Windows, use `gradlew.bat`. Install **`build/libs/EnthusiaExpress-1.1.0.jar`*
 The default compile API is Paper 1.21, with Java bytecode level 21. To run the tests with a later API classpath:
 
 ```sh
-./gradlew clean build -PpaperVersion=1.21.11
+sh ./gradlew clean build -PpaperVersion=1.21.11
 ```
 
 Always rebuild with no `paperVersion` override for the release artifact. `verifyPaperCompatibility` compiles against Paper 1.21, 1.21.1, 1.21.3, 1.21.4, 1.21.5, 1.21.6, 1.21.7, 1.21.8, 1.21.9, 1.21.10 and 1.21.11. See `VERIFICATION.md` for executed checks and their limits.
