@@ -7,9 +7,9 @@ Verified 2026-09-05 on Windows x86-64 with Zulu Java 21.0.8 and Gradle 8.14.3.
 | Check | Result |
 | --- | --- |
 | Included wrapper: `gradlew.bat clean build --no-daemon --console=plain` | **PASS** — clean release build, baseline Paper 1.21 API |
-| Automated tests with Paper 1.21 API | **35 passed**, 0 failed, 0 skipped |
-| Automated tests with Paper 1.21.8 API | **35 passed**, 0 failed, 0 skipped |
-| Automated tests with Paper 1.21.11 API | **35 passed**, 0 failed, 0 skipped |
+| Automated tests with Paper 1.21 API | **38 passed**, 0 failed, 0 skipped |
+| Automated tests with Paper 1.21.8 API | **38 passed**, 0 failed, 0 skipped |
+| Automated tests with Paper 1.21.11 API | **38 passed**, 0 failed, 0 skipped |
 | `verifyPaperCompatibility` | **PASS** — all 11 API configurations compiled |
 | CombatLogX published API | **PASS** — reflection hook exercised with the real 11.7-SNAPSHOT API interfaces and core 2.9-SNAPSHOT |
 | Shaded SQLite JDBC 3.50.3.0 | **PASS** — isolated classloader loads the driver from the distributable JAR, creates a real SQLite database and reads/writes it using its native Windows library |
@@ -35,7 +35,13 @@ The compile matrix covers **1.21, 1.21.1, 1.21.3, 1.21.4, 1.21.5, 1.21.6, 1.21.7
 
 **Books/mailboxes (10 tests):** signed-book copying; duplicate pending-send blocking; admin publishing permission; offline/combat/feature gates; oversized/unsigned rejection; broadcast recipient snapshot; book opening for both text categories; marking read without claiming; disconnect compensation; combat beginning during a read; stale mailbox load after closure.
 
-**Inventory/lifecycle/artifact (7 tests):** nested item totals and depth rejection; bundle metadata recognition; cursor pickup and blocked shift/number/double clicks; drag protection; main-thread shutdown callback draining including nested compensation; isolated loading and real SQL execution from the installable shaded JAR, native-resource presence, metadata and absence of bundled Paper/CombatLogX classes.
+**Inventory/lifecycle/artifact (10 tests):** nested item totals and depth rejection; stacked-container multiplication and integer overflow; cyclic container data rejected at a 10,000-level limit without call-stack recursion; shulker depth boundaries and empty slots; bundle metadata recognition; cursor pickup and blocked shift/number/double clicks; drag protection; main-thread shutdown callback draining including nested compensation; isolated loading and real SQL execution from the installable shaded JAR, native-resource presence, metadata and absence of bundled Paper/CombatLogX classes.
+
+## Recursion audit
+
+The mutually recursive container traversal was replaced by an iterative traversal using explicit stack frames. Depth limits, nested item multipliers and checked integer arithmetic are preserved. The existing `mail.max-recursive-container-depth` configuration key remains supported for compatibility; it now limits iterative nesting.
+
+The Java compiler resolved calls, constructors and method references across all production and test Java source files; the resulting project call graph contains no cycles. The audit first detected both mutually recursive methods in the previous implementation. Callback and inventory-close paths were also inspected. This audit covers this project's Java source, not internal implementations of Paper, CombatLogX, Java or SQLite dependencies, or the archived original source ZIP. The audit logs accompany the verification artifacts.
 
 ## Practical limits
 
@@ -53,7 +59,7 @@ Windows sandbox path enumeration prevented Java from resolving paths beneath Doc
 
 ## Artifacts and provenance
 
-Install `EnthusiaExpress-1.1.0.jar` (SHA-256 `62234a57588cfbf734f46a1bb8172a7805e831342ab25fb835059d936032dbd0`). The source, wrapper, tests and configuration are committed in this repository. Build outputs are generated under `build/`; the release JAR is `build/libs/EnthusiaExpress-1.1.0.jar`. The accompanying `verification-summary.json` records the API matrix, test counts and JAR checksum. Raw local build logs and JUnit results were retained with the validation artifacts.
+Install `EnthusiaExpress-1.1.0.jar` (SHA-256 `cb36c8cfa8749501f85b1f9c8c946d829130519fb0fc01f1cadc190819452704`). The source, wrapper, tests and configuration are committed in this repository. Build outputs are generated under `build/`; the release JAR is `build/libs/EnthusiaExpress-1.1.0.jar`. The accompanying `verification-summary.json` records the API matrix, test counts and JAR checksum. Raw local build logs and JUnit results were retained with the validation artifacts.
 
 Original source archive SHA-256: `2e63bfa89d279903a982489a1617b95f85b6bdda782e77e287a6071ead7f4492`.
 

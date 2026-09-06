@@ -16,23 +16,23 @@
   ],
   "tests": {
     "1.21": {
-      "tests": 35,
+      "tests": 38,
       "failures": 0,
       "errors": 0,
       "skipped": 0
     },
     "1.21.8": {
-      "tests": 35,
+      "tests": 38,
       "failures": 0,
       "errors": 0,
       "skipped": 0
     },
     "1.21.11": {
-      "tests": 35,
+      "tests": 38,
       "failures": 0,
       "errors": 0,
       "skipped": 0
     }
   },
-  "jar_sha256": "62234a57588cfbf734f46a1bb8172a7805e831342ab25fb835059d936032dbd0"
+  "jar_sha256": "cb36c8cfa8749501f85b1f9c8c946d829130519fb0fc01f1cadc190819452704"
 }
