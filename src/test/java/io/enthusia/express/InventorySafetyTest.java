@@ -32,12 +32,58 @@ class InventorySafetyTest {
   }
 
   @Test
-  void recursiveCountIncludesNestedContainerAndItsContents() {
+  void nestedCountIncludesNestedContainerAndItsContents() {
     assertEquals(
         66,
         ContainerScanner.countPackedItems(
             bundle(item(Material.STONE, 64), bundle(item(Material.DIAMOND, 1))), 8));
     assertEquals(0, ContainerScanner.countPackedItems(bundle(), 8));
+  }
+
+  @Test
+  void stackedContainersMultiplyContentsAndRejectOverflow() {
+    ItemStack nested = bundle(item(Material.DIAMOND, 3));
+    when(nested.getAmount()).thenReturn(2);
+    assertEquals(8, ContainerScanner.countPackedItems(bundle(nested), 8));
+    ItemStack oversized = bundle(item(Material.DIAMOND, Integer.MAX_VALUE));
+    assertThrows(
+        ArithmeticException.class, () -> ContainerScanner.countPackedItems(bundle(oversized), 8));
+    assertThrows(
+        ArithmeticException.class,
+        () ->
+            ContainerScanner.countPackedItems(
+                bundle(item(Material.STONE, Integer.MAX_VALUE), item(Material.STONE, 1)), 8));
+  }
+
+  @Test
+  void cyclicContainerRejectsAtDepthLimitWithoutRecursiveCalls() {
+    ItemStack cyclic = bundle();
+    BundleMeta meta = (BundleMeta) cyclic.getItemMeta();
+    when(meta.getItems()).thenReturn(List.of(cyclic));
+    assertThrows(
+        IllegalArgumentException.class, () -> ContainerScanner.countPackedItems(cyclic, 10_000));
+  }
+
+  @Test
+  void shulkerContentsRespectDepthBoundaryAndIgnoreEmptySlots() {
+    ItemStack shulker = item(Material.SHULKER_BOX, 1);
+    org.bukkit.inventory.meta.BlockStateMeta meta =
+        mock(org.bukkit.inventory.meta.BlockStateMeta.class);
+    org.bukkit.block.ShulkerBox block = mock(org.bukkit.block.ShulkerBox.class);
+    Inventory inventory = mock(Inventory.class);
+    when(shulker.getItemMeta()).thenReturn(meta);
+    when(meta.getBlockState()).thenReturn(block);
+    when(block.getInventory()).thenReturn(inventory);
+    ItemStack air = item(Material.AIR, 1);
+    when(air.getType().isAir()).thenReturn(true);
+    ItemStack stone = item(Material.STONE, 4);
+    when(inventory.getContents()).thenReturn(new ItemStack[] {null, air, stone});
+    assertEquals(4, ContainerScanner.countPackedItems(shulker, 1));
+    assertEquals(5, ContainerScanner.countPackedItems(bundle(shulker), 2));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> ContainerScanner.countPackedItems(bundle(shulker), 1));
+    assertEquals(0, ContainerScanner.countPackedItems(null, 1));
   }
 
   @Test
