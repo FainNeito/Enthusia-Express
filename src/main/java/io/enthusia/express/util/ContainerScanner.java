@@ -1,5 +1,9 @@
 package io.enthusia.express.util;
 
+import java.util.ArrayDeque;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Iterator;
 import org.bukkit.block.ShulkerBox;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BlockStateMeta;
@@ -16,34 +20,56 @@ public final class ContainerScanner {
   }
 
   public static int countPackedItems(ItemStack stack, int maxDepth) {
-    return countContents(stack, 0, Math.max(1, maxDepth));
+    if (stack == null) return 0;
+    int limit = Math.max(1, maxDepth);
+    ArrayDeque<Frame> frames = new ArrayDeque<>();
+    frames.push(new Frame(contents(stack, 0, limit), 0, 0));
+    while (!frames.isEmpty()) {
+      Frame frame = frames.peek();
+      if (frame.children.hasNext()) {
+        ItemStack child = frame.children.next();
+        if (child == null || child.getType().isAir()) continue;
+        int amount = child.getAmount();
+        if (isAllowedShippingContainer(child)) {
+          int depth = frame.depth + 1;
+          frames.push(new Frame(contents(child, depth, limit), depth, amount));
+        } else {
+          frame.total = Math.addExact(frame.total, amount);
+        }
+      } else {
+        frames.pop();
+        if (frames.isEmpty()) return frame.total;
+        // Include the nested container itself and every copy of its contents.
+        int subtotal = Math.addExact(frame.amount, Math.multiplyExact(frame.amount, frame.total));
+        Frame parent = frames.peek();
+        parent.total = Math.addExact(parent.total, subtotal);
+      }
+    }
+    return 0;
   }
 
-  private static int countContents(ItemStack container, int depth, int maxDepth) {
-    if (container == null) return 0;
+  private static Iterator<ItemStack> contents(ItemStack container, int depth, int maxDepth) {
     if (depth >= maxDepth)
       throw new IllegalArgumentException("Container nesting exceeds maximum depth");
     ItemMeta meta = container.getItemMeta();
-    int total = 0;
     if (meta instanceof BlockStateMeta bsm && bsm.getBlockState() instanceof ShulkerBox shulker) {
-      for (ItemStack child : shulker.getInventory().getContents()) {
-        total = Math.addExact(total, countChild(child, depth + 1, maxDepth));
-      }
+      return Arrays.asList(shulker.getInventory().getContents()).iterator();
     } else if (meta instanceof BundleMeta bundle) {
-      for (ItemStack child : bundle.getItems()) {
-        total = Math.addExact(total, countChild(child, depth + 1, maxDepth));
-      }
+      return bundle.getItems().iterator();
     }
-    return total;
+    return Collections.emptyIterator();
   }
 
-  private static int countChild(ItemStack child, int depth, int maxDepth) {
-    if (child == null || child.getType().isAir()) return 0;
-    int own = child.getAmount();
-    if (isAllowedShippingContainer(child)) {
-      // Nested contents are counted in addition to the physical nested container item(s).
-      return Math.addExact(own, Math.multiplyExact(own, countContents(child, depth, maxDepth)));
+  private static final class Frame {
+    final Iterator<ItemStack> children;
+    final int depth;
+    final int amount;
+    int total;
+
+    Frame(Iterator<ItemStack> children, int depth, int amount) {
+      this.children = children;
+      this.depth = depth;
+      this.amount = amount;
     }
-    return own;
   }
 }
