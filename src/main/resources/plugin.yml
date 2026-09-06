@@ -1,0 +1,28 @@
+name: EnthusiaExpress
+version: '${version}'
+main: io.enthusia.express.EnthusiaExpressPlugin
+api-version: '1.21'
+author: Enthusia
+softdepend: [CombatLogX]
+commands:
+  mail:
+    description: Packages, letters and admin announcements
+    usage: /mail <send|letter|announce|inbox>
+    permission: enthusiaexpress.use
+permissions:
+  enthusiaexpress.use:
+    default: true
+  enthusiaexpress.inbox:
+    default: true
+  enthusiaexpress.packages.send:
+    default: true
+  enthusiaexpress.packages.claim:
+    default: true
+  enthusiaexpress.letters.send:
+    default: true
+  enthusiaexpress.admin.announce:
+    default: op
+  enthusiaexpress.admin:
+    default: op
+    children:
+      enthusiaexpress.admin.announce: true
