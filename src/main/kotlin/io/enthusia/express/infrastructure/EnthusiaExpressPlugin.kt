@@ -8,9 +8,9 @@ import io.enthusia.express.infrastructure.gui.ShippingService
 import io.enthusia.express.infrastructure.hook.CombatLogXHook
 import io.enthusia.express.infrastructure.mail.BookMailService
 import io.enthusia.express.infrastructure.mail.ExpirationService
+import io.enthusia.express.infrastructure.mail.JoinNotificationService
 import io.enthusia.express.infrastructure.util.ConfigValidation
 import io.enthusia.express.infrastructure.util.MainThread
-import io.enthusia.express.infrastructure.mail.JoinNotificationService
 import io.enthusia.express.infrastructure.util.SoundFeedback
 import java.io.File
 import org.bukkit.Bukkit
