@@ -5,8 +5,8 @@ import io.enthusia.express.domain.MailType
 import io.enthusia.express.infrastructure.hook.CombatLogXHook
 import io.enthusia.express.infrastructure.util.ItemCodec
 import io.enthusia.express.infrastructure.util.MainThread
-import io.enthusia.express.infrastructure.util.Text
 import io.enthusia.express.infrastructure.util.SoundFeedback
+import io.enthusia.express.infrastructure.util.Text
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import org.bukkit.Bukkit
