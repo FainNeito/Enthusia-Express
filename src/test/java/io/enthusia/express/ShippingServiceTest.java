@@ -3,11 +3,11 @@ package io.enthusia.express;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
 
-import io.enthusia.express.db.MailRepository;
-import io.enthusia.express.gui.ShippingService;
-import io.enthusia.express.hook.CombatLogXHook;
-import io.enthusia.express.mail.MailType;
-import io.enthusia.express.util.*;
+import io.enthusia.express.infrastructure.db.MailRepository;
+import io.enthusia.express.infrastructure.gui.ShippingService;
+import io.enthusia.express.infrastructure.hook.CombatLogXHook;
+import io.enthusia.express.domain.MailType;
+import io.enthusia.express.infrastructure.util.*;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.OptionalLong;
@@ -84,7 +84,7 @@ class ShippingServiceTest {
     }
   }
 
-  private static final class Fixture implements AutoCloseable {
+  static final class Fixture implements AutoCloseable {
     final JavaPlugin plugin = mock(JavaPlugin.class, invocation ->
         invocation.getMethod().getName().equals("namespace")
             ? "enthusiaexpress" : RETURNS_DEFAULTS.answer(invocation));
@@ -138,6 +138,7 @@ class ShippingServiceTest {
 
     private void configureMocks(CompletableFuture<OptionalLong> result) {
       YamlConfiguration config = new YamlConfiguration();
+      config.set("payments.provider", "physical");
       config.set("mail.limits.one-outstanding-package-per-recipient", true);
       when(plugin.getName()).thenReturn("EnthusiaExpress");
       when(plugin.getConfig()).thenReturn(config);

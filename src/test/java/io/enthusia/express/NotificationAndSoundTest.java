@@ -2,11 +2,11 @@ package io.enthusia.express;
 
 import static org.mockito.Mockito.*;
 
-import io.enthusia.express.db.MailRepository;
-import io.enthusia.express.mail.JoinNotificationService;
-import io.enthusia.express.mail.MailSummary;
-import io.enthusia.express.util.MainThread;
-import io.enthusia.express.util.SoundFeedback;
+import io.enthusia.express.infrastructure.db.MailRepository;
+import io.enthusia.express.infrastructure.mail.JoinNotificationService;
+import io.enthusia.express.domain.MailSummary;
+import io.enthusia.express.infrastructure.util.MainThread;
+import io.enthusia.express.infrastructure.util.SoundFeedback;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;

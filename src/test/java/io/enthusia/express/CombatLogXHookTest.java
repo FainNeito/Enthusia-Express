@@ -3,8 +3,8 @@ package io.enthusia.express;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-import io.enthusia.express.hook.CombatLogXHook;
-import io.enthusia.express.util.ConfigValidation;
+import io.enthusia.express.infrastructure.hook.CombatLogXHook;
+import io.enthusia.express.infrastructure.util.ConfigValidation;
 import java.util.logging.Logger;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;

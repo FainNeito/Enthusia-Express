@@ -3,11 +3,11 @@ package io.enthusia.express;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-import io.enthusia.express.db.MailRepository;
-import io.enthusia.express.gui.*;
-import io.enthusia.express.hook.CombatLogXHook;
-import io.enthusia.express.util.MainThread;
-import io.enthusia.express.util.ContainerScanner;
+import io.enthusia.express.infrastructure.db.MailRepository;
+import io.enthusia.express.infrastructure.gui.*;
+import io.enthusia.express.infrastructure.hook.CombatLogXHook;
+import io.enthusia.express.infrastructure.util.MainThread;
+import io.enthusia.express.infrastructure.util.ContainerScanner;
 import java.util.*;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -174,6 +174,7 @@ class InventorySafetyTest {
     ItemStack cargo = item(Material.BUNDLE, 1);
     when(cargo.clone()).thenReturn(cargo);
     when(shipping.isPlaceholder(placeholder)).thenReturn(true);
+    when(top.getItem(ShippingService.PACKAGE_SLOT)).thenReturn(placeholder);
 
     InventoryClickEvent place = mock(InventoryClickEvent.class);
     when(place.getWhoClicked()).thenReturn(player);
@@ -184,8 +185,9 @@ class InventorySafetyTest {
     when(place.getCursor()).thenReturn(cargo);
     listener.onClick(place);
     verify(place).setCancelled(true);
-    verify(top).setItem(ShippingService.PACKAGE_SLOT, cargo);
-    verify(place).setCursor(null);
+    verify(shipping).deferPlaceholderDeposit(player, top);
+    verify(top, never()).setItem(anyInt(), any());
+    verify(place, never()).setCursor(any());
 
     InventoryClickEvent remove = mock(InventoryClickEvent.class);
     when(remove.getWhoClicked()).thenReturn(player);
@@ -193,6 +195,7 @@ class InventorySafetyTest {
     when(remove.getRawSlot()).thenReturn(ShippingService.PACKAGE_SLOT);
     when(remove.getClick()).thenReturn(ClickType.RIGHT);
     when(remove.getCurrentItem()).thenReturn(cargo);
+    when(top.getItem(ShippingService.PACKAGE_SLOT)).thenReturn(cargo);
     listener.onClick(remove);
     verify(remove).setCancelled(false);
     verify(shipping).deferPlaceholderRefresh(player, top);

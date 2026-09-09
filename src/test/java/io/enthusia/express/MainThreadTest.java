@@ -3,7 +3,7 @@ package io.enthusia.express;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-import io.enthusia.express.util.MainThread;
+import io.enthusia.express.infrastructure.util.MainThread;
 import java.util.*;
 import java.util.concurrent.*;
 import org.bukkit.Server;
@@ -15,6 +15,7 @@ class MainThreadTest {
   @Test
   void disableWaitsForCallbacksAndTheirNestedCompensation() {
     JavaPlugin plugin = mock(JavaPlugin.class);
+    when(plugin.getLogger()).thenReturn(java.util.logging.Logger.getAnonymousLogger());
     Server server = mock(Server.class);
     BukkitScheduler scheduler = mock(BukkitScheduler.class);
     when(plugin.getServer()).thenReturn(server);

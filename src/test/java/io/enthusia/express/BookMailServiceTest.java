@@ -2,10 +2,11 @@ package io.enthusia.express;
 
 import static org.mockito.Mockito.*;
 
-import io.enthusia.express.db.MailRepository;
-import io.enthusia.express.hook.CombatLogXHook;
-import io.enthusia.express.mail.*;
-import io.enthusia.express.util.*;
+import io.enthusia.express.infrastructure.db.MailRepository;
+import io.enthusia.express.infrastructure.hook.CombatLogXHook;
+import io.enthusia.express.domain.*;
+import io.enthusia.express.infrastructure.mail.*;
+import io.enthusia.express.infrastructure.util.*;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.OptionalLong;

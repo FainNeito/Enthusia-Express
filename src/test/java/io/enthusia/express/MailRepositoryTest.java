@@ -2,8 +2,9 @@ package io.enthusia.express;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import io.enthusia.express.db.MailRepository;
-import io.enthusia.express.mail.*;
+import io.enthusia.express.infrastructure.db.MailRepository;
+import io.enthusia.express.domain.*;
+import io.enthusia.express.infrastructure.mail.*;
 import java.nio.file.Path;
 import java.sql.*;
 import java.util.*;
@@ -243,6 +244,7 @@ class MailRepositoryTest {
               .count());
       long id = first.join().isPresent() ? first.join().getAsLong() : second.join().getAsLong();
       assertTrue(repository.claim(id, recipient).join());
+      assertTrue(repository.confirmDelivery(id, recipient).join());
       assertTrue(
           repository
               .insertMailLimited(

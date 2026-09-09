@@ -2,8 +2,8 @@ package io.enthusia.express;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import io.enthusia.express.db.MailRepository;
-import io.enthusia.express.mail.MailType;
+import io.enthusia.express.infrastructure.db.MailRepository;
+import io.enthusia.express.domain.MailType;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
