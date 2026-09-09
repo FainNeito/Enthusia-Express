@@ -48,6 +48,10 @@ sounds:
     sound: "minecraft:item.book.page_turn"
     volume: 1.0
     pitch: 1.0
+payments:
+  # auto: use EnthusiaCurrency through Vault when installed; otherwise use physical Raw Gold.
+  # enthusia-currency: require that provider. physical: always use inventory Raw Gold.
+  provider: auto
 messages:
   prefix: "&6[Enthusia Express]&r "
   target-online: "&cThat player is online. Trade with them in person."
@@ -60,6 +64,7 @@ messages:
   invalid-container: "&cShipments must be packed in a Shulker Box or Bundle."
   empty-container: "&cThat container is empty."
   insufficient-gold: "&cYou need {cost} Raw Gold, but only have {have}."
+  payment-unavailable: "&cThe currency payment provider is unavailable. Your package was not sent."
   package-sent: "&aPackage sent to {target} for {cost} Raw Gold ({items} packed items)."
   outstanding-package: "&eYou already have an unresolved package for that recipient. Your package and fee were refunded."
   outstanding-letter: "&eThat recipient still has an unread letter from you."

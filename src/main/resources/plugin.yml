@@ -1,9 +1,9 @@
 name: EnthusiaExpress
 version: '${version}'
-main: io.enthusia.express.EnthusiaExpressPlugin
+main: io.enthusia.express.infrastructure.EnthusiaExpressPlugin
 api-version: '1.21'
 author: Enthusia
-softdepend: [CombatLogX]
+softdepend: [CombatLogX, Vault, EnthusiaCurrency]
 commands:
   mail:
     description: Packages, letters and admin announcements
