@@ -1,6 +1,7 @@
 package io.enthusia.express.db;
 
 import io.enthusia.express.mail.MailRecord;
+import io.enthusia.express.mail.MailSummary;
 import io.enthusia.express.mail.MailStatus;
 import io.enthusia.express.mail.MailType;
 import java.io.File;
@@ -8,6 +9,7 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.OptionalLong;
 import java.util.concurrent.*;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -41,7 +43,7 @@ public final class MailRepository {
         () -> {
           java.nio.file.Files.createDirectories(dbFile.getAbsoluteFile().getParentFile().toPath());
           Class.forName("org.sqlite.JDBC");
-          connection = DriverManager.getConnection("jdbc:sqlite:" + dbFile.getAbsolutePath());
+          connection = openConnection();
           try (Statement st = connection.createStatement()) {
             st.execute("PRAGMA busy_timeout=" + busyTimeout);
             st.execute("PRAGMA journal_mode=WAL");
@@ -109,6 +111,122 @@ public final class MailRepository {
                 sender, senderName, recipient, recipientName, type, copy, packedCount, returned));
   }
 
+  /**
+   * Atomically checks semantic outstandingness and inserts on the same SQLite write lock.
+   * An empty result means the configured cardinality constraint rejected the proposal.
+   */
+  public CompletableFuture<OptionalLong> insertMailLimited(
+      UUID sender,
+      String senderName,
+      UUID recipient,
+      String recipientName,
+      MailType type,
+      byte[] payload,
+      int packedCount,
+      boolean enforceLimit) {
+    if (type == MailType.ANNOUNCEMENT)
+      return CompletableFuture.failedFuture(
+          new IllegalArgumentException("Announcements do not use outstanding-mail limits"));
+    byte[] copy = payload.clone();
+    return supply(
+        () -> {
+          if (!enforceLimit)
+            return OptionalLong.of(
+                insert(sender, senderName, recipient, recipientName, type, copy, packedCount, false));
+          return inTransaction(() -> hasOutstanding(sender, recipient, type)
+              ? OptionalLong.empty()
+              : OptionalLong.of(insert(sender, senderName, recipient, recipientName,
+                  type, copy, packedCount, false)));
+        });
+  }
+
+  private <T> T inTransaction(SqlSupplier<T> task) throws Exception {
+    Exception failure = null;
+    try {
+      connection.setAutoCommit(false);
+      T result = task.get();
+      connection.commit();
+      return result;
+    } catch (Exception error) {
+      failure = error;
+      try {
+        connection.rollback();
+      } catch (SQLException rollbackError) {
+        error.addSuppressed(rollbackError);
+        replaceFailedConnection(error);
+      }
+      throw error;
+    } finally {
+      restoreAutoCommit(failure);
+    }
+  }
+
+  private Connection openConnection() throws SQLException {
+    org.sqlite.SQLiteConfig config = new org.sqlite.SQLiteConfig();
+    config.setTransactionMode(org.sqlite.SQLiteConfig.TransactionMode.IMMEDIATE);
+    config.setBusyTimeout(busyTimeout);
+    config.setJournalMode(org.sqlite.SQLiteConfig.JournalMode.WAL);
+    config.setSynchronous(org.sqlite.SQLiteConfig.SynchronousMode.FULL);
+    config.enforceForeignKeys(true);
+    return config.createConnection("jdbc:sqlite:" + dbFile.getAbsolutePath());
+  }
+
+  private void replaceFailedConnection(Exception failure) {
+    try {
+      connection.close();
+      connection = openConnection();
+    } catch (SQLException recoveryError) {
+      failure.addSuppressed(recoveryError);
+    }
+  }
+
+  private void restoreAutoCommit(Exception failure) throws SQLException {
+    try {
+      connection.setAutoCommit(true);
+    } catch (SQLException resetError) {
+      if (failure == null) {
+        replaceFailedConnection(resetError);
+        throw resetError;
+      }
+      failure.addSuppressed(resetError);
+      replaceFailedConnection(failure);
+    }
+  }
+
+  private boolean hasOutstanding(UUID sender, UUID recipient, MailType type) throws SQLException {
+    String sql =
+        "SELECT 1 FROM mail WHERE sender_uuid=? AND recipient_uuid=? AND type=?"
+            + " AND status='UNCLAIMED' AND (?='PACKAGE' OR unread=1) LIMIT 1";
+    try (PreparedStatement ps = connection.prepareStatement(sql)) {
+      ps.setString(1, sender.toString());
+      ps.setString(2, recipient.toString());
+      ps.setString(3, type.name());
+      ps.setString(4, type.name());
+      try (ResultSet rs = ps.executeQuery()) {
+        return rs.next();
+      }
+    }
+  }
+
+  public CompletableFuture<MailSummary> pendingMail(UUID recipient) {
+    return supply(
+        () -> {
+          String sql =
+              "SELECT"
+                  + " SUM(CASE WHEN type='PACKAGE' AND status IN ('UNCLAIMED','RETURNED') THEN 1 ELSE 0 END),"
+                  + " SUM(CASE WHEN type='LETTER' AND status='UNCLAIMED' AND unread=1 THEN 1 ELSE 0 END),"
+                  + " SUM(CASE WHEN type='ANNOUNCEMENT' AND status='UNCLAIMED' AND unread=1 THEN 1 ELSE 0 END)"
+                  + " FROM mail WHERE recipient_uuid=?";
+          try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, recipient.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+              if (!rs.next()) return new MailSummary(0, 0, 0);
+              return new MailSummary(rs.getInt(1), rs.getInt(2), rs.getInt(3));
+            }
+          }
+        });
+  }
+
   private long insert(
       UUID sender,
       String senderName,
@@ -150,9 +268,7 @@ public final class MailRepository {
     var snapshot = java.util.Map.copyOf(recipients);
     byte[] copy = payload.clone();
     return supply(
-        () -> {
-          connection.setAutoCommit(false);
-          try {
+        () -> inTransaction(() -> {
             for (var recipient : snapshot.entrySet())
               insert(
                   sender,
@@ -163,15 +279,8 @@ public final class MailRepository {
                   copy,
                   0,
                   false);
-            connection.commit();
             return snapshot.size();
-          } catch (Exception e) {
-            connection.rollback();
-            throw e;
-          } finally {
-            connection.setAutoCommit(true);
-          }
-        });
+        }));
   }
 
   public CompletableFuture<List<MailRecord>> listInbox(UUID recipient, MailType type) {
@@ -284,9 +393,7 @@ public final class MailRepository {
   public CompletableFuture<Integer> expire(
       long now, long returnCutoff, long purgeCutoff, long textCutoff) {
     return supply(
-        () -> {
-          connection.setAutoCommit(false);
-          try {
+        () -> inTransaction(() -> {
             int changed;
             try (PreparedStatement ps =
                 connection.prepareStatement(
@@ -310,15 +417,8 @@ public final class MailRepository {
               ps.setLong(2, returnCutoff);
               changed += ps.executeUpdate();
             }
-            connection.commit();
             return changed;
-          } catch (Exception e) {
-            connection.rollback();
-            throw e;
-          } finally {
-            connection.setAutoCommit(true);
-          }
-        });
+        }));
   }
 
   private MailRecord read(ResultSet rs) throws SQLException {
