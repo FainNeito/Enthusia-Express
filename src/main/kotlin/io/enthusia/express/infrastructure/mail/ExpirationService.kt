@@ -8,6 +8,7 @@ import org.bukkit.scheduler.BukkitTask
 class ExpirationService(private val plugin: JavaPlugin, private val repository: MailStore) {
     private var task: BukkitTask? = null
 
+    /** Schedule periodic retention requests at the configured interval. */
     fun start() {
         // The repository work itself is asynchronous; this merely schedules periodic checks.
         task = plugin.server.scheduler.runTaskTimer(
@@ -16,6 +17,7 @@ class ExpirationService(private val plugin: JavaPlugin, private val repository: 
         )
     }
 
+    /** Queue retention cutoffs on the serialized repository and log asynchronous failures. */
     private fun tick() {
         val now = System.currentTimeMillis()
         val returnHours = plugin.config.getLong("mail.return-after-hours", 168L)
@@ -30,6 +32,7 @@ class ExpirationService(private val plugin: JavaPlugin, private val repository: 
         }
     }
 
+    /** Cancel future expiration passes during plugin shutdown. */
     fun stop() {
         task?.cancel()
     }
