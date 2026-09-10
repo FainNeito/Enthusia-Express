@@ -12,12 +12,16 @@ import io.enthusia.express.infrastructure.util.SoundFeedback
 import io.enthusia.express.infrastructure.util.Text
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
+import java.util.logging.Level
 import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.OfflinePlayer
 import org.bukkit.entity.Player
+import org.bukkit.inventory.ItemStack
 import org.bukkit.inventory.meta.BookMeta
 import org.bukkit.plugin.java.JavaPlugin
+
+private const val BOOK_TOO_LARGE = "book-too-large"
 
 /** Sends an immutable copy of the signed book held in the main hand. */
 class BookMailService @JvmOverloads constructor(
@@ -102,16 +106,26 @@ class BookMailService @JvmOverloads constructor(
             return null
         }
         if (meta.pageCount > plugin.config.getInt("letters.max-pages", 50)) {
-            player.sendMessage(Text.msg(plugin.config, "book-too-large"))
+            player.sendMessage(Text.msg(plugin.config, BOOK_TOO_LARGE))
             return null
         }
         book.amount = 1
-        val payload = ItemCodec.encode(book)
+        val payload = encodeBook(player, book) ?: return null
         if (payload.size > plugin.config.getInt("letters.max-payload-bytes", 262144)) {
-            player.sendMessage(Text.msg(plugin.config, "book-too-large"))
+            player.sendMessage(Text.msg(plugin.config, BOOK_TOO_LARGE))
             return null
         }
         return payload
+    }
+
+    /** Report serializer failures without storing a partial letter or announcement. */
+    @Suppress("TooGenericExceptionCaught") // Item serialization may fail with different runtime exceptions.
+    private fun encodeBook(player: Player, book: ItemStack): ByteArray? = try {
+        ItemCodec.encode(book)
+    } catch (error: RuntimeException) {
+        plugin.logger.log(Level.WARNING, "Book encoding failed for ${player.uniqueId}", error)
+        player.sendMessage(Text.msg(plugin.config, BOOK_TOO_LARGE))
+        null
     }
 
     /** Choose one-recipient or broadcast persistence while applying the configured letter allowance. */
