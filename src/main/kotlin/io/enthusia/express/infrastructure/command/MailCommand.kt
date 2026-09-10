@@ -9,8 +9,14 @@ import io.enthusia.express.infrastructure.gui.ShippingService
 import io.enthusia.express.infrastructure.hook.CombatLogXHook
 import io.enthusia.express.infrastructure.mail.BookMailService
 import io.enthusia.express.infrastructure.util.Text
+import io.enthusia.express.infrastructure.util.MainThread
 import java.util.Locale
+import java.util.UUID
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
+import java.util.logging.Level
 import org.bukkit.Bukkit
+import org.bukkit.OfflinePlayer
 import org.bukkit.command.Command
 import org.bukkit.command.CommandExecutor
 import org.bukkit.command.CommandSender
@@ -34,7 +40,9 @@ class MailCommand(
     private val mailbox: MailboxService,
     private val combatHook: CombatLogXHook,
     private val books: BookMailService,
+    private val main: MainThread,
 ) : CommandExecutor, TabCompleter {
+    private val resolving = HashSet<UUID>()
     /** Validate the player command context and dispatch one supported mail action. */
     override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<String>): Boolean {
         if (sender !is Player) sender.sendMessage("Players only.")
@@ -80,9 +88,31 @@ class MailCommand(
         else sendToRecipient(sender, action, args[1])
     }
 
-    /** Resolve a known player from Paper cache and pass the send request to its service. */
+    /** Use the fast cache path or defer a potentially blocking UUID lookup. */
     private fun sendToRecipient(sender: Player, action: SendAction, name: String) {
         val target = Bukkit.getOfflinePlayerIfCached(name)
+        if (target != null) deliverToRecipient(sender, action, target)
+        else resolveRecipient(sender, action, name)
+    }
+
+    /** Resolve through Paper's profile source off-thread, then recheck the same sender session. */
+    private fun resolveRecipient(sender: Player, action: SendAction, name: String) {
+        if (!resolving.add(sender.uniqueId)) return
+        val lookup = CompletableFuture.supplyAsync({ Bukkit.getPlayerUniqueId(name) },
+            { task -> plugin.server.scheduler.runTaskAsynchronously(plugin, task) })
+            .orTimeout(30, TimeUnit.SECONDS)
+        main.complete(lookup) { id, error ->
+            resolving.remove(sender.uniqueId)
+            if (error != null) plugin.logger.log(Level.WARNING, "Mail recipient lookup failed", error)
+            val sameSession = plugin.isEnabled && sender.isOnline && Bukkit.getPlayer(sender.uniqueId) === sender
+            if (sameSession && validateAccess(sender) && sender.hasPermission(action.permission)) {
+                deliverToRecipient(sender, action, id?.let { Bukkit.getOfflinePlayer(it) })
+            }
+        }
+    }
+
+    /** Reject unknown and self recipients before delegating to the server-thread mail service. */
+    private fun deliverToRecipient(sender: Player, action: SendAction, target: OfflinePlayer?) {
         when {
             target == null -> sender.sendMessage(Text.msg(plugin.config, UNKNOWN_RECIPIENT))
             !target.hasPlayedBefore() && !target.isOnline -> sender.sendMessage(Text.msg(plugin.config, UNKNOWN_RECIPIENT))
