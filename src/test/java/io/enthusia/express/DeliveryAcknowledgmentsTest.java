@@ -1,5 +1,7 @@
 package io.enthusia.express;
 
+import io.enthusia.express.application.MailStore;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -21,7 +23,7 @@ class DeliveryAcknowledgmentsTest {
   /** Verifies that malformed receipt does not release an uncertain claim. */
 
   @Test void malformedReceiptDoesNotReleaseAnUncertainClaim() throws Exception {
-    var store = mock(io.enthusia.express.application.MailStore.class);
+    var store = mock(MailStore.class);
     Path receipts = directory.resolve("acks");
     Files.createDirectories(receipts);
     Files.writeString(receipts.resolve("1.ack"), "incomplete");

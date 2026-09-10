@@ -39,8 +39,10 @@ class MailRepositoryTest {
   /** Verifies that committed insert survives auto commit reset failure. */
 
   @Test
+  @SuppressWarnings("PMD.AvoidAccessibilityAlteration")
   void committedInsertSurvivesAutoCommitResetFailure() throws Exception {
     var field = MailRepository.class.getDeclaredField("connection");
+    // Test-only fault injection on this isolated repository; production visibility stays private.
     field.setAccessible(true);
     Connection connection = org.mockito.Mockito.spy((Connection) field.get(repository));
     org.mockito.Mockito.doThrow(new SQLException("reset failed"))

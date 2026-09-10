@@ -19,7 +19,8 @@ class ClaimReservationTest {
     try {
       a.initialize().join();
       b.initialize().join();
-      UUID sender = UUID.randomUUID(), recipient = UUID.randomUUID();
+      UUID sender = UUID.randomUUID();
+      UUID recipient = UUID.randomUUID();
       long first = a.insertMailLimited(sender, "S", recipient, "R", MailType.PACKAGE, new byte[]{1}, 1, true).join().orElseThrow();
       var before = a.get(first).join();
       assertTrue(a.claim(first, recipient).join());
@@ -38,7 +39,8 @@ class ClaimReservationTest {
     var repo = new MailRepository(null, directory.resolve("ack.db").toFile(), 5000);
     try {
       repo.initialize().join();
-      UUID sender = UUID.randomUUID(), recipient = UUID.randomUUID();
+      UUID sender = UUID.randomUUID();
+      UUID recipient = UUID.randomUUID();
       long id = repo.insertMailLimited(sender, "S", recipient, "R", MailType.PACKAGE, new byte[]{1}, 1, true).join().orElseThrow();
       var original = repo.get(id).join();
       assertFalse(repo.confirmDelivery(id, recipient).join());
@@ -54,7 +56,8 @@ class ClaimReservationTest {
 
   @Test void legacySchemaMigratesWithoutChangingMailPayloads() throws Exception {
     var file = directory.resolve("legacy.db").toFile();
-    UUID sender = UUID.randomUUID(), recipient = UUID.randomUUID();
+    UUID sender = UUID.randomUUID();
+      UUID recipient = UUID.randomUUID();
     var seed = new MailRepository(null, file, 5000);
     seed.initialize().join();
     long id = seed.insertPackage(sender, "S", recipient, "R", new byte[]{4, 8}, 2, false).join();
@@ -79,7 +82,8 @@ class ClaimReservationTest {
     var b = new MailRepository(null, file, 5000);
     try {
       java.util.concurrent.CompletableFuture.allOf(a.initialize(), b.initialize()).join();
-      UUID sender = UUID.randomUUID(), recipient = UUID.randomUUID();
+      UUID sender = UUID.randomUUID();
+      UUID recipient = UUID.randomUUID();
       long id = a.insertPackage(sender, "S", recipient, "R", new byte[]{1}, 1, false).join();
       assertNotNull(b.get(id).join());
     } finally { b.close(); a.close(); }

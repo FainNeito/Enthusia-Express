@@ -1,5 +1,7 @@
 package io.enthusia.express;
 
+import io.enthusia.express.infrastructure.db.DeliveryAcknowledgments;
+
 import static org.mockito.Mockito.*;
 
 import io.enthusia.express.infrastructure.db.MailRepository;
@@ -121,7 +123,7 @@ class MailboxServiceTest {
 
   @Test
   void deliveredPackageQueuesReceiptAfterInventoryAndNeverRestoresIt() {
-    var journal = mock(io.enthusia.express.infrastructure.db.DeliveryAcknowledgments.class);
+    var journal = mock(DeliveryAcknowledgments.class);
     when(journal.record(1, id)).thenReturn(CompletableFuture.completedFuture(null));
     service = new MailboxService(plugin, repository, combat, main, sounds, journal);
     MailRecord record = record(MailType.PACKAGE);

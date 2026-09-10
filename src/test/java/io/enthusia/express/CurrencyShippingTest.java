@@ -1,5 +1,7 @@
 package io.enthusia.express;
 
+import io.enthusia.express.infrastructure.util.SoundFeedback;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -64,7 +66,7 @@ class CurrencyShippingTest {
       when(f.playerInventory.getStorageContents()).thenReturn(new ItemStack[0]);
       f.confirm();
       verify(economy).withdrawPlayer((OfflinePlayer) f.sender, 2.0);
-      verify(f.sounds).play(f.sender, io.enthusia.express.infrastructure.util.SoundFeedback.Cue.PACKAGE_SEND);
+      verify(f.sounds).play(f.sender, SoundFeedback.Cue.PACKAGE_SEND);
       verify(f.playerInventory, never()).setStorageContents(any());
     }
   }
@@ -144,7 +146,7 @@ class CurrencyShippingTest {
       when(f.playerInventory.getStorageContents()).thenReturn(new ItemStack[0]);
       f.confirm();
       verify(economy, never()).withdrawPlayer(any(OfflinePlayer.class), anyDouble());
-      verify(f.sounds).play(f.sender, io.enthusia.express.infrastructure.util.SoundFeedback.Cue.PACKAGE_SEND);
+      verify(f.sounds).play(f.sender, SoundFeedback.Cue.PACKAGE_SEND);
     }
   }
   /** Verifies that absent currency uses physical gold only in auto mode. */
