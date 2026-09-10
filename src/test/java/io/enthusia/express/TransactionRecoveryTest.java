@@ -16,11 +16,13 @@ import org.junit.jupiter.api.io.TempDir;
 
 class TransactionRecoveryTest {
   @TempDir Path directory;
+  /** Verifies that announcement rollback preserves failure and recovers. */
 
   @Test
   void announcementRollbackPreservesFailureAndRecovers() throws Exception {
     verifyRecovery(false);
   }
+  /** Verifies that expiry rollback preserves failure and recovers. */
 
   @Test
   void expiryRollbackPreservesFailureAndRecovers() throws Exception {
@@ -59,6 +61,7 @@ class TransactionRecoveryTest {
       repository.close();
     }
   }
+  /** Verifies that sqlite rollback preserves original error and allows later transactions. */
 
   @Test
   void sqliteRollbackPreservesOriginalErrorAndAllowsLaterTransactions() throws Exception {

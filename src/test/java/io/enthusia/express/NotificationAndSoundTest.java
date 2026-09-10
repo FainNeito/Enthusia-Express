@@ -20,6 +20,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.junit.jupiter.api.Test;
 
 class NotificationAndSoundTest {
+  /** Verifies that join summary messages only the still current online session. */
   @Test
   void joinSummaryMessagesOnlyTheStillCurrentOnlineSession() {
     JavaPlugin plugin = mock(JavaPlugin.class);
@@ -50,11 +51,16 @@ class NotificationAndSoundTest {
       callback[0].accept(new MailSummary(1, 2, 3), null);
       verify(player).sendMessage("1/2/3/6");
       clearInvocations(player);
+      bukkit.when(() -> Bukkit.getPlayer(id)).thenReturn(mock(Player.class));
+      callback[0].accept(new MailSummary(1, 0, 0), null);
+      verify(player, never()).sendMessage(anyString());
+      bukkit.when(() -> Bukkit.getPlayer(id)).thenReturn(player);
       when(player.isOnline()).thenReturn(false);
       callback[0].accept(new MailSummary(1, 0, 0), null);
       verify(player, never()).sendMessage(anyString());
     }
   }
+  /** Verifies that zero join summary and disabled notification stay silent. */
 
   @Test
   void zeroJoinSummaryAndDisabledNotificationStaySilent() {
@@ -85,6 +91,7 @@ class NotificationAndSoundTest {
       verify(repository, times(1)).pendingMail(id);
     }
   }
+  /** Verifies that configured sound plays and malformed cosmetic config degrades safely. */
 
   @Test
   void configuredSoundPlaysAndMalformedCosmeticConfigDegradesSafely() {

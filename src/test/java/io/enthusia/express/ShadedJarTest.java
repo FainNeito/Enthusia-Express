@@ -12,6 +12,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 class ShadedJarTest {
   @TempDir Path directory;
+  /** Verifies that distributable contains metadata and loads its own native sqlite driver. */
 
   @Test
   void distributableContainsMetadataAndLoadsItsOwnNativeSqliteDriver() throws Exception {

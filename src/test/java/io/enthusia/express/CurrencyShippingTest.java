@@ -41,6 +41,22 @@ class CurrencyShippingTest {
   private static EconomyResponse success(double amount) {
     return new EconomyResponse(amount, 98, EconomyResponse.ResponseType.SUCCESS, null);
   }
+  /** Verifies that insufficient currency message preserves fractional balance. */
+
+  @Test void insufficientCurrencyMessagePreservesFractionalBalance() {
+    try (var f = new ShippingServiceTest.Fixture(OptionalLong.of(1))) {
+      Economy economy = install(f);
+      f.plugin.getConfig().set("messages.insufficient-currency", "Need {cost} currency; balance {have}");
+      f.plugin.getConfig().set("messages.insufficient-gold", "WRONG PHYSICAL MESSAGE");
+      when(economy.withdrawPlayer((OfflinePlayer) f.sender, 2.0)).thenReturn(
+          new EconomyResponse(0, 1.75, EconomyResponse.ResponseType.FAILURE, "insufficient"));
+      f.confirm();
+      verify(f.sender).sendMessage("Need 2 currency; balance 1.75");
+      verifyNoInteractions(f.repository, f.sounds);
+      verify(f.playerInventory, never()).setStorageContents(any());
+    }
+  }
+  /** Verifies that bank only balance pays for shipping without physical gold. */
 
   @Test void bankOnlyBalancePaysForShippingWithoutPhysicalGold() {
     try (var f = new ShippingServiceTest.Fixture(OptionalLong.of(1))) {
@@ -52,6 +68,7 @@ class CurrencyShippingTest {
       verify(f.playerInventory, never()).setStorageContents(any());
     }
   }
+  /** Verifies that mixed balance uses one provider withdrawal without second item charge. */
 
   @Test void mixedBalanceUsesOneProviderWithdrawalWithoutSecondItemCharge() {
     try (var f = new ShippingServiceTest.Fixture(OptionalLong.of(1))) {
@@ -63,6 +80,7 @@ class CurrencyShippingTest {
       verify(f.gold, never()).setAmount(anyInt());
     }
   }
+  /** Verifies that rejected withdrawal keeps cargo even when physical gold is available. */
 
   @Test void rejectedWithdrawalKeepsCargoEvenWhenPhysicalGoldIsAvailable() {
     try (var f = new ShippingServiceTest.Fixture(OptionalLong.of(1))) {
@@ -76,6 +94,7 @@ class CurrencyShippingTest {
       verify(economy, never()).depositPlayer(any(OfflinePlayer.class), anyDouble());
     }
   }
+  /** Verifies that database failure and limit rejection refund through original provider. */
 
   @Test void databaseFailureAndLimitRejectionRefundThroughOriginalProvider() {
     for (var outcome : List.of(CompletableFuture.completedFuture(OptionalLong.empty()),
@@ -91,6 +110,7 @@ class CurrencyShippingTest {
       }
     }
   }
+  /** Verifies that disabled currency provider fails closed. */
 
   @Test void disabledCurrencyProviderFailsClosed() {
     try (var f = new ShippingServiceTest.Fixture(OptionalLong.of(1))) {
@@ -102,6 +122,7 @@ class CurrencyShippingTest {
       verify(f.playerInventory, never()).setStorageContents(any());
     }
   }
+  /** Verifies that failed refund is reported and does not mint physical gold. */
 
   @Test void failedRefundIsReportedAndDoesNotMintPhysicalGold() {
     try (var f = new ShippingServiceTest.Fixture(OptionalLong.empty())) {
@@ -114,6 +135,7 @@ class CurrencyShippingTest {
       assertTrue(f.constructed.constructed().stream().noneMatch(item -> item.getType() == org.bukkit.Material.RAW_GOLD));
     }
   }
+  /** Verifies that zero postage does not call provider which rejects zero withdrawals. */
 
   @Test void zeroPostageDoesNotCallProviderWhichRejectsZeroWithdrawals() {
     try (var f = new ShippingServiceTest.Fixture(OptionalLong.of(1))) {
@@ -125,6 +147,7 @@ class CurrencyShippingTest {
       verify(f.sounds).play(f.sender, io.enthusia.express.infrastructure.util.SoundFeedback.Cue.PACKAGE_SEND);
     }
   }
+  /** Verifies that absent currency uses physical gold only in auto mode. */
 
   @Test void absentCurrencyUsesPhysicalGoldOnlyInAutoMode() {
     for (String mode : List.of("auto", "enthusia-currency")) {
@@ -141,6 +164,7 @@ class CurrencyShippingTest {
       }
     }
   }
+  /** Verifies that refund uses original provider after registration changes. */
 
   @Test void refundUsesOriginalProviderAfterRegistrationChanges() {
     CompletableFuture<OptionalLong> pending = new CompletableFuture<>();
@@ -153,6 +177,7 @@ class CurrencyShippingTest {
       verify(replacement, never()).depositPlayer(any(OfflinePlayer.class), anyDouble());
     }
   }
+  /** Verifies that offline refund still credits the original account. */
 
   @Test void offlineRefundStillCreditsTheOriginalAccount() {
     CompletableFuture<OptionalLong> pending = new CompletableFuture<>();
@@ -165,6 +190,7 @@ class CurrencyShippingTest {
       verify(f.sender).saveData();
     }
   }
+  /** Verifies that physical mode loads without vault classes. */
 
   @Test void physicalModeLoadsWithoutVaultClasses() throws Exception {
     try (var f = new ShippingServiceTest.Fixture(OptionalLong.of(1));

@@ -22,13 +22,8 @@ class CombatLogXHookTest {
   Player player;
   CombatLogXHook hook;
 
-  public interface CombatPlugin extends Plugin {
-    CombatManager getCombatManager();
-  }
-
-  public interface CombatManager {
-    boolean isInCombat(Player player);
-  }
+  public interface CombatPlugin extends Plugin, com.github.sirblobman.combatlogx.api.ICombatLogX {}
+  public interface CombatManager extends com.github.sirblobman.combatlogx.api.manager.ICombatManager {}
 
   @BeforeEach
   void start() {
@@ -43,6 +38,51 @@ class CombatLogXHookTest {
     when(plugin.getLogger()).thenReturn(Logger.getAnonymousLogger());
     hook = new CombatLogXHook(plugin);
   }
+  /** Verifies that optional hook loads without combat log xapi classes. */
+
+  @Test
+  void optionalHookLoadsWithoutCombatLogXApiClasses() throws Exception {
+    config.set("mail.require-combatlogx", false);
+    try (var loader = new java.net.URLClassLoader(
+        new java.net.URL[] {java.nio.file.Path.of(System.getProperty("pluginJar")).toUri().toURL()},
+        getClass().getClassLoader()) {
+      @Override protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+        if (name.startsWith("com.github.sirblobman.")) throw new ClassNotFoundException(name);
+        if (name.startsWith("io.enthusia.express.infrastructure.hook.")) {
+          Class<?> type = findLoadedClass(name);
+          if (type == null) type = findClass(name);
+          if (resolve) resolveClass(type);
+          return type;
+        }
+        return super.loadClass(name, resolve);
+      }
+    }) {
+      Class<?> type = loader.loadClass("io.enthusia.express.infrastructure.hook.CombatLogXHook");
+      Object adapter = type.getConstructor(JavaPlugin.class).newInstance(plugin);
+      assertEquals(true, type.getMethod("mayUseMail", Player.class).invoke(adapter, player));
+    }
+  }
+  /** Verifies that non public published manager implementation works. */
+
+  @Test
+  void nonPublicPublishedManagerImplementationWorks() {
+    Plugin dependency = mock(Plugin.class, withSettings().extraInterfaces(
+        com.github.sirblobman.combatlogx.api.ICombatLogX.class));
+    var api = (com.github.sirblobman.combatlogx.api.ICombatLogX) dependency;
+    var combat = mock(HiddenCombatManager.class);
+    when(manager.getPlugin("CombatLogX")).thenReturn(dependency);
+    when(dependency.isEnabled()).thenReturn(true);
+    when(api.getCombatManager()).thenReturn(combat);
+    assertTrue(hook.mayUseMail(player));
+    when(combat.isInCombat(player)).thenReturn(true);
+    assertFalse(hook.mayUseMail(player));
+  }
+
+  private abstract static class HiddenCombatManager
+      implements com.github.sirblobman.combatlogx.api.manager.ICombatManager {
+    @Override public boolean isInCombat(Player player) { return false; }
+  }
+  /** Verifies that missing and disabled dependencies follow required setting. */
 
   @Test
   void missingAndDisabledDependenciesFollowRequiredSetting() {
@@ -56,6 +96,7 @@ class CombatLogXHookTest {
     config.set("mail.require-combatlogx", true);
     assertFalse(hook.mayUseMail(player));
   }
+  /** Verifies that supported api allows safe players and blocks tagged players. */
 
   @Test
   void supportedApiAllowsSafePlayersAndBlocksTaggedPlayers() {
@@ -71,6 +112,7 @@ class CombatLogXHookTest {
     config.set("mail.require-combatlogx", false);
     assertFalse(hook.mayUseMail(player));
   }
+  /** Verifies that broken api fails closed even when optional. */
 
   @Test
   void brokenApiFailsClosedEvenWhenOptional() {
@@ -80,6 +122,7 @@ class CombatLogXHookTest {
     config.set("mail.require-combatlogx", false);
     assertFalse(hook.mayUseMail(player));
   }
+  /** Verifies that invocation failure and null manager fail closed. */
 
   @Test
   void invocationFailureAndNullManagerFailClosed() {
@@ -90,6 +133,7 @@ class CombatLogXHookTest {
     when(dependency.getCombatManager()).thenThrow(new IllegalStateException("broken"));
     assertFalse(hook.mayUseMail(player));
   }
+  /** Verifies that published combat log xapi matches the hook. */
 
   @Test
   void publishedCombatLogXApiMatchesTheHook() {
@@ -106,6 +150,7 @@ class CombatLogXHookTest {
     when(combat.isInCombat(player)).thenReturn(true);
     assertFalse(hook.mayUseMail(player));
   }
+  /** Verifies that configuration bounds reject unsafe values. */
 
   @Test
   void configurationBoundsRejectUnsafeValues() {
@@ -116,6 +161,7 @@ class CombatLogXHookTest {
     config.set("mail.return-after-hours", "oops");
     assertThrows(IllegalArgumentException.class, () -> ConfigValidation.validate(config));
   }
+  /** Verifies that shipped configuration parses and new safety booleans are typed. */
 
   @Test
   void shippedConfigurationParsesAndNewSafetyBooleansAreTyped() throws Exception {

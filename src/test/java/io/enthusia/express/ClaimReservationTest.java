@@ -10,6 +10,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 class ClaimReservationTest {
   @TempDir Path directory;
+  /** Verifies that undelivered claim keeps outstanding allowance reserved. */
 
   @Test void undeliveredClaimKeepsOutstandingAllowanceReserved() {
     var file = directory.resolve("mail.db").toFile();
@@ -31,6 +32,7 @@ class ClaimReservationTest {
       a.close();
     }
   }
+  /** Verifies that delivery acknowledgment releases limit and prevents late compensation. */
 
   @Test void deliveryAcknowledgmentReleasesLimitAndPreventsLateCompensation() {
     var repo = new MailRepository(null, directory.resolve("ack.db").toFile(), 5000);
@@ -48,6 +50,7 @@ class ClaimReservationTest {
       assertTrue(repo.insertMailLimited(sender, "S", recipient, "R", MailType.PACKAGE, new byte[]{2}, 1, true).join().isPresent());
     } finally { repo.close(); }
   }
+  /** Verifies that legacy schema migrates without changing mail payloads. */
 
   @Test void legacySchemaMigratesWithoutChangingMailPayloads() throws Exception {
     var file = directory.resolve("legacy.db").toFile();
@@ -68,6 +71,7 @@ class ClaimReservationTest {
       assertTrue(migrated.confirmDelivery(id, recipient).join());
     } finally { migrated.close(); }
   }
+  /** Verifies that competing initializers serialize schema migration. */
 
   @Test void competingInitializersSerializeSchemaMigration() {
     var file = directory.resolve("shared.db").toFile();

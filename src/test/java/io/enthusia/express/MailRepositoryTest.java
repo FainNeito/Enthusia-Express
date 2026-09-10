@@ -36,6 +36,25 @@ class MailRepositoryTest {
         .insertPackage(sender, "Sender", recipient, "Recipient", new byte[] {1, 2, 3}, 4, false)
         .join();
   }
+  /** Verifies that committed insert survives auto commit reset failure. */
+
+  @Test
+  void committedInsertSurvivesAutoCommitResetFailure() throws Exception {
+    var field = MailRepository.class.getDeclaredField("connection");
+    field.setAccessible(true);
+    Connection connection = org.mockito.Mockito.spy((Connection) field.get(repository));
+    org.mockito.Mockito.doThrow(new SQLException("reset failed"))
+        .when(connection).setAutoCommit(true);
+    field.set(repository, connection);
+    var accepted = repository.insertMailLimited(sender, "Sender", recipient, "Recipient",
+        MailType.PACKAGE, new byte[] {1}, 1, true).join();
+    assertTrue(accepted.isPresent(), "A committed send must not trigger compensation");
+    assertEquals(1, repository.listInbox(recipient, MailType.PACKAGE).join().size());
+    assertTrue(repository.insertMailLimited(sender, "Sender", recipient, "Recipient",
+        MailType.PACKAGE, new byte[] {2}, 1, true).join().isEmpty());
+    assertTrue(repository.claim(accepted.getAsLong(), recipient).join());
+  }
+  /** Verifies that sqlite uses wal and persists bytes across restart. */
 
   @Test
   void sqliteUsesWalAndPersistsBytesAcrossRestart() throws Exception {
@@ -50,6 +69,7 @@ class MailRepositoryTest {
       assertEquals("wal", rs.getString(1));
     }
   }
+  /** Verifies that concurrent inserts and claims have exactly one winner. */
 
   @Test
   void concurrentInsertsAndClaimsHaveExactlyOneWinner() {
@@ -63,6 +83,7 @@ class MailRepositoryTest {
         1, claims.stream().map(CompletableFuture::join).filter(Boolean::booleanValue).count());
     assertFalse(repository.claim(ids.get(1), UUID.randomUUID()).join());
   }
+  /** Verifies that competing connections cannot duplicate claim. */
 
   @Test
   void competingConnectionsCannotDuplicateClaim() {
@@ -80,6 +101,7 @@ class MailRepositoryTest {
       other.close();
     }
   }
+  /** Verifies that return and purge respect boundaries and never overwrite claim. */
 
   @Test
   void returnAndPurgeRespectBoundariesAndNeverOverwriteClaim() {
@@ -97,6 +119,7 @@ class MailRepositoryTest {
     repository.expire(stamp + 300, Long.MAX_VALUE, Long.MAX_VALUE, 0).join();
     assertEquals(MailStatus.RETURN_CLAIMED, repository.get(id).join().status());
   }
+  /** Verifies that unclaimed return purges payload and does not loop. */
 
   @Test
   void unclaimedReturnPurgesPayloadAndDoesNotLoop() {
@@ -109,6 +132,7 @@ class MailRepositoryTest {
     assertEquals(0, repository.get(id).join().payload().length);
     assertFalse(repository.claim(id, sender).join());
   }
+  /** Verifies that claim racing expiration cannot be both returned and delivered. */
 
   @Test
   void claimRacingExpirationCannotBeBothReturnedAndDelivered() {
@@ -127,6 +151,7 @@ class MailRepositoryTest {
       other.close();
     }
   }
+  /** Verifies that texts can be reread and expire without returning. */
 
   @Test
   void textsCanBeRereadAndExpireWithoutReturning() {
@@ -145,6 +170,7 @@ class MailRepositoryTest {
     repository.expire(System.currentTimeMillis(), 0, 0, Long.MAX_VALUE).join();
     assertEquals(MailStatus.PURGED, repository.get(id).join().status());
   }
+  /** Verifies that broadcast is atomic and per recipient unread is independent. */
 
   @Test
   void broadcastIsAtomicAndPerRecipientUnreadIsIndependent() throws Exception {
@@ -176,6 +202,7 @@ class MailRepositoryTest {
     }
     assertTrue(insert() > 0); // transaction state recovered after rollback
   }
+  /** Verifies that pagination has stable order and no overlap. */
 
   @Test
   void paginationHasStableOrderAndNoOverlap() {
@@ -187,6 +214,7 @@ class MailRepositoryTest {
     assertEquals(100, ids.size());
     assertTrue(repository.listInbox(recipient, MailType.PACKAGE, 3).join().isEmpty());
   }
+  /** Verifies that graceful close drains writes and rejects new work. */
 
   @Test
   void gracefulCloseDrainsWritesAndRejectsNewWork() {
@@ -200,6 +228,7 @@ class MailRepositoryTest {
     assertTrue(writes.stream().allMatch(CompletableFuture::isDone));
     assertThrows(CompletionException.class, () -> repository.get(1).join());
   }
+  /** Verifies that failed delivery restores claim without resetting expiration. */
 
   @Test
   void failedDeliveryRestoresClaimWithoutResettingExpiration() {
@@ -211,6 +240,7 @@ class MailRepositoryTest {
     assertEquals(original.updatedAt(), repository.get(id).join().updatedAt());
     assertTrue(repository.claim(id, recipient).join());
   }
+  /** Verifies that busy timeout allows external writer to finish. */
 
   @Test
   void busyTimeoutAllowsExternalWriterToFinish() throws Exception {
@@ -224,6 +254,7 @@ class MailRepositoryTest {
       assertTrue(pending.get(5, TimeUnit.SECONDS) > 0);
     }
   }
+  /** Verifies that package limit is atomic across connections and resolved states release it. */
 
   @Test
   void packageLimitIsAtomicAcrossConnectionsAndResolvedStatesReleaseIt() {
@@ -255,6 +286,7 @@ class MailRepositoryTest {
       other.close();
     }
   }
+  /** Verifies that disabled limits allow duplicates and types and recipients are independent. */
 
   @Test
   void disabledLimitsAllowDuplicatesAndTypesAndRecipientsAreIndependent() {
@@ -279,6 +311,7 @@ class MailRepositoryTest {
             .join()
             .isPresent());
   }
+  /** Verifies that unread letter blocks but read retained history and announcements do not. */
 
   @Test
   void unreadLetterBlocksButReadRetainedHistoryAndAnnouncementsDoNot() {
@@ -306,6 +339,7 @@ class MailRepositoryTest {
             .join()
             .isPresent());
   }
+  /** Verifies that pending summary excludes claimed read and purged history. */
 
   @Test
   void pendingSummaryExcludesClaimedReadAndPurgedHistory() {
@@ -330,6 +364,7 @@ class MailRepositoryTest {
     assertEquals(new MailSummary(1, 1, 1), summary);
     assertNotNull(repository.get(packageId).join());
   }
+  /** Verifies that returned return claimed and purged packages do not block original pair. */
 
   @Test
   void returnedReturnClaimedAndPurgedPackagesDoNotBlockOriginalPair() {

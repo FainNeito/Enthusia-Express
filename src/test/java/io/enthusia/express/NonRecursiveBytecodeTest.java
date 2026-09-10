@@ -8,6 +8,7 @@ import org.objectweb.asm.*;
 
 /** Checks project bytecode calls, including lambda implementation handles. */
 class NonRecursiveBytecodeTest {
+  /** Verifies that project calls have no cycles. */
   @Test void projectCallsHaveNoCycles() throws Exception {
     Map<String, Set<String>> graph = new HashMap<>();
     try (JarFile jar = new JarFile(System.getProperty("pluginJar"))) {
@@ -36,6 +37,7 @@ class NonRecursiveBytecodeTest {
     assertTrue(graph.size() > 100, "Must inspect the compiled plugin");
     assertEquals(Set.of(), cyclicMethods(graph));
   }
+  /** Verifies that detector finds direct and indirect cycles. */
 
   @Test void detectorFindsDirectAndIndirectCycles() {
     assertEquals(Set.of("a", "b", "c"), cyclicMethods(Map.of("a", Set.of("a"), "b", Set.of("c"), "c", Set.of("b"), "d", Set.of("a"))));

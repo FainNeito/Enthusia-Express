@@ -12,6 +12,7 @@ import org.bukkit.scheduler.*;
 import org.junit.jupiter.api.Test;
 
 class MainThreadTest {
+  /** Verifies that disable waits for callbacks and their nested compensation. */
   @Test
   void disableWaitsForCallbacksAndTheirNestedCompensation() {
     JavaPlugin plugin = mock(JavaPlugin.class);

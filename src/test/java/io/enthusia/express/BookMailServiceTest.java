@@ -61,6 +61,7 @@ class BookMailServiceTest {
     sounds = mock(SoundFeedback.class);
     service = new BookMailService(plugin, repository, combat, main, sounds);
   }
+  /** Verifies that letter copies signed book and rejects duplicate pending send. */
 
   @Test
   void letterCopiesSignedBookAndRejectsDuplicatePendingSend() {
@@ -85,6 +86,7 @@ class BookMailServiceTest {
       verify(player.getInventory(), never()).setItemInMainHand(any());
     }
   }
+  /** Verifies that enabled letter limit uses atomic insert and rejects without success feedback. */
 
   @Test
   void enabledLetterLimitUsesAtomicInsertAndRejectsWithoutSuccessFeedback() {
@@ -109,6 +111,7 @@ class BookMailServiceTest {
       verifyNoInteractions(sounds);
     }
   }
+  /** Verifies that letter sound requires accepted persistence. */
 
   @Test
   void letterSoundRequiresAcceptedPersistence() {
@@ -129,6 +132,7 @@ class BookMailServiceTest {
       verify(sounds).play(player, SoundFeedback.Cue.LETTER_SEND);
     }
   }
+  /** Verifies that failed letter persistence produces no success sound. */
 
   @Test
   void failedLetterPersistenceProducesNoSuccessSound() {
@@ -150,6 +154,7 @@ class BookMailServiceTest {
       verify(player).sendMessage(contains("database-error"));
     }
   }
+  /** Verifies that ordinary player cannot publish an announcement. */
 
   @Test
   void ordinaryPlayerCannotPublishAnAnnouncement() {
@@ -158,6 +163,7 @@ class BookMailServiceTest {
     service.send(player, null, true, true);
     verifyNoInteractions(repository);
   }
+  /** Verifies that online recipient and combat and disabled feature block letters. */
 
   @Test
   void onlineRecipientAndCombatAndDisabledFeatureBlockLetters() {
@@ -171,6 +177,7 @@ class BookMailServiceTest {
     service.send(player, target, false, false);
     verifyNoInteractions(repository);
   }
+  /** Verifies that oversized or unsigned books are rejected. */
 
   @Test
   void oversizedOrUnsignedBooksAreRejected() {
@@ -180,6 +187,7 @@ class BookMailServiceTest {
     service.send(player, target, false, false);
     verifyNoInteractions(repository);
   }
+  /** Verifies that broadcast snapshots known and online recipients. */
 
   @Test
   void broadcastSnapshotsKnownAndOnlineRecipients() {

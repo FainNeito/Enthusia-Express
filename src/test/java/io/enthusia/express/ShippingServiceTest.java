@@ -28,6 +28,7 @@ import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
 
 class ShippingServiceTest {
+  /** Verifies that package sound occurs only after atomic persistence accepts. */
   @Test
   void packageSoundOccursOnlyAfterAtomicPersistenceAccepts() {
     try (Fixture accepted = new Fixture(OptionalLong.of(4))) {
@@ -49,15 +50,20 @@ class ShippingServiceTest {
     try (Fixture rejected = new Fixture(OptionalLong.empty())) {
       rejected.confirm();
       verifyNoInteractions(rejected.sounds);
-      verify(rejected.sender.getInventory(), atLeastOnce()).addItem(any(ItemStack.class));
+      verify(rejected.playerInventory).addItem(rejected.packageItem);
+      verify(rejected.playerInventory).addItem(argThat((ItemStack item) ->
+          item.getType() == Material.RAW_GOLD && item.getAmount() == 2));
     }
 
     try (Fixture failed = new Fixture(CompletableFuture.failedFuture(new SQLException("failed")))) {
       failed.confirm();
       verifyNoInteractions(failed.sounds);
-      verify(failed.sender.getInventory(), atLeastOnce()).addItem(any(ItemStack.class));
+      verify(failed.playerInventory).addItem(failed.packageItem);
+      verify(failed.playerInventory).addItem(argThat((ItemStack item) ->
+          item.getType() == Material.RAW_GOLD && item.getAmount() == 2));
     }
   }
+  /** Verifies that closing with placeholder does not return or drop it. */
 
   @Test
   void closingWithPlaceholderDoesNotReturnOrDropIt() {
@@ -70,6 +76,7 @@ class ShippingServiceTest {
       verifyNoInteractions(fixture.world);
     }
   }
+  /** Verifies that close returns only cargo and drops overflow. */
 
   @Test
   void closeReturnsOnlyCargoAndDropsOverflow() {
@@ -130,6 +137,8 @@ class ShippingServiceTest {
                 when(meta.getPersistentDataContainer()).thenReturn(pdc);
                 when(item.getItemMeta()).thenReturn(meta);
                 when(item.getType()).thenReturn((Material) context.arguments().getFirst());
+                when(item.getAmount()).thenReturn(context.arguments().size() > 1
+                    ? (Integer) context.arguments().get(1) : 1);
               });
       service = new ShippingService(plugin, repository, combat, main, sounds);
       service.open(sender, target);

@@ -108,11 +108,13 @@ class ShippingPlaceholderTest {
     when(stack.clone()).thenReturn(stack);
     return stack;
   }
+  /** Verifies that opening displays gray glass placeholder. */
 
   @Test void openingDisplaysGrayGlassPlaceholder() {
     assertNotNull(slots.get(13));
     assertEquals(Material.GRAY_STAINED_GLASS_PANE, slots.get(13).getType());
   }
+  /** Verifies that empty close discards marker without giving any item. */
 
   @Test void emptyCloseDiscardsMarkerWithoutGivingAnyItem() {
     assertNotNull(slots.get(13));
@@ -120,6 +122,7 @@ class ShippingPlaceholderTest {
     assertNull(slots.get(13));
     verify(inventory, never()).addItem(any(ItemStack.class));
   }
+  /** Verifies that ordinary package still returns on close. */
 
   @Test void ordinaryPackageStillReturnsOnClose() {
     ItemStack item = packageItem();
@@ -128,6 +131,7 @@ class ShippingPlaceholderTest {
     verify(inventory).addItem(item);
     assertNull(slots.get(13));
   }
+  /** Verifies that normal cursor deposit is cancelled then safely replaces marker. */
 
   @Test void normalCursorDepositIsCancelledThenSafelyReplacesMarker() {
     ItemStack marker = slots.get(13);
@@ -143,6 +147,7 @@ class ShippingPlaceholderTest {
     assertTrue(cursor == null || cursor.getType().isAir());
     verify(inventory, never()).addItem(any(ItemStack.class));
   }
+  /** Verifies that empty cursor and unsafe clicks never extract marker. */
 
   @Test void emptyCursorAndUnsafeClicksNeverExtractMarker() {
     ItemStack marker = slots.get(13);
@@ -154,6 +159,7 @@ class ShippingPlaceholderTest {
     assertSame(marker, slots.get(13));
     assertNull(cursor);
   }
+  /** Verifies that dragging over marker is cancelled. */
 
   @Test void draggingOverMarkerIsCancelled() {
     InventoryDragEvent event = mock(InventoryDragEvent.class);
@@ -163,6 +169,7 @@ class ShippingPlaceholderTest {
     listener.onDrag(event);
     verify(event).setCancelled(true);
   }
+  /** Verifies that stale deposit after closing cannot move cursor. */
 
   @Test void staleDepositAfterClosingCannotMoveCursor() {
     assertNotNull(slots.get(13));
@@ -174,6 +181,7 @@ class ShippingPlaceholderTest {
     assertSame(held, cursor);
     assertNull(slots.get(13));
   }
+  /** Verifies that marker cannot be submitted as package. */
 
   @Test void markerCannotBeSubmittedAsPackage() {
     assertNotNull(slots.get(13));

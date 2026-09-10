@@ -36,6 +36,7 @@ class InventorySafetyTest {
     when(meta.getItems()).thenReturn(List.of(contents));
     return item;
   }
+  /** Verifies that nested count includes nested container and its contents. */
 
   @Test
   void nestedCountIncludesNestedContainerAndItsContents() {
@@ -45,6 +46,7 @@ class InventorySafetyTest {
             bundle(item(Material.STONE, 64), bundle(item(Material.DIAMOND, 1))), 8));
     assertEquals(0, ContainerScanner.countPackedItems(bundle(), 8));
   }
+  /** Verifies that stacked containers multiply contents and reject overflow. */
 
   @Test
   void stackedContainersMultiplyContentsAndRejectOverflow() {
@@ -60,6 +62,7 @@ class InventorySafetyTest {
             ContainerScanner.countPackedItems(
                 bundle(item(Material.STONE, Integer.MAX_VALUE), item(Material.STONE, 1)), 8));
   }
+  /** Verifies that cyclic container rejects at depth limit without recursive calls. */
 
   @Test
   void cyclicContainerRejectsAtDepthLimitWithoutRecursiveCalls() {
@@ -69,6 +72,7 @@ class InventorySafetyTest {
     assertThrows(
         IllegalArgumentException.class, () -> ContainerScanner.countPackedItems(cyclic, 10_000));
   }
+  /** Verifies that shulker contents respect depth boundary and ignore empty slots. */
 
   @Test
   void shulkerContentsRespectDepthBoundaryAndIgnoreEmptySlots() {
@@ -91,6 +95,7 @@ class InventorySafetyTest {
         () -> ContainerScanner.countPackedItems(bundle(shulker), 1));
     assertEquals(0, ContainerScanner.countPackedItems(null, 1));
   }
+  /** Verifies that excessive depth rejects instead of undercharging. */
 
   @Test
   void excessiveDepthRejectsInsteadOfUndercharging() {
@@ -98,6 +103,7 @@ class InventorySafetyTest {
         IllegalArgumentException.class,
         () -> ContainerScanner.countPackedItems(bundle(bundle(item(Material.DIAMOND, 64))), 1));
   }
+  /** Verifies that bundle recognition uses metadata for colored variants. */
 
   @Test
   void bundleRecognitionUsesMetadataForColoredVariants() {
@@ -107,6 +113,7 @@ class InventorySafetyTest {
     assertFalse(ContainerScanner.isAllowedShippingContainer(null));
     assertFalse(ContainerScanner.isAllowedShippingContainer(item(Material.STONE, 1)));
   }
+  /** Verifies that shipping allows cursor pickup and rejects shift number and double clicks. */
 
   @Test
   void shippingAllowsCursorPickupAndRejectsShiftNumberAndDoubleClicks() {
@@ -131,6 +138,7 @@ class InventorySafetyTest {
       verify(event).setCancelled(click != ClickType.LEFT);
     }
   }
+  /** Verifies that drag cannot overwrite controls or extract mailbox icons. */
 
   @Test
   void dragCannotOverwriteControlsOrExtractMailboxIcons() {
@@ -158,6 +166,7 @@ class InventorySafetyTest {
     listener.onDrag(event);
     verify(event).setCancelled(true);
   }
+  /** Verifies that placeholder cannot be picked up and real cargo triggers restoration check. */
 
   @Test
   void placeholderCannotBePickedUpAndRealCargoTriggersRestorationCheck() {
@@ -200,6 +209,7 @@ class InventorySafetyTest {
     verify(remove).setCancelled(false);
     verify(shipping).deferPlaceholderRefresh(player, top);
   }
+  /** Verifies that placeholder identity requires private persistent marker. */
 
   @Test
   void placeholderIdentityRequiresPrivatePersistentMarker() {

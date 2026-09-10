@@ -117,6 +117,29 @@ class MailboxServiceTest {
     codec.close();
     bukkit.close();
   }
+  /** Verifies that delivered package queues receipt after inventory and never restores it. */
+
+  @Test
+  void deliveredPackageQueuesReceiptAfterInventoryAndNeverRestoresIt() {
+    var journal = mock(io.enthusia.express.infrastructure.db.DeliveryAcknowledgments.class);
+    when(journal.record(1, id)).thenReturn(CompletableFuture.completedFuture(null));
+    service = new MailboxService(plugin, repository, combat, main, sounds, journal);
+    MailRecord record = record(MailType.PACKAGE);
+    ItemStack stack = mock(ItemStack.class);
+    when(stack.getItemMeta()).thenReturn(mock(ItemMeta.class));
+    codec.when(() -> ItemCodec.decode(record.payload())).thenReturn(stack);
+    when(repository.claim(1, id)).thenReturn(CompletableFuture.completedFuture(true));
+    when(inventory.addItem(stack)).thenReturn(new HashMap<>());
+    open(record);
+    service.click(player, 9);
+    drain();
+    var order = inOrder(inventory, journal);
+    order.verify(inventory).addItem(stack);
+    order.verify(journal).record(1, id);
+    verify(repository, never()).restoreClaim(any());
+    verify(repository, never()).confirmDelivery(anyLong(), any());
+  }
+  /** Verifies that letters open as books and persist read without claiming. */
 
   @Test
   void lettersOpenAsBooksAndPersistReadWithoutClaiming() {
@@ -132,6 +155,7 @@ class MailboxServiceTest {
     verify(repository, never()).claim(anyLong(), any());
     verify(sounds).play(player, SoundFeedback.Cue.LETTER_OPEN);
   }
+  /** Verifies that rejected read does not produce success sound. */
 
   @Test
   void rejectedReadDoesNotProduceSuccessSound() {
@@ -145,6 +169,7 @@ class MailboxServiceTest {
     verify(player).openBook(book);
     verifyNoInteractions(sounds);
   }
+  /** Verifies that successful package delivery produces claim sound. */
 
   @Test
   void successfulPackageDeliveryProducesClaimSound() {
@@ -160,6 +185,7 @@ class MailboxServiceTest {
     verify(sounds).play(player, SoundFeedback.Cue.PACKAGE_CLAIM);
     verify(repository).confirmDelivery(1, id);
   }
+  /** Verifies that failed claim produces no success sound. */
 
   @Test
   void failedClaimProducesNoSuccessSound() {
@@ -174,6 +200,7 @@ class MailboxServiceTest {
     verifyNoInteractions(sounds);
     verify(inventory, never()).addItem(any(ItemStack.class));
   }
+  /** Verifies that announcements use the same book reader. */
 
   @Test
   void announcementsUseTheSameBookReader() {
@@ -186,6 +213,7 @@ class MailboxServiceTest {
     drain();
     verify(player).openBook(book);
   }
+  /** Verifies that disconnect during claim restores instead of losing package. */
 
   @Test
   void disconnectDuringClaimRestoresInsteadOfLosingPackage() {
@@ -205,6 +233,7 @@ class MailboxServiceTest {
     verify(repository).restoreClaim(record);
     verify(inventory, never()).addItem(any(ItemStack.class));
   }
+  /** Verifies that combat starting during read prevents opening book. */
 
   @Test
   void combatStartingDuringReadPreventsOpeningBook() {
@@ -216,6 +245,7 @@ class MailboxServiceTest {
     verify(player, never()).openBook(any(ItemStack.class));
     verify(repository, never()).markRead(anyLong(), any());
   }
+  /** Verifies that closing inbox before load prevents stale result rendering. */
 
   @Test
   void closingInboxBeforeLoadPreventsStaleResultRendering() {

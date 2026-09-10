@@ -6,6 +6,7 @@ import java.util.jar.JarFile;
 import org.junit.jupiter.api.Test;
 
 class KotlinMigrationTest {
+  /** Verifies that production source is kotlin. */
   @Test
   void productionSourceIsKotlin() throws Exception {
     try (var files = Files.walk(Path.of("src/main"))) {
@@ -17,6 +18,7 @@ class KotlinMigrationTest {
           "REQ-001: Kotlin implementation is missing");
     }
   }
+  /** Verifies that installable jar contains kotlin runtime and entry point. */
 
   @Test
   void installableJarContainsKotlinRuntimeAndEntryPoint() throws Exception {
