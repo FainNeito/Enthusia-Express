@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test
  * copying this template by hand, do the substitution manually.
  */
 class LayerRulesTest {
+    /** Verifies that all layers exist and inner layers use only allowed imports. */
 
     @Test
     fun `all layers exist and inner layers use only allowed imports`() {
@@ -33,11 +34,14 @@ class LayerRulesTest {
             files.withPackage("io.enthusia.express.$layer..").forEach { file ->
                 file.imports.forEach { imported ->
                     assertTrue(imported.name.startsWith("java.") || imported.name.startsWith("kotlin.") ||
-                        imported.name.startsWith("io.enthusia.express.domain."), "Forbidden inner-layer import: ${imported.name}")
+                        imported.name.startsWith("io.enthusia.express.domain.") ||
+                        (layer == "application" && imported.name.startsWith("io.enthusia.express.application.")),
+                        "Forbidden inner-layer import: ${imported.name}")
                 }
             }
         }
     }
+    /** Verifies that spear layer dependencies are correct. */
 
     @Test
     fun `spear layer dependencies are correct`() {
@@ -53,6 +57,7 @@ class LayerRulesTest {
                 infrastructure.dependsOn(domain, application)
             }
     }
+    /** Verifies that domain has no framework annotations or imports. */
 
     @Test
     fun `domain has no framework annotations or imports`() {
@@ -76,6 +81,3 @@ class LayerRulesTest {
             }
     }
 }
-
-
-
