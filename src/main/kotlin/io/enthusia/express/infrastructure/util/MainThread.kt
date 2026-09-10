@@ -1,3 +1,6 @@
+// Private callback contracts document thread ownership and recovery; CodeRabbit requires method documentation.
+@file:Suppress("CommentOverPrivateFunction")
+
 package io.enthusia.express.infrastructure.util
 
 import java.util.concurrent.CompletableFuture
