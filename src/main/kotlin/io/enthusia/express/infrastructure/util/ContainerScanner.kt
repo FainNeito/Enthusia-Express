@@ -7,12 +7,14 @@ import org.bukkit.inventory.meta.BlockStateMeta
 import org.bukkit.inventory.meta.BundleMeta
 
 object ContainerScanner {
+    /** Accept nonempty shulker-box or bundle item types as shipment containers. */
     @JvmStatic
     fun isAllowedShippingContainer(stack: ItemStack?): Boolean {
         if (stack == null || stack.type.isAir) return false
         return stack.type.name.endsWith("SHULKER_BOX") || stack.itemMeta is BundleMeta
     }
 
+    /** Count nested contents iteratively with checked arithmetic and a bounded nesting depth. */
     @JvmStatic
     fun countPackedItems(stack: ItemStack?, maxDepth: Int): Int {
         if (stack == null) return 0
@@ -22,15 +24,7 @@ object ContainerScanner {
         while (frames.isNotEmpty()) {
             val frame = frames.peek()
             if (frame.children.hasNext()) {
-                val child = frame.children.next() ?: continue
-                if (child.type.isAir) continue
-                val amount = child.amount
-                if (isAllowedShippingContainer(child)) {
-                    val depth = frame.depth + 1
-                    frames.push(Frame(contents(child, depth, limit), depth, amount))
-                } else {
-                    frame.total = Math.addExact(frame.total, amount)
-                }
+                visitChild(frames, limit)
             } else {
                 frames.pop()
                 if (frames.isEmpty()) return frame.total
@@ -42,6 +36,21 @@ object ContainerScanner {
         return 0
     }
 
+    /** Advance one explicit traversal frame without recursion. */
+    private fun visitChild(frames: ArrayDeque<Frame>, limit: Int) {
+        val frame = frames.peek()
+        val child = frame.children.next() ?: return
+        if (child.type.isAir) return
+        val amount = child.amount
+        if (isAllowedShippingContainer(child)) {
+            val depth = frame.depth + 1
+            frames.push(Frame(contents(child, depth, limit), depth, amount))
+        } else {
+            frame.total = Math.addExact(frame.total, amount)
+        }
+    }
+
+    /** Read a container child iterator while enforcing the nesting-depth boundary. */
     private fun contents(container: ItemStack, depth: Int, maxDepth: Int): Iterator<ItemStack?> {
         require(depth < maxDepth) { "Container nesting exceeds maximum depth" }
         val meta = container.itemMeta

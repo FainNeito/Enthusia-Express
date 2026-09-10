@@ -3,6 +3,7 @@ package io.enthusia.express.infrastructure.util
 import org.bukkit.configuration.file.FileConfiguration
 
 object ConfigValidation {
+    /** Reject invalid operational settings before registering mail handlers. */
     @JvmStatic
     fun validate(config: FileConfiguration) {
         require(config.getString("payments.provider", "auto") in setOf("auto", "physical", "enthusia-currency")) {
@@ -25,6 +26,7 @@ object ConfigValidation {
         range(config, "announcements.cooldown-seconds", 10, 0, 86400)
     }
 
+    /** Validate a configured integer within its allowed inclusive bounds. */
     private fun range(config: FileConfiguration, key: String, fallback: Long, min: Long, max: Long) {
         require(!config.contains(key) || config.isInt(key) || config.isLong(key)) { "$key must be an integer" }
         require(config.getLong(key, fallback) in min..max) { "$key must be between $min and $max" }

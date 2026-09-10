@@ -16,34 +16,43 @@ class SoundFeedback(private val plugin: JavaPlugin) {
     private val warned = HashSet<String>()
     private data class Settings(val sound: String, val volume: Float, val pitch: Float)
 
+    /** Play a configured success cue for an online player while isolating invalid sound arguments. */
     fun play(player: Player, cue: Cue) {
         if (!plugin.config.getBoolean("sounds.enabled", true)) return
         val settings = settings(cue) ?: return
         try {
             player.playSound(player.location, settings.sound, settings.volume, settings.pitch)
-        } catch (error: RuntimeException) {
+        } catch (error: IllegalArgumentException) {
             warnOnce("sounds.${cue.key}", "Could not play configured sound at sounds.${cue.key}: ${error.message}")
         }
     }
 
+    /** Validate every cue at startup without disabling unrelated valid sounds. */
     fun validate() {
         if (plugin.config.getBoolean("sounds.enabled", true)) Cue.entries.forEach { settings(it) }
     }
 
+    /** Load validated sound, volume and pitch values, returning null for disabled or invalid cues. */
     private fun settings(cue: Cue): Settings? {
         val path = "sounds.${cue.key}"
         val config = plugin.config
         val sound = (config.get("$path.sound", cue.defaultSound) as? String)?.lowercase(Locale.ROOT) ?: ""
         val volume = (config.get("$path.volume", 1.0) as? Number)?.toDouble() ?: Double.NaN
         val pitch = (config.get("$path.pitch", 1.0) as? Number)?.toDouble() ?: Double.NaN
-        if (!sound.matches(Regex("[a-z0-9._-]+:[a-z0-9/._-]+")) || !volume.isFinite() || volume < 0 ||
-            volume > Float.MAX_VALUE || !pitch.isFinite() || pitch < 0.5 || pitch > 2.0) {
+        if (!sound.matches(Regex("[a-z0-9._-]+:[a-z0-9/._-]+")) || !validVolume(volume) || !validPitch(pitch)) {
             warnOnce(path, "Invalid sound configuration at $path; feedback disabled for it.")
             return null
         }
         return Settings(sound, volume.toFloat(), pitch.toFloat())
     }
 
+    /** Accept only finite, nonnegative volumes representable as a float. */
+    private fun validVolume(value: Double) = value.isFinite() && value in 0.0..Float.MAX_VALUE.toDouble()
+
+    /** Accept only finite pitches within the supported configured range. */
+    private fun validPitch(value: Double) = value.isFinite() && value in 0.5..2.0
+
+    /** Emit each configuration diagnostic at most once. */
     private fun warnOnce(key: String, message: String) {
         if (warned.add(key)) plugin.logger?.warning(message)
     }

@@ -13,6 +13,7 @@ class MainThread(plugin: JavaPlugin) {
     private val logger = plugin.logger
     private val task = plugin.server.scheduler.runTaskTimer(plugin, Runnable { drain() }, 1, 1)
 
+    /** Track asynchronous work and enqueue its completion callback for the server thread. */
     fun <T> complete(future: CompletableFuture<T>, callback: BiConsumer<T?, Throwable?>) {
         val queued = future.handle { value, error ->
             ready.add(Runnable { callback.accept(value, error) })
@@ -21,6 +22,9 @@ class MainThread(plugin: JavaPlugin) {
         pending.add(queued)
     }
 
+    /** Run queued callbacks on the server thread while isolating individual callback failures. */
+    // Third-party callbacks may throw any runtime failure; one must not discard later refunds.
+    @Suppress("TooGenericExceptionCaught")
     private fun drain() {
         pending.removeIf { it.isDone }
         while (true) {
@@ -33,10 +37,11 @@ class MainThread(plugin: JavaPlugin) {
         }
     }
 
+    /** Wait for tracked futures and drain every completion before closing backing services. */
     fun close() {
         task.cancel()
         while (pending.isNotEmpty() || ready.isNotEmpty()) {
-            CompletableFuture.allOf(*pending.toTypedArray()).join()
+            pending.toList().forEach { it.join() }
             drain()
         }
     }
