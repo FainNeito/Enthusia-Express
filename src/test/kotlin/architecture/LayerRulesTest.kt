@@ -8,6 +8,8 @@ import com.lemonappdev.konsist.api.verify.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
+private const val APPLICATION = "application"
+
 /**
  * SPEAR layer-rule enforcement.
  *
@@ -21,8 +23,6 @@ import org.junit.jupiter.api.Test
  * `/spear:init` substitutes the detected package automatically; when
  * copying this template by hand, do the substitution manually.
  */
-private const val APPLICATION = "application"
-
 class LayerRulesTest {
     /** Verifies that all layers exist and inner layers use only allowed imports. */
 
