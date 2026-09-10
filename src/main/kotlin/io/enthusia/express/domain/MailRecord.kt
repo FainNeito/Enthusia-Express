@@ -3,31 +3,17 @@ package io.enthusia.express.domain
 import java.util.UUID
 
 data class MailRecord(
-    val id: Long,
-    val sender: UUID?,
-    val senderName: String,
-    val recipient: UUID,
-    val recipientName: String,
-    val type: MailType,
-    val status: MailStatus,
-    val payload: ByteArray,
-    val packedItemCount: Int,
-    val createdAt: Long,
-    val updatedAt: Long,
-    val unread: Boolean,
-    val returnDelivery: Boolean,
-) {
-    fun id() = id
-    fun sender() = sender
-    fun senderName() = senderName
-    fun recipient() = recipient
-    fun recipientName() = recipientName
-    fun type() = type
-    fun status() = status
-    fun payload() = payload
-    fun packedItemCount() = packedItemCount
-    fun createdAt() = createdAt
-    fun updatedAt() = updatedAt
-    fun unread() = unread
-    fun returnDelivery() = returnDelivery
-}
+    @get:JvmName("id") val id: Long,
+    @get:JvmName("sender") val sender: UUID?,
+    @get:JvmName("senderName") val senderName: String,
+    @get:JvmName("recipient") val recipient: UUID,
+    @get:JvmName("recipientName") val recipientName: String,
+    @get:JvmName("type") val type: MailType,
+    @get:JvmName("status") val status: MailStatus,
+    @get:JvmName("payload") val payload: ByteArray,
+    @get:JvmName("packedItemCount") val packedItemCount: Int,
+    @get:JvmName("createdAt") val createdAt: Long,
+    @get:JvmName("updatedAt") val updatedAt: Long,
+    @get:JvmName("unread") val unread: Boolean,
+    @get:JvmName("returnDelivery") val returnDelivery: Boolean,
+)
