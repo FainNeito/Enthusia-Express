@@ -39,3 +39,9 @@ Pinned upstream: BadgersMC/spear-plugin `2c91bae046649035f4abaa3c563f6676399e2ee
 ## Delivery reservation and CI
 
 The additive delivery_pending column reserves package capacity between a conditional claim and server-thread inventory delivery. Acknowledgment clears it; compensation is conditional on it. Startup serializes migration and bounds retries for competing WAL initializers. GitHub Actions repeats representative API test runs and the eleven-target Kotlin compile gate, publishing baseline artifacts and reports with read-only repository permissions.
+
+## Reviewed delivery recovery
+
+The delivery receipt worker owns all receipt files and serializes disk I/O outside the server thread. Inventory delivery happens first; the worker then forces receipt content to disk before clearing the SQLite reservation. It retries retained receipts every five seconds and on restart, and recognizes already acknowledged rows idempotently. Shutdown drains main-thread completions, closes the receipt worker and finally closes SQLite. Receipt replay never restores or redelivers items. An abrupt crash before durable recording remains an uncertain delivery requiring administrator reconciliation.
+
+Connection cleanup preserves a successful transaction result after commit; reset/recovery errors are logged rather than triggering shipment compensation for an already stored row. The optional CombatLogX adapter invokes the public API directly, with absent-classpath and non-public-implementation regressions. Payment failures carry the actual provider so combined currency balances retain fractional units in messages.

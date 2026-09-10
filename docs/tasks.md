@@ -1,7 +1,5 @@
 # SPEAR migration tasks
 
-
-
 - [x] **TDD-001** — Rewrite the plugin in Kotlin while preserving behavior.
 
   Tag: TDD
@@ -24,17 +22,15 @@
 
   - org.junit.jupiter.api and org.mockito: unchanged Java regression imports and installed test dependencies.
 
-  - com.lemonappdev.konsist.api.Konsist, com.lemonappdev.konsist.api.architecture.Layer, com.lemonappdev.konsist.api: upstream SPEAR templates/LayerRulesTest.kt and https://github.com/LemonAppDev/konsist/blob/main/README.md.
+  - com.lemonappdev.konsist.api.Konsist, com.lemonappdev.konsist.api.architecture.Layer, com.lemonappdev.konsist.api: upstream SPEAR templates/LayerRulesTest.kt and <https://github.com/LemonAppDev/konsist/blob/main/README.md>.
 
-  - org.jetbrains.kotlin.gradle: https://kotlinlang.org/docs/gradle-configure-project.html and https://kotlinlang.org/docs/gradle-compiler-options.html; Kotlin 2.2.21 supports this Gradle line.
+  - org.jetbrains.kotlin.gradle: <https://kotlinlang.org/docs/gradle-configure-project.html> and <https://kotlinlang.org/docs/gradle-compiler-options.html>; Kotlin 2.2.21 supports this Gradle line.
 
   - java.*, javax.*, kotlin.*: language/JDK standard APIs, verified in installed JDK sources or baseline usage; no added external runtime framework.
 
   - SPEAR: pinned upstream codex-skills/spear-{using-spear,spec,prove,engine,arch,refine}/SKILL.md, hooks/lib/state.sh, hooks/lib/ears.mjs and templates/LayerRulesTest.kt.
 
   Progress: complete. Two migration assertions failed against Java, then all 45 tests passed on three Paper API classpaths and the final clean build. All 11 Kotlin compilation targets passed. Konsist and exact-import architecture gates passed; compiled project call graph contained no detected cycles. See VERIFICATION.md and the matching XML evidence archive.
-
-
 
   Exact import evidence (verified against baseline sources and resolved JAR signatures):
 
@@ -226,10 +222,7 @@
 
   - org.jetbrains.kotlin.gradle.dsl.JvmTarget, org.jetbrains.kotlin.gradle.tasks.KotlinCompile — Kotlin Gradle plugin 2.2.21 DSL documentation and successful source-set compilation tasks.
 
-
-
   - Gradle worker limit and kotlin.daemon.jvmargs — final clean matrix exposed compiler heap pressure; two workers and a 1 GiB Kotlin heap bound concurrent compilation. Verified by the final clean build.
-
 
 - [x] **TDD-002** — Add shipping guidance, optional outstanding limits, join notices and mail sounds.
   Tag: TDD
@@ -242,7 +235,6 @@
   - Resolved Paper 1.21 API JAR and sources; JDK 21 JDBC and CompletableFuture; existing JUnit 5/Mockito test fixtures.
   - New UI items must never escape into player inventory; limits must be tested across independent writers rather than service-only prechecks.
 
-
   Progress: TDD-002 resumed 2026-09-09; 17 draft feature tests failed (work/kotlin-features-red.log). Reviewed PR #3 head 93586004ff66ec79f2e21c98992842823cae2f53 supersedes draft key names and sender-global limits. Tests migrated from byte-verified work/codacy-fix, with Kotlin and deferred-cursor regressions retained.
 
   Result: 76 tests passed, including SQLite recovery, independent writer limits, deferred marker placement, compiled call-graph audit and all three SPEAR architecture checks. Evidence: work/kotlin-reviewed-green.log and work/kotlin-reviewed-refine.log. PR #3 merged as 8ab052f6662a2218686ab853a8bf97b0e587f6a9; signed-commit protection restored.
@@ -251,7 +243,7 @@
   Tag: TDD
   References: REQ-016, REQ-017; implementation.md Thread ownership and Layer Dependency Rules.
   Evidence:
-  - https://github.com/wsg138/EnthusiaCurrency at f5626865f8b3f2e7ea8347c74e785c8c295b1249: TokenEconomy implements net.milkbowl.vault.economy.Economy; withdrawPlayer(OfflinePlayer,double) calls CurrencyService.withdrawTotal, which spends virtual bank funds first then physical currency. EconomyResponse.transactionSuccess determines success. depositPlayer credits the virtual bank, including offline refunds. getBalance can be cached; withdrawal performs the authoritative check.
+  - <https://github.com/wsg138/EnthusiaCurrency> at f5626865f8b3f2e7ea8347c74e785c8c295b1249: TokenEconomy implements net.milkbowl.vault.economy.Economy; withdrawPlayer(OfflinePlayer,double) calls CurrencyService.withdrawTotal, which spends virtual bank funds first then physical currency. EconomyResponse.transactionSuccess determines success. depositPlayer credits the virtual bank, including offline refunds. getBalance can be cached; withdrawal performs the authoritative check.
   - VaultAPI 1.7.1 POM resolved from JitPack; net.milkbowl.vault.economy.Economy and net.milkbowl.vault.economy.EconomyResponse are provided by Vault at runtime. Paper org.bukkit.plugin.ServicesManager and org.bukkit.plugin.RegisteredServiceProvider expose provider ownership for selecting EnthusiaCurrency only.
   - Existing io.enthusia.express.infrastructure.gui.ShippingService and io.enthusia.express.infrastructure.util.MainThread retain primary-thread cargo and refund ownership. JUnit org.junit.jupiter.api.Test, Mockito org.mockito.Mockito and org.mockito.MockedStatic are already resolved and running in the 76-test suite.
 
@@ -276,3 +268,40 @@
   - GitHub primary sources github.com/actions/checkout, actions/setup-java and actions/upload-artifact document checkout, Temurin Java 21 and artifact upload inputs. Their v4 tag SHAs were resolved from upstream git refs. Existing Gradle tasks build and verifyPaperCompatibility passed locally; XML reports provide executed test counts.
 
   Result: 91 tests passed on each of Paper API 1.21, 1.21.8 and 1.21.11; eleven Kotlin compile targets passed. CI uses read-only permissions and pinned action revisions. Release SHA and test totals are recorded in VERIFICATION.md and verification-summary.json. Remote CI execution is checked separately after publication.
+
+- [x] **TDD-006** — Remove offline disk scans from command suggestions.
+  Tag: TDD
+  References: REQ-020; implementation.md Thread ownership.
+  Evidence:
+  - Codacy PR 4 discussion_r3972711445 identifies Bukkit.getOfflinePlayers in tab completion. Resolved Paper API and current command source provide getOnlinePlayers/getOfflinePlayerIfCached; existing JUnit and Mockito fixtures verify interaction boundaries.
+  - Verified imports: org.junit.jupiter.api.Assertions.assertEquals, org.mockito.Mockito.*, io.enthusia.express.infrastructure.command.MailCommand, io.enthusia.express.infrastructure.gui.MailboxService, io.enthusia.express.infrastructure.gui.ShippingService, io.enthusia.express.infrastructure.hook.CombatLogXHook, io.enthusia.express.infrastructure.mail.BookMailService, java.util.List, org.bukkit.Bukkit, org.bukkit.command.Command, org.bukkit.entity.Player, org.bukkit.plugin.java.JavaPlugin, org.junit.jupiter.api.Test. All resolve on the existing tested Java 21/Paper classpath.
+
+  Result: disk-scan regression failed before the change; all 92 tests pass after it, including three architecture checks. Evidence: work/pr4-command-red.log and work/pr4-command-green.log.
+
+- [x] **INFRA-007** — Refine infrastructure and documentation from PR 4 analysis.
+  Tag: INFRA
+  References: REQ-021; implementation.md Layer Dependency Rules and Thread ownership.
+  Evidence:
+  - Codacy PR 4 annotations (work/pr4-annotations.json) and the authenticated issues page identify labeled returns, repeated checks, long handlers, parameter lists and formatting. Existing 92 tests cover SQLite, shipping, mailbox, notifications and payment recovery.
+  - Detekt 1.23.8 CLI documentation at <https://detekt.dev/docs/1.23.8/gettingstarted/cli/> and its Maven Central artifact reproduce the relevant rules locally. Kotlin standard annotations kotlin.jvm.JvmName preserve Java accessor names without redundant functions. Existing resolved Paper/JDBC APIs remain unchanged.
+
+  Result: all 92 tests pass after the refactor, including three architecture checks and compiled call-cycle analysis. The focused Detekt pass is down to one claim-completion complexity finding, which is included in TDD-008's delivery recovery split. Evidence: work/pr4-refactor-final.log and work/pr4-detekt-final.xml.
+
+- [x] **TDD-008** — Correct reviewed transaction, delivery and integration recovery paths.
+  Tag: TDD
+  References: REQ-022, REQ-023, REQ-024, REQ-025; implementation.md Thread ownership and Layer Dependency Rules.
+  Evidence:
+  - CodeRabbit PR 4 discussions r3972900440, r3972900452, r3972900468 and r3972900491 identify post-commit reset failures, delivery acknowledgment retries, non-public CombatLogX implementations and fractional currency messages.
+  - java.sql.Connection, java.sql.SQLException, java.nio.file.Files, java.nio.channels.FileChannel, java.nio.ByteBuffer, java.nio.file.StandardOpenOption, java.util.concurrent.CompletableFuture, java.util.concurrent.Executors and java.util.logging.Logger are Java 21 standard APIs. Existing real SQLite tests support fault injection without new public repository methods.
+  - com.github.sirblobman.combatlogx.api.ICombatLogX and com.github.sirblobman.combatlogx.api.manager.ICombatManager are resolved CombatLogX 11.7 API types already exercised in CombatLogXHookTest. The typed adapter remains isolated behind the optional dependency check.
+  - Existing Paper Player, Bukkit scheduler, Vault EconomyResponse and JUnit/Mockito APIs are resolved and compiled. java.math.BigDecimal.valueOf(double).stripTrailingZeros().toPlainString() preserves fractional balances in messages.
+  - Delivery retry receipts are written outside the server thread after inventory delivery, then acknowledged through the serialized mail port. Persisted receipts are replayed after restart; unknown crash-window claims are never automatically restored or redelivered.
+
+  Result: five new runtime regressions failed before the fixes, then 97 tests passed. Final refinement adds optional-classpath, mailbox-journal ordering and malformed-receipt tests; all 100 tests and all eleven Paper compilation targets pass in work/pr4-clean-matrix.log. Focused Detekt reports zero findings.
+
+- [x] **DOC-009** — Document reviewed method and regression contracts.
+  Tag: DOC
+  References: REQ-021; implementation.md Verification.
+  Evidence: CodeRabbit PR 4 pre-merge report requires 80 percent function docstring coverage. Current tested sources establish lifecycle, threading, compensation and persistence contracts; tests name their regression scenarios. Document these without changing behavior or weakening the check.
+
+  Result: documented 147 production method contracts and 100 regression tests. All 100 tests pass on Paper 1.21, 1.21.8 and 1.21.11; focused Detekt remains clear. Remote review coverage is checked independently after publication.
