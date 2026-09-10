@@ -14,11 +14,12 @@ import java.sql.Statement
 import java.util.OptionalLong
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.CompletionException
 import java.util.concurrent.Executors
 import org.bukkit.plugin.java.JavaPlugin
 import org.sqlite.SQLiteConfig
 
+// This adapter owns one serialized connection across the four small mail ports.
+@Suppress("TooManyFunctions")
 class MailRepository(
     plugin: JavaPlugin?,
     private val dbFile: File,
@@ -30,9 +31,11 @@ class MailRepository(
     private val executor = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "EnthusiaExpress-SQLite").apply { isDaemon = true }
     }
+    private val logger = plugin?.logger ?: java.util.logging.Logger.getLogger(MailRepository::class.java.name)
     private lateinit var connection: Connection
     private var closed = false
 
+    /** Create or migrate storage before accepting asynchronous mail operations. */
     override fun initialize(): CompletableFuture<Void> = run {
         Files.createDirectories(dbFile.absoluteFile.parentFile.toPath())
         Class.forName("org.sqlite.JDBC")
@@ -70,34 +73,41 @@ class MailRepository(
         }
     }
 
+    /** Store a package payload and its return-delivery state. */
     override fun insertPackage(sender: UUID?, senderName: String, recipient: UUID, recipientName: String,
                                payload: ByteArray, packedCount: Int, returnDelivery: Boolean): CompletableFuture<Long> =
         insertMail(sender, senderName, recipient, recipientName, MailType.PACKAGE, payload, packedCount, returnDelivery)
 
+    /** Store an immutable payload copy and return its generated mail identifier. */
     override fun insertMail(sender: UUID?, senderName: String, recipient: UUID, recipientName: String,
                             type: MailType, payload: ByteArray, packedCount: Int, returned: Boolean): CompletableFuture<Long> {
         val copy = payload.clone()
-        return supply { insert(sender, senderName, recipient, recipientName, type, copy, packedCount, returned) }
+        return supply { insert(InsertData(sender, senderName, recipient, recipientName, type, copy, packedCount, returned)) }
     }
 
-    private fun insert(sender: UUID?, senderName: String, recipient: UUID, recipientName: String,
-                       type: MailType, payload: ByteArray, packedCount: Int, returned: Boolean): Long {
+    private data class InsertData(
+        val sender: UUID?, val senderName: String, val recipient: UUID, val recipientName: String,
+        val type: MailType, val payload: ByteArray, val packedCount: Int, val returned: Boolean,
+    )
+
+    /** Bind a prepared mail record to the shared connection and return its generated identifier. */
+    private fun insert(data: InsertData): Long {
         val now = System.currentTimeMillis()
         val sql = "INSERT INTO" +
             " mail(sender_uuid,sender_name,recipient_uuid,recipient_name,type,status,payload,packed_item_count,created_at,updated_at,unread,return_delivery)" +
             " VALUES(?,?,?,?,?,?,?,?,?,?,1,?)"
         connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS).use { ps ->
-            ps.setString(1, sender?.toString())
-            ps.setString(2, senderName)
-            ps.setString(3, recipient.toString())
-            ps.setString(4, recipientName)
-            ps.setString(5, type.name)
-            ps.setString(6, if (returned) MailStatus.RETURNED.name else MailStatus.UNCLAIMED.name)
-            ps.setBytes(7, payload)
-            ps.setInt(8, packedCount)
+            ps.setString(1, data.sender?.toString())
+            ps.setString(2, data.senderName)
+            ps.setString(3, data.recipient.toString())
+            ps.setString(4, data.recipientName)
+            ps.setString(5, data.type.name)
+            ps.setString(6, if (data.returned) MailStatus.RETURNED.name else MailStatus.UNCLAIMED.name)
+            ps.setBytes(7, data.payload)
+            ps.setInt(8, data.packedCount)
             ps.setLong(9, now)
             ps.setLong(10, now)
-            ps.setInt(11, if (returned) 1 else 0)
+            ps.setInt(11, if (data.returned) 1 else 0)
             ps.executeUpdate()
             ps.generatedKeys.use { rs ->
                 if (!rs.next()) throw SQLException("Missing generated mail ID")
@@ -113,15 +123,17 @@ class MailRepository(
         return supply {
             inTransaction {
                 for ((recipient, recipientName) in snapshot) {
-                    insert(sender, senderName, recipient, recipientName, MailType.ANNOUNCEMENT, copy, 0, false)
+                    insert(InsertData(sender, senderName, recipient, recipientName, MailType.ANNOUNCEMENT, copy, 0, false))
                 }
                 snapshot.size
             }
         }
     }
 
+    /** Load one bounded inbox page for the requested recipient and mail type. */
     override fun listInbox(recipient: UUID, type: MailType): CompletableFuture<List<MailRecord>> = listInbox(recipient, type, 0)
 
+    /** Load one bounded inbox page for the requested recipient and mail type. */
     override fun listInbox(recipient: UUID, type: MailType, page: Int): CompletableFuture<List<MailRecord>> {
         if (page < 0 || page > 1_000_000) return CompletableFuture.failedFuture(IllegalArgumentException("Invalid page"))
         return supply {
@@ -140,6 +152,7 @@ class MailRepository(
         }
     }
 
+    /** Look up a mail row by identifier, returning null when absent. */
     override fun get(id: Long): CompletableFuture<MailRecord?> = supply {
         connection.prepareStatement("SELECT * FROM mail WHERE id=?").use { ps ->
             ps.setLong(1, id)
@@ -147,6 +160,7 @@ class MailRepository(
         }
     }
 
+    /** Reserve an eligible package once while retaining its sending allowance until delivery. */
     override fun claim(id: Long, recipient: UUID): CompletableFuture<Boolean> = supply {
         val current = connection.prepareStatement(
             "SELECT * FROM mail WHERE id=? AND recipient_uuid=? AND type='PACKAGE' AND status IN (?,?)"
@@ -156,9 +170,16 @@ class MailRepository(
             ps.setString(3, MailStatus.UNCLAIMED.name)
             ps.setString(4, MailStatus.RETURNED.name)
             ps.executeQuery().use { rs -> if (rs.next()) read(rs) else null }
-        } ?: return@supply false
+        }
+        if (current == null) false else updateClaim(current)
+    }
+
+    /** Conditionally transition the observed package into its claimed state with a held delivery reservation. */
+    private fun updateClaim(current: MailRecord): Boolean {
+        val id = current.id
+        val recipient = current.recipient
         val next = if (current.status == MailStatus.RETURNED) MailStatus.RETURN_CLAIMED else MailStatus.CLAIMED
-        connection.prepareStatement(
+        return connection.prepareStatement(
             "UPDATE mail SET status=?, unread=0, delivery_pending=1, updated_at=? WHERE id=? AND recipient_uuid=? AND status=?"
         ).use { ps ->
             ps.setString(1, next.name)
@@ -170,6 +191,7 @@ class MailRepository(
         }
     }
 
+    /** Restore an undelivered pending claim to its original status and timestamp. */
     override fun restoreClaim(record: MailRecord): CompletableFuture<Boolean> = supply {
         connection.prepareStatement(
             "UPDATE mail SET status=?, unread=1, delivery_pending=0, updated_at=? WHERE id=? AND recipient_uuid=? AND status=? AND delivery_pending=1"
@@ -195,6 +217,7 @@ class MailRepository(
         }
     }
 
+    /** Clear unread state only for eligible text mail owned by the recipient. */
     override fun markRead(id: Long, recipient: UUID): CompletableFuture<Boolean> = supply {
         connection.prepareStatement(
             "UPDATE mail SET unread=0 WHERE id=? AND recipient_uuid=? AND type IN ('LETTER','ANNOUNCEMENT') AND status='UNCLAIMED'"
@@ -235,20 +258,22 @@ class MailRepository(
     }
 
 
+    /** Atomically check the sender-recipient allowance and insert mail, returning empty when occupied. */
     override fun insertMailLimited(sender: UUID, senderName: String, recipient: UUID, recipientName: String,
                                    type: MailType, payload: ByteArray, packedCount: Int, enforceLimit: Boolean): CompletableFuture<OptionalLong> {
         if (type == MailType.ANNOUNCEMENT) return CompletableFuture.failedFuture(
             IllegalArgumentException("Announcements do not use outstanding-mail limits"))
         val copy = payload.clone()
         return supply {
-            if (!enforceLimit) OptionalLong.of(insert(sender, senderName, recipient, recipientName, type, copy, packedCount, false))
+            if (!enforceLimit) OptionalLong.of(insert(InsertData(sender, senderName, recipient, recipientName, type, copy, packedCount, false)))
             else inTransaction {
                 if (hasOutstanding(sender, recipient, type)) OptionalLong.empty()
-                else OptionalLong.of(insert(sender, senderName, recipient, recipientName, type, copy, packedCount, false))
+                else OptionalLong.of(insert(InsertData(sender, senderName, recipient, recipientName, type, copy, packedCount, false)))
             }
         }
     }
 
+    /** Check unresolved mail and pending normal-package deliveries for the same sender and recipient. */
     private fun hasOutstanding(sender: UUID, recipient: UUID, type: MailType): Boolean {
         val sql = "SELECT 1 FROM mail WHERE sender_uuid=? AND recipient_uuid=? AND type=?" +
             " AND ((status='UNCLAIMED' AND (?='PACKAGE' OR unread=1))" +
@@ -262,6 +287,7 @@ class MailRepository(
         }
     }
 
+    /** Count packages and unread text mail for a recipient notification. */
     override fun pendingMail(recipient: UUID): CompletableFuture<MailSummary> = supply {
         val sql = "SELECT" +
             " SUM(CASE WHEN type='PACKAGE' AND status IN ('UNCLAIMED','RETURNED') THEN 1 ELSE 0 END)," +
@@ -276,6 +302,7 @@ class MailRepository(
         }
     }
 
+    /** Open SQLite with immediate transactions, WAL and bounded retry for concurrent initialization. */
     private fun openConnection(): Connection {
         val deadline = System.nanoTime() + busyTimeout * 1_000_000L
         while (true) {
@@ -299,6 +326,9 @@ class MailRepository(
         }
     }
 
+    /** Commit one serialized operation or roll it back while preserving the original transaction outcome. */
+    // Roll back checked JDBC failures and unchecked task failures before reusing the connection.
+    @Suppress("TooGenericExceptionCaught")
     private fun <T> inTransaction(task: () -> T): T {
         var failure: Exception? = null
         try {
@@ -320,28 +350,39 @@ class MailRepository(
         }
     }
 
+    /** Retire a damaged connection and attempt recovery without replacing the original failure. */
+    // Recovery must not mask the original transaction outcome, including unchecked driver failures.
+    @Suppress("TooGenericExceptionCaught")
     private fun replaceFailedConnection(failure: Exception) {
         try {
             connection.close()
+        } catch (closingError: Exception) {
+            failure.addSuppressed(closingError)
+        }
+        try {
             connection = openConnection()
-        } catch (recoveryError: SQLException) {
+        } catch (recoveryError: Exception) {
+            if (recoveryError is InterruptedException) Thread.currentThread().interrupt()
             failure.addSuppressed(recoveryError)
         }
     }
 
+    /** Restore connection state without reporting an already committed transaction as a failed send. */
+    // Cleanup cannot turn an already committed send into a failure that refunds its cargo and fee.
+    @Suppress("TooGenericExceptionCaught")
     private fun restoreAutoCommit(failure: Exception?) {
         try {
             connection.autoCommit = true
-        } catch (resetError: SQLException) {
-            if (failure == null) {
-                replaceFailedConnection(resetError)
-                throw resetError
-            }
-            failure.addSuppressed(resetError)
-            replaceFailedConnection(failure)
+        } catch (resetError: Exception) {
+            val problem = failure ?: resetError
+            if (failure != null) failure.addSuppressed(resetError)
+            replaceFailedConnection(problem)
+            if (failure == null) logger.log(java.util.logging.Level.WARNING,
+                "Mail transaction committed; connection reset failed and recovery was attempted", problem)
         }
     }
 
+    /** Materialize a mail record from the current result-set row. */
     private fun read(rs: ResultSet): MailRecord {
         val sender = rs.getString("sender_uuid")
         return MailRecord(
@@ -353,18 +394,14 @@ class MailRepository(
         )
     }
 
+    /** Queue a storage operation that has no result value. */
     private fun run(task: () -> Unit): CompletableFuture<Void> = supply { task() }.thenApply { null }
 
+    /** Serialize storage work and reject submissions after shutdown. */
     @Synchronized
     private fun <T> supply(task: () -> T): CompletableFuture<T> {
         if (closed) return CompletableFuture.failedFuture(IllegalStateException("Repository is closed"))
-        return CompletableFuture.supplyAsync({
-            try {
-                task()
-            } catch (e: Exception) {
-                throw CompletionException(e)
-            }
-        }, executor)
+        return CompletableFuture.supplyAsync({ task() }, executor)
     }
 
     /** Called after main-thread completion callbacks have drained. */
