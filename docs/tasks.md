@@ -305,3 +305,13 @@
   Evidence: CodeRabbit PR 4 pre-merge report requires 80 percent function docstring coverage. Current tested sources establish lifecycle, threading, compensation and persistence contracts; tests name their regression scenarios. Document these without changing behavior or weakening the check.
 
   Result: documented 147 production method contracts and 100 regression tests. All 100 tests pass on Paper 1.21, 1.21.8 and 1.21.11; focused Detekt remains clear. Remote review coverage is checked independently after publication.
+
+- [x] **INFRA-010** — Align conflicting documentation rules and refine test-only analysis findings.
+  Tag: INFRA
+  References: REQ-021; implementation.md Verification.
+  Evidence:
+  - Published head 32495f4 passes the tested-source comparison. Codacy reports 68 CommentOverPrivateFunction findings introduced by CodeRabbit-required documentation, plus six test-only findings. Preserve method contracts and use a file-scoped exception for the conflicting documentation-style pattern without modifying the shared coding standard; retain correctness, complexity and security gates.
+  - Detekt documents CommentOverPrivateFunction as an optional style rule. CodeRabbit requires 80 percent docstring coverage. PMD documents AvoidAccessibilityAlteration; the isolated SQLite reset-failure test deliberately injects a failing connection without widening production visibility. Limit its suppression to that test with the reason recorded inline.
+  - Existing imports and layer constants need no external dependencies. Rerun the 100-test suite after test-only refactoring.
+
+  Result: clean build and all 100 tests pass in work/pr4-policy-clean-build.log. The expanded focused Detekt run, including private-comment checking and architecture tests, reports zero findings. The shared Codacy coding standard was not changed. Source-scoped exceptions cover only the documented style conflict and intentional test-only fault injection.
