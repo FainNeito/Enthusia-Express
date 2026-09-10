@@ -68,7 +68,7 @@ The configuration file includes editable messages for common results and errors.
 
 ## CombatLogX
 
-The optional reflection hook calls the published `getCombatManager().isInCombat(Player)` API. A present but incompatible or failing CombatLogX installation always blocks access, even when `require-combatlogx` is false. That option permits operation only when CombatLogX is absent/disabled. Hook errors are logged at most once a minute. Access is checked on command entry and again during mailbox callbacks and package confirmation.
+The optional typed adapter calls the published `getCombatManager().isInCombat(Player)` API. A present but incompatible or failing CombatLogX installation always blocks access, even when `require-combatlogx` is false. That option permits operation only when CombatLogX is absent/disabled. Hook errors are logged at most once a minute. Access is checked on command entry and again during mailbox callbacks and package confirmation.
 
 ## Storage and delivery behavior
 
@@ -80,15 +80,18 @@ Pending claim callbacks recheck connection, combat, permissions, death and inven
 
 Minecraft player inventory files and SQLite are separate storage systems. Sudden process termination or power loss between an inventory mutation and its database commit can still lose or duplicate items. This is not an exactly-once, crash-atomic delivery system. Graceful shutdown and concurrent database operations are covered by tests; keep backups of both player data and the plugin database together. Item payloads can contain newer Minecraft data, so do not downgrade a server/database after accepting newer items. This plugin targets ordinary Paper, not Folia.
 
-
 ## EnthusiaCurrency and package guidance
 
 Install Vault and EnthusiaCurrency alongside this plugin to use the virtual balance. With `payments.provider: auto`, one authoritative Vault withdrawal spends bank funds first, then the physical currency recognized by EnthusiaCurrency. The plugin does not charge inventory again or rely on a potentially cached balance check. Currency refunds credit the original provider's bank, including when the player disconnected. An installed but unavailable EnthusiaCurrency provider blocks payment; remove it or explicitly choose `physical` to use inventory-only payment.
 
 The shipping slot displays a gray glass pane while empty. Place the packed container there; the marker cannot become cargo or a refunded item. Cursor placement is deferred safely and rechecked against the same open inventory.
 
-A claimed package retains its sending allowance until inventory delivery is acknowledged. Failed delivery restores the original row. An interrupted process or failed acknowledgment can leave a reservation requiring administrator review; do not clear it without checking player inventory and the audit row. Invalid individual sound settings disable only their cue and log a warning.
+A claimed package retains its sending allowance until inventory delivery is acknowledged. Failed delivery restores the original row. After delivery, a receipt in `delivery-receipts/` records the acknowledgment for retry every five seconds and after restart. Back up that directory with `mail.db`. A process crash before the receipt is durable can still leave an uncertain reservation requiring administrator review; do not clear it without checking player inventory and the audit row. Invalid individual sound settings disable only their cue and log a warning.
 
 ## Pull request checks
 
 GitHub Actions runs Java 21 builds and tests on Paper API classpaths 1.21, 1.21.8 and 1.21.11, plus compilation against all eleven supported APIs. The successful baseline job publishes a testing JAR; every job publishes available test reports. CodeRabbit and Codacy remain separate review services. Local success does not imply their remote checks have finished.
+
+Player-name suggestions use online players to avoid scanning offline player files during typing. Fully typed names still use Paper's cached offline-player lookup.
+
+Existing installations should add `messages.insufficient-currency` from the shipped configuration to customize insufficient combined-balance messages. Raw Gold messages remain specific to physical payments.

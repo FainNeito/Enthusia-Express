@@ -5,19 +5,19 @@
   "gradle": "8.14.3",
   "testResults": {
     "1.21": {
-      "tests": 91,
-      "failures": 0,
-      "errors": 0,
-      "skipped": 0
-    },
-    "1.21.11": {
-      "tests": 91,
+      "tests": 100,
       "failures": 0,
       "errors": 0,
       "skipped": 0
     },
     "1.21.8": {
-      "tests": 91,
+      "tests": 100,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "1.21.11": {
+      "tests": 100,
       "failures": 0,
       "errors": 0,
       "skipped": 0
@@ -36,8 +36,9 @@
     "1.21.10",
     "1.21.11"
   ],
-  "productionKotlinFiles": 23,
-  "jarSha256": "7cd9d51193ab0134a02e73adc46507df42d090f94f9a0782e20e9de346631f5f",
+  "productionKotlinFiles": 25,
+  "jarSha256": "6450ee7c9040928fa21f960026e3fd82a2e3c4796a34e37ca2bfc205f77ad0f0",
   "liveServerTested": false,
-  "remoteChecks": "Verify the pull request checks; local results are independent."
+  "remoteChecks": "Verify checks on the final PR commit; local evidence does not establish remote status.",
+  "focusedDetektFindings": 0
 }

@@ -22,14 +22,20 @@ repositories {
     maven("https://repo.papermc.io/repository/maven-public/")
 }
 
+val combatApi = "com.github.sirblobman.combatlogx:api:11.7-SNAPSHOT"
+val combatCore = "com.github.sirblobman.api:core:2.9-SNAPSHOT"
+val vaultApi = "com.github.MilkBowl:VaultAPI:1.7.1"
+
 dependencies {
-    compileOnly("com.github.MilkBowl:VaultAPI:1.7.1") { isTransitive = false }
-    testImplementation("com.github.MilkBowl:VaultAPI:1.7.1") { isTransitive = false }
+    compileOnly(vaultApi) { isTransitive = false }
+    testImplementation(vaultApi) { isTransitive = false }
     compileOnly("io.papermc.paper:paper-api:${providers.gradleProperty("paperVersion").getOrElse("1.21")}-R0.1-SNAPSHOT")
     implementation("org.xerial:sqlite-jdbc:3.50.3.0")
     testImplementation("io.papermc.paper:paper-api:${providers.gradleProperty("paperVersion").getOrElse("1.21")}-R0.1-SNAPSHOT")
-    testImplementation("com.github.sirblobman.combatlogx:api:11.7-SNAPSHOT")
-    testImplementation("com.github.sirblobman.api:core:2.9-SNAPSHOT")
+    compileOnly(combatApi)
+    compileOnly(combatCore)
+    testImplementation(combatApi)
+    testImplementation(combatCore)
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testImplementation("org.mockito:mockito-core:5.15.2")
     testImplementation("com.lemonappdev:konsist:0.17.3")
@@ -65,7 +71,9 @@ val compatibilityTasks = supportedPaperVersions.map { paperVersion ->
     val sourceSet = sourceSets.create(name)
     kotlin.sourceSets.getByName(name).kotlin.srcDir("src/main/kotlin")
     dependencies.add(sourceSet.compileOnlyConfigurationName, "io.papermc.paper:paper-api:$paperVersion-R0.1-SNAPSHOT")
-    dependencies.add(sourceSet.compileOnlyConfigurationName, "com.github.MilkBowl:VaultAPI:1.7.1") { isTransitive = false }
+    dependencies.add(sourceSet.compileOnlyConfigurationName, combatApi)
+    dependencies.add(sourceSet.compileOnlyConfigurationName, combatCore)
+    dependencies.add(sourceSet.compileOnlyConfigurationName, vaultApi) { isTransitive = false }
     configurations.getByName(sourceSet.implementationConfigurationName).extendsFrom(configurations.implementation.get())
     tasks.named(sourceSet.getCompileTaskName("kotlin"))
 }

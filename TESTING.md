@@ -26,3 +26,6 @@ Automated checks use real SQLite databases and mocked Paper interactions. They d
 - Back up an existing database before first upgrade. Verify retained books and packages survive the additive migration. Abrupt crashes can require manual reconciliation between inventory and the delivery reservation; this is not an exactly-once crash-atomic system.
 
 Automated integration tests use real SQLite and mocked Paper/Vault services. Live behavior with your server's currency and combat plugins still needs the checks above.
+
+- Retain delivery-receipts/ with database backups. After a simulated acknowledgment failure on a disposable server, restart and verify the reservation clears without giving a second package. Unknown deliveries without a durable receipt still need manual inventory reconciliation.
+- Confirm insufficient currency messages show fractional combined balances, and tab completion performs no offline-file scan.
