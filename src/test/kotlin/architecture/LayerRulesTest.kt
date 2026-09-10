@@ -21,21 +21,23 @@ import org.junit.jupiter.api.Test
  * `/spear:init` substitutes the detected package automatically; when
  * copying this template by hand, do the substitution manually.
  */
+private const val APPLICATION = "application"
+
 class LayerRulesTest {
     /** Verifies that all layers exist and inner layers use only allowed imports. */
 
     @Test
     fun `all layers exist and inner layers use only allowed imports`() {
         val files = Konsist.scopeFromProduction().files
-        for (layer in listOf("domain", "application", "infrastructure")) {
+        for (layer in listOf("domain", APPLICATION, "infrastructure")) {
             assertTrue(files.withPackage("io.enthusia.express.$layer..").isNotEmpty(), "$layer must contain source")
         }
-        for (layer in listOf("domain", "application")) {
+        for (layer in listOf("domain", APPLICATION)) {
             files.withPackage("io.enthusia.express.$layer..").forEach { file ->
                 file.imports.forEach { imported ->
                     assertTrue(imported.name.startsWith("java.") || imported.name.startsWith("kotlin.") ||
                         imported.name.startsWith("io.enthusia.express.domain.") ||
-                        (layer == "application" && imported.name.startsWith("io.enthusia.express.application.")),
+                        (layer == APPLICATION && imported.name.startsWith("io.enthusia.express.application.")),
                         "Forbidden inner-layer import: ${imported.name}")
                 }
             }
