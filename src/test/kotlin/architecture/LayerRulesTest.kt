@@ -4,6 +4,7 @@ import com.lemonappdev.konsist.api.Konsist
 import com.lemonappdev.konsist.api.architecture.KoArchitectureCreator.assertArchitecture
 import com.lemonappdev.konsist.api.architecture.Layer
 import com.lemonappdev.konsist.api.ext.list.withPackage
+import com.lemonappdev.konsist.api.provider.KoAnnotationProvider
 import com.lemonappdev.konsist.api.verify.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -77,8 +78,14 @@ class LayerRulesTest {
             .files
             .withPackage("..domain..")
             .assertFalse { file ->
-                file.imports.any { import ->
-                    forbiddenPrefixes.any { prefix -> import.name.startsWith(prefix) }
+                val annotations = (listOf(file) + file.declarations(true, true)
+                    .filterIsInstance<KoAnnotationProvider>()).flatMap { it.annotations }
+                    .flatMap { annotation ->
+                        listOfNotNull(annotation.fullyQualifiedName,
+                            annotation.text.substringAfter('@').substringAfter(':').substringBefore('(').trim())
+                    }
+                (file.imports.map { it.name } + annotations).any { name ->
+                    forbiddenPrefixes.any { prefix -> name.startsWith("$prefix.") }
                 }
             }
     }
