@@ -95,3 +95,7 @@ GitHub Actions runs Java 21 builds and tests on Paper API classpaths 1.21, 1.21.
 Player-name suggestions use online players to avoid scanning offline player files during typing. Fully typed names still use Paper's cached offline-player lookup.
 
 Existing installations should add `messages.insufficient-currency` from the shipped configuration to customize insufficient combined-balance messages. Raw Gold messages remain specific to physical payments.
+
+## Review documentation policy
+
+Method contracts explain server-thread ownership, asynchronous completion and recovery, including private callbacks. CodeRabbit requires docstring coverage; Codacy's optional `CommentOverPrivateFunction` preference conflicts with that requirement. Files containing these contracts suppress only that documentation-style rule. Other analysis rules and quality gates remain enabled. The isolated SQLite reset-failure regression suppresses `PMD.AvoidAccessibilityAlteration` only for deliberate test fault injection; production connection visibility remains private.

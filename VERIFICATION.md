@@ -4,7 +4,7 @@ Production: 25 Kotlin files, Java 21, Kotlin 2.2.21, Gradle 8.14.3. The shaded J
 
 ## Executed checks
 
-- Clean baseline `build verifyPaperCompatibility`: passed. The final delivery JAR was rebuilt on Paper 1.21 after documentation refinement and copied before later API test runs.
+- Clean baseline `build verifyPaperCompatibility`: passed. The final delivery JAR was rebuilt with a clean Paper 1.21 build after final documentation-policy and test refinement and copied before later API test runs.
 - Paper API 1.21: 100 tests, 0 failures, 0 errors, 0 skips.
 - Paper API 1.21.11: 100 tests, 0 failures, 0 errors, 0 skips.
 - Paper API 1.21.8: 100 tests, 0 failures, 0 errors, 0 skips.
@@ -26,4 +26,4 @@ No live Paper, CombatLogX or EnthusiaCurrency server was started. Paper/Vault in
 
 The migration adds delivery_pending without changing existing payloads/statuses. Abrupt process death can leave uncertain inventory delivery or a pending reservation; inventory files and SQLite are not one atomic store. Back up player data, mail.db and delivery-receipts together. Durable receipts replay acknowledgments after restart; reconcile deliveries without a receipt before clearing uncertain reservations.
 
-JAR SHA-256: `6450ee7c9040928fa21f960026e3fd82a2e3c4796a34e37ca2bfc205f77ad0f0`
+JAR SHA-256: `b6164d65b83a63484e72e8c5586425a77e921d481714e08d8a602ce999757f74`
