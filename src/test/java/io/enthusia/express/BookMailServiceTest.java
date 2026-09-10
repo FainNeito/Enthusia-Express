@@ -31,6 +31,18 @@ class BookMailServiceTest {
   BookMeta meta;
   SoundFeedback sounds;
 
+  /** Verifies serialization failures are reported without persistence. */
+  @Test
+  void encodingFailureReportsConfiguredMessageWithoutPersistence() {
+    config.set("messages.book-too-large", "Encoding refused");
+    try (var codec = mockStatic(ItemCodec.class)) {
+      codec.when(() -> ItemCodec.encode(book)).thenThrow(new IllegalStateException("bad payload"));
+      service.send(player, target, false, false);
+      verify(player).sendMessage(contains("Encoding refused"));
+      verifyNoInteractions(repository, sounds, main);
+    }
+  }
+
   @BeforeEach
   void setup() {
     plugin = mock(JavaPlugin.class);
