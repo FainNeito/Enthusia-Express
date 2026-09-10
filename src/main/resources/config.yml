@@ -49,7 +49,8 @@ sounds:
     volume: 1.0
     pitch: 1.0
 payments:
-  # auto: use EnthusiaCurrency through Vault when installed; otherwise use physical Raw Gold.
+  # auto: use EnthusiaCurrency through Vault; use physical Raw Gold only when EnthusiaCurrency is absent.
+  # An installed but disabled currency plugin or missing Vault blocks payment until repaired.
   # enthusia-currency: require that provider. physical: always use inventory Raw Gold.
   provider: auto
 messages:
@@ -63,6 +64,7 @@ messages:
   feature-disabled: "&cThis mail feature is disabled."
   invalid-container: "&cShipments must be packed in a Shulker Box or Bundle."
   empty-container: "&cThat container is empty."
+  insufficient-currency: "&cYou need {cost} currency, but your combined balance is {have}."
   insufficient-gold: "&cYou need {cost} Raw Gold, but only have {have}."
   payment-unavailable: "&cThe currency payment provider is unavailable. Your package was not sent."
   package-sent: "&aPackage sent to {target} for {cost} Raw Gold ({items} packed items)."
