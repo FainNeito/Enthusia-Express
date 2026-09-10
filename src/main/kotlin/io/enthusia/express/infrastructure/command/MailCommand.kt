@@ -15,6 +15,16 @@ import org.bukkit.command.TabCompleter
 import org.bukkit.entity.Player
 import org.bukkit.plugin.java.JavaPlugin
 
+private const val INBOX = "inbox"
+private const val NO_PERMISSION = "no-permission"
+private const val UNKNOWN_RECIPIENT = "target-never-joined"
+
+private enum class SendAction(val key: String, val permission: String) {
+    PACKAGE("send", "enthusiaexpress.packages.send"),
+    LETTER("letter", "enthusiaexpress.letters.send"),
+    ANNOUNCE("announce", "enthusiaexpress.admin.announce")
+}
+
 class MailCommand(
     private val plugin: JavaPlugin,
     private val shipping: ShippingService,
@@ -22,81 +32,81 @@ class MailCommand(
     private val combatHook: CombatLogXHook,
     private val books: BookMailService,
 ) : CommandExecutor, TabCompleter {
+    /** Validate the player command context and dispatch one supported mail action. */
     override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<String>): Boolean {
-        if (sender !is Player) {
-            sender.sendMessage("Players only.")
-            return true
-        }
-        if (!sender.hasPermission("enthusiaexpress.use")) {
-            sender.sendMessage(Text.msg(plugin.config, "no-permission"))
-            return true
-        }
-        if (!combatHook.mayUseMail(sender)) {
-            sender.sendMessage(Text.msg(plugin.config, if (combatHook.isAvailable()) "combat-blocked" else "combatlogx-missing"))
-            return true
-        }
-        if (args.isEmpty() || args[0].equals("inbox", true)) {
-            val type = if (args.size >= 2) when (args[1].lowercase(Locale.ROOT)) {
-                "letters", "letter" -> MailType.LETTER
-                "announcements", "announcement", "admin" -> MailType.ANNOUNCEMENT
-                else -> MailType.PACKAGE
-            } else MailType.PACKAGE
-            mailbox.open(sender, type)
-            return true
-        }
-        if (args[0].equals("announce", true) && args.size == 2 && args[1].equals("all", true)) {
-            books.send(sender, null, true, true)
-            return true
-        }
-        if (args[0].lowercase(Locale.ROOT) in listOf("send", "letter", "announce")) {
-            val permission = when (args[0].lowercase(Locale.ROOT)) {
-                "letter" -> "enthusiaexpress.letters.send"
-                "announce" -> "enthusiaexpress.admin.announce"
-                else -> "enthusiaexpress.packages.send"
-            }
-            if (!sender.hasPermission(permission)) {
-                sender.sendMessage(Text.msg(plugin.config, "no-permission"))
-                return true
-            }
-            if (args.size != 2) {
-                sender.sendMessage("\u00a7eUsage: /mail <send|letter|announce> <player> (announce also accepts all)")
-                return true
-            }
-            val target = Bukkit.getOfflinePlayerIfCached(args[1])
-            if (target == null || (!target.hasPlayedBefore() && !target.isOnline)) {
-                sender.sendMessage(Text.msg(plugin.config, "target-never-joined"))
-                return true
-            }
-            if (!args[0].equals("announce", true) && target.uniqueId == sender.uniqueId) {
-                sender.sendMessage("\u00a7cYou cannot mail yourself.")
-                return true
-            }
-            if (args[0].equals("send", true)) shipping.open(sender, target)
-            else books.send(sender, target, args[0].equals("announce", true), false)
-            return true
-        }
-        sender.sendMessage("\u00a7e/mail send <OfflinePlayer> \u00a77or \u00a7e/mail inbox [packages|letters|announcements]")
+        if (sender !is Player) sender.sendMessage("Players only.")
+        else if (validateAccess(sender)) dispatch(sender, args)
         return true
     }
 
-    override fun onTabComplete(sender: CommandSender, command: Command, alias: String, args: Array<String>): List<String> {
-        if (args.size == 1) return listOf("send", "inbox", "letter", "announce")
-            .filter { it != "announce" || sender.hasPermission("enthusiaexpress.admin.announce") }
-            .filter { it.startsWith(args[0].lowercase(Locale.ROOT)) }
-        if (args.size == 2 && args[0].equals("inbox", true)) return listOf("packages", "letters", "announcements")
-        if (args.size == 2 && args[0].lowercase(Locale.ROOT) in listOf("send", "letter", "announce")) {
-            if (args[0].equals("announce", true) && !sender.hasPermission("enthusiaexpress.admin.announce")) return emptyList()
-            val partial = args[1].lowercase(Locale.ROOT)
-            val names = ArrayList<String>()
-            if (args[0].equals("announce", true) && "all".startsWith(partial)) names.add("all")
-            for (player in Bukkit.getOfflinePlayers()) {
-                if (!args[0].equals("announce", true) && player.isOnline) continue
-                val name = player.name ?: continue
-                if (name.lowercase(Locale.ROOT).startsWith(partial)) names.add(name)
-                if (names.size >= 20) break
-            }
-            return names
+    /** Reject non-player or unauthorized use before any mail UI or persistence operation. */
+    private fun validateAccess(sender: Player): Boolean {
+        val rejection = when {
+            !sender.hasPermission("enthusiaexpress.use") -> NO_PERMISSION
+            combatHook.mayUseMail(sender) -> null
+            combatHook.isAvailable() -> "combat-blocked"
+            else -> "combatlogx-missing"
         }
-        return emptyList()
+        if (rejection != null) sender.sendMessage(Text.msg(plugin.config, rejection))
+        return rejection == null
+    }
+
+    /** Route an authorized command to inbox, package, letter or announcement handling. */
+    private fun dispatch(sender: Player, args: Array<String>) {
+        val subcommand = args.firstOrNull()?.lowercase(Locale.ROOT) ?: INBOX
+        if (subcommand == INBOX) mailbox.open(sender, inboxType(args.getOrNull(1)))
+        else {
+            val action = SendAction.entries.firstOrNull { it.key == subcommand }
+            if (action == null) sender.sendMessage("§e/mail send <OfflinePlayer> §7or §e/mail inbox [packages|letters|announcements]")
+            else send(sender, action, args)
+        }
+    }
+
+    /** Map an inbox argument to a supported mail category. */
+    private fun inboxType(category: String?): MailType = when (category?.lowercase(Locale.ROOT)) {
+        "letters", SendAction.LETTER.key -> MailType.LETTER
+        "announcements", "announcement", "admin" -> MailType.ANNOUNCEMENT
+        else -> MailType.PACKAGE
+    }
+
+    /** Validate send arguments and resolve broadcast or recipient delivery. */
+    private fun send(sender: Player, action: SendAction, args: Array<String>) {
+        if (!sender.hasPermission(action.permission)) sender.sendMessage(Text.msg(plugin.config, NO_PERMISSION))
+        else if (args.size != 2) sender.sendMessage("§eUsage: /mail <send|letter|announce> <player> (announce also accepts all)")
+        else if (action == SendAction.ANNOUNCE && args[1].equals("all", true)) books.send(sender, null, true, true)
+        else sendToRecipient(sender, action, args[1])
+    }
+
+    /** Resolve a known player from Paper cache and pass the send request to its service. */
+    private fun sendToRecipient(sender: Player, action: SendAction, name: String) {
+        val target = Bukkit.getOfflinePlayerIfCached(name)
+        when {
+            target == null -> sender.sendMessage(Text.msg(plugin.config, UNKNOWN_RECIPIENT))
+            !target.hasPlayedBefore() && !target.isOnline -> sender.sendMessage(Text.msg(plugin.config, UNKNOWN_RECIPIENT))
+            action != SendAction.ANNOUNCE && target.uniqueId == sender.uniqueId -> sender.sendMessage("§cYou cannot mail yourself.")
+            action == SendAction.PACKAGE -> shipping.open(sender, target)
+            else -> books.send(sender, target, action == SendAction.ANNOUNCE, false)
+        }
+    }
+
+    /** Suggest permitted commands and online names without enumerating offline player files. */
+    override fun onTabComplete(sender: CommandSender, command: Command, alias: String, args: Array<String>): List<String> =
+        when (args.size) {
+            1 -> (SendAction.entries.filter { sender.hasPermission(it.permission) }.map { it.key } + INBOX)
+                .filter { it.startsWith(args[0].lowercase(Locale.ROOT)) }
+            2 -> argumentSuggestions(sender, args)
+            else -> emptyList()
+        }
+
+    /** Return matching inbox categories or online recipient names, capped at twenty results. */
+    private fun argumentSuggestions(sender: CommandSender, args: Array<String>): List<String> {
+        if (args[0].equals(INBOX, true)) return listOf("packages", "letters", "announcements")
+        val action = SendAction.entries.firstOrNull { it.key.equals(args[0], true) } ?: return emptyList()
+        if (!sender.hasPermission(action.permission)) return emptyList()
+        val partial = args[1].lowercase(Locale.ROOT)
+        val broadcast = if (action == SendAction.ANNOUNCE && "all".startsWith(partial)) listOf("all") else emptyList()
+        // Online names require no player-file enumeration. Offline names can still be entered explicitly.
+        return (broadcast + Bukkit.getOnlinePlayers().map { it.name }
+            .filter { it.lowercase(Locale.ROOT).startsWith(partial) }).take(20)
     }
 }
