@@ -5,19 +5,19 @@
   "gradle": "8.14.3",
   "testResults": {
     "1.21": {
-      "tests": 100,
+      "tests": 102,
       "failures": 0,
       "errors": 0,
       "skipped": 0
     },
     "1.21.8": {
-      "tests": 100,
+      "tests": 102,
       "failures": 0,
       "errors": 0,
       "skipped": 0
     },
     "1.21.11": {
-      "tests": 100,
+      "tests": 102,
       "failures": 0,
       "errors": 0,
       "skipped": 0
@@ -37,7 +37,7 @@
     "1.21.11"
   ],
   "productionKotlinFiles": 25,
-  "jarSha256": "b6164d65b83a63484e72e8c5586425a77e921d481714e08d8a602ce999757f74",
+  "jarSha256": "7da603284997de3c5331dca1e8f457779b71e9d5cab771fb6920c118384d9b0a",
   "liveServerTested": false,
   "remoteChecks": "Verify checks on the final PR commit; local evidence does not establish remote status.",
   "focusedDetektFindings": 0

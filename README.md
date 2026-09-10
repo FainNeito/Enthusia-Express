@@ -92,7 +92,7 @@ A claimed package retains its sending allowance until inventory delivery is ackn
 
 GitHub Actions runs Java 21 builds and tests on Paper API classpaths 1.21, 1.21.8 and 1.21.11, plus compilation against all eleven supported APIs. The successful baseline job publishes a testing JAR; every job publishes available test reports. CodeRabbit and Codacy remain separate review services. Local success does not imply their remote checks have finished.
 
-Player-name suggestions use online players to avoid scanning offline player files during typing. Fully typed names still use Paper's cached offline-player lookup.
+Player-name suggestions use online players to avoid scanning offline player files during typing. Fully typed names use Paper's cached lookup first, then resolve a missing UUID on a scheduler worker. The result must still belong to a player who has joined this server, and the sender session is rechecked before opening mail.
 
 Existing installations should add `messages.insufficient-currency` from the shipped configuration to customize insufficient combined-balance messages. Raw Gold messages remain specific to physical payments.
 
