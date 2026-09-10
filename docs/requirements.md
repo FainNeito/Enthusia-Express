@@ -52,7 +52,7 @@ WHEN a player opens shipping THE SYSTEM SHALL display a gray glass package-slot 
 
 ## REQ-013 — Outstanding sending limits
 
-WHERE single-outstanding limits are enabled WHEN a sender submits mail THE SYSTEM SHALL atomically allow at most one outstanding letter and one outstanding package per sender/recipient pair, releasing letters when read and packages when claimed, returned or purged.
+WHERE single-outstanding limits are enabled WHEN a sender submits mail THE SYSTEM SHALL atomically allow at most one outstanding letter and one outstanding package per sender/recipient pair, releasing letters when read and packages only after delivery acknowledgment, return or purge. A claim with delivery_pending = 1 shall retain its reservation; failed-delivery compensation shall restore the original outstanding package.
 
 ## REQ-014 — Join notification
 
@@ -101,3 +101,11 @@ When an enabled CombatLogX implementation implements its published API through a
 ## REQ-025
 
 When EnthusiaCurrency rejects postage for insufficient funds, the plugin shall display the currency balance without truncating fractional units or describing it as physical Raw Gold.
+
+## REQ-026
+
+WHEN book serialization fails THE SYSTEM SHALL log the player identity and cause, send the configured failure message and skip persistence.
+
+## REQ-027
+
+WHEN a known recipient is absent from the runtime cache THE SYSTEM SHALL resolve its UUID without blocking the server thread and revalidate the sender session before sending.
