@@ -3,6 +3,7 @@
 
 package io.enthusia.express.infrastructure.command
 
+import io.enthusia.express.infrastructure.mail.MailBlockService
 import io.enthusia.express.domain.MailType
 import io.enthusia.express.infrastructure.gui.MailboxService
 import io.enthusia.express.infrastructure.gui.ShippingService
@@ -24,6 +25,7 @@ import org.bukkit.command.TabCompleter
 import org.bukkit.entity.Player
 import org.bukkit.plugin.java.JavaPlugin
 
+private const val BLOCK_PERMISSION = "enthusiaexpress.block"
 private const val INBOX = "inbox"
 private const val SENT = "sent"
 private const val NO_PERMISSION = "no-permission"
@@ -32,16 +34,21 @@ private const val UNKNOWN_RECIPIENT = "target-never-joined"
 private enum class SendAction(val key: String, val permission: String) {
     PACKAGE("send", "enthusiaexpress.packages.send"),
     LETTER("letter", "enthusiaexpress.letters.send"),
-    ANNOUNCE("announce", "enthusiaexpress.admin.announce")
+    ANNOUNCE("announce", "enthusiaexpress.admin.announce"),
+    BLOCK("block", BLOCK_PERMISSION),
+    UNBLOCK("unblock", BLOCK_PERMISSION)
 }
 
-class MailCommand(
+// Preserve existing JVM constructors while injecting the independent block-command service.
+@Suppress("LongParameterList")
+class MailCommand @JvmOverloads constructor(
     private val plugin: JavaPlugin,
     private val shipping: ShippingService,
     private val mailbox: MailboxService,
     private val combatHook: CombatLogXHook,
     private val books: BookMailService,
     private val main: MainThread,
+    private val blocking: MailBlockService? = null,
 ) : CommandExecutor, TabCompleter {
     val recipientNames = RecipientNames()
     private val resolving = HashSet<UUID>()
@@ -68,6 +75,7 @@ class MailCommand(
     private fun dispatch(sender: Player, args: Array<String>) {
         val subcommand = args.firstOrNull()?.lowercase(Locale.ROOT) ?: INBOX
         if (subcommand == INBOX) mailbox.open(sender, inboxType(args.getOrNull(1)))
+        else if (subcommand == "blocked") blocking?.list(sender, args.getOrNull(1)?.toIntOrNull() ?: if (args.size == 1) 1 else 0)
         else if (subcommand == SENT) mailbox.openSent(sender, inboxType(args.getOrNull(1)))
         else {
             val action = SendAction.entries.firstOrNull { it.key == subcommand }
@@ -86,7 +94,7 @@ class MailCommand(
     /** Validate send arguments and resolve broadcast or recipient delivery. */
     private fun send(sender: Player, action: SendAction, args: Array<String>) {
         if (!sender.hasPermission(action.permission)) sender.sendMessage(Text.msg(plugin.config, NO_PERMISSION))
-        else if (args.size != 2) sender.sendMessage("§eUsage: /mail <send|letter|announce> <player> (announce also accepts all)")
+        else if (args.size != 2) sender.sendMessage("§eUsage: /mail <send|letter|announce|block|unblock> <player> (announce also accepts all)")
         else if (action == SendAction.ANNOUNCE && args[1].equals("all", true)) books.send(sender, null, true, true)
         else sendToRecipient(sender, action, args[1])
     }
@@ -120,6 +128,7 @@ class MailCommand(
             target == null -> sender.sendMessage(Text.msg(plugin.config, UNKNOWN_RECIPIENT))
             !target.hasPlayedBefore() && !target.isOnline -> sender.sendMessage(Text.msg(plugin.config, UNKNOWN_RECIPIENT))
             action != SendAction.ANNOUNCE && target.uniqueId == sender.uniqueId -> sender.sendMessage("§cYou cannot mail yourself.")
+            action in setOf(SendAction.BLOCK, SendAction.UNBLOCK) -> blocking?.change(sender, target, action == SendAction.BLOCK)
             action == SendAction.PACKAGE -> shipping.open(sender, target)
             else -> books.send(sender, target, action == SendAction.ANNOUNCE, false)
         }
@@ -128,7 +137,7 @@ class MailCommand(
     /** Suggest permitted commands and cached names without enumerating offline player files. */
     override fun onTabComplete(sender: CommandSender, command: Command, alias: String, args: Array<String>): List<String> =
         when (args.size) {
-            1 -> (SendAction.entries.filter { sender.hasPermission(it.permission) }.map { it.key } + listOf(INBOX, SENT))
+            1 -> (SendAction.entries.filter { sender.hasPermission(it.permission) }.map { it.key } + listOf(INBOX, SENT) + if (sender.hasPermission(BLOCK_PERMISSION)) listOf("blocked") else emptyList())
                 .filter { it.startsWith(args[0].lowercase(Locale.ROOT)) }
             2 -> argumentSuggestions(sender, args)
             else -> emptyList()
