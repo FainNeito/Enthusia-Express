@@ -54,6 +54,34 @@ payments:
   # An installed but disabled currency plugin or missing Vault blocks payment until repaired.
   # enthusia-currency: require that provider. physical: always use inventory Raw Gold.
   provider: auto
+gui:
+  nexo:
+    # Opt-in. Nexo supplies assets and its resource pack; absent/unloaded items use vanilla icons.
+    enabled: false
+    # Nexo glyph/shift tags require its inventory-title packet formatting.
+    # Keep one mailbox title for all categories to preserve cursor position.
+    titles:
+      mailbox: ""
+      shipping: ""
+    icons:
+      mailbox:
+        packages: ""
+        packages-selected: ""
+        letters: ""
+        letters-selected: ""
+        announcements: ""
+        announcements-selected: ""
+        previous: ""
+        next: ""
+        inbox: ""
+        sent: ""
+        page: ""
+      shipping:
+        cancel: ""
+        recipient: ""
+        quote: ""
+        confirm: ""
+        placeholder: ""
 messages:
   prefix: "&6[Enthusia Express]&r "
   letter-target-online: "&eThere is no need to send a letter: that player is currently online."
@@ -78,6 +106,9 @@ messages:
   join-mail-packages: "&eYou've got mail! You have {count} {noun} for pickup. Use /mail inbox packages to claim!"
   join-mail-letters: "&eYou've got mail! You have {count} {noun} for pickup. Use /mail inbox letters to read!"
   join-mail-announcements: "&eYou've got mail! You have {count} {noun} for pickup. Use /mail inbox announcements to read!"
+  recipient-not-accepting: "&cThat player is not accepting your mail."
+  player-blocked: "&aBlocked mail from {player}."
+  player-unblocked: "&aUnblocked mail from {player}."
   sent-empty: "&7No sent mail on this page."
   mailbox-empty: "&7No mail on this page."
   hold-signed-book: "&cHold a signed written book in your main hand. A copy will be sent."
