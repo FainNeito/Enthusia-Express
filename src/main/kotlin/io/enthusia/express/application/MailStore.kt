@@ -37,6 +37,8 @@ interface MailWrites {
 }
 
 interface MailQueries {
+    /** Load sender-owned history, including claimed, returned and expired entries. */
+    fun listSent(sender: UUID, type: MailType, page: Int): CompletableFuture<List<io.enthusia.express.domain.SentMailRecord>>
     /** Count packages and unread text mail for a recipient notification. */
     fun pendingMail(recipient: UUID): CompletableFuture<MailSummary>
     /** Load one bounded inbox page for the requested recipient and mail type. */
