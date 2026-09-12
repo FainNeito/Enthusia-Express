@@ -43,6 +43,15 @@ class BookMailServiceTest {
     }
   }
 
+  /** An online letter recipient receives an explanation specific to letters. */
+  @Test
+  void onlineRecipientExplainsThatLetterIsUnnecessary() {
+    when(target.isOnline()).thenReturn(true);
+    service.send(player, target, false, false);
+    verify(player).sendMessage(contains("no need to send a letter"));
+    verifyNoInteractions(repository);
+  }
+
   @BeforeEach
   void setup() {
     plugin = mock(JavaPlugin.class);

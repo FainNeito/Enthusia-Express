@@ -28,6 +28,43 @@ import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
 
 class ShippingServiceTest {
+  /** A changed fee must be shown and confirmed again before charging. */
+  @Test
+  void changedPostageRequiresANewConfirmation() {
+    try (Fixture f = new Fixture(OptionalLong.of(1))) {
+      f.service.confirm(f.sender, f.top);
+      f.plugin.getConfig().set("mail.raw-gold-per-item", 3);
+      f.service.confirm(f.sender, f.top);
+      verifyNoInteractions(f.repository);
+      verify(f.playerInventory, never()).setStorageContents(any());
+      verify(f.sender).sendMessage(contains("6 Raw Gold"));
+    }
+  }
+
+  /** Swapping cargo invalidates the quote even when its item count and price match. */
+  @Test
+  void changedCargoRequiresANewConfirmation() {
+    try (Fixture f = new Fixture(OptionalLong.of(1))) {
+      f.service.confirm(f.sender, f.top);
+      f.codec.when(() -> ItemCodec.encode(f.packageItem)).thenReturn(new byte[] {9, 8});
+      f.service.confirm(f.sender, f.top);
+      verifyNoInteractions(f.repository);
+      verify(f.playerInventory, never()).setStorageContents(any());
+      verify(f.sender, times(2)).sendMessage(contains("Click Send package to confirm"));
+    }
+  }
+
+  /** A first click quotes postage and never charges or persists cargo. */
+  @Test
+  void firstClickQuotesBeforeCharging() {
+    try (Fixture f = new Fixture(OptionalLong.of(1))) {
+      f.service.confirm(f.sender, f.top);
+      verifyNoInteractions(f.repository);
+      verify(f.playerInventory, never()).setStorageContents(any());
+      verify(f.sender).sendMessage(contains("2 Raw Gold"));
+    }
+  }
+
   /** Verifies that package sound occurs only after atomic persistence accepts. */
   @Test
   void packageSoundOccursOnlyAfterAtomicPersistenceAccepts() {
@@ -194,6 +231,7 @@ class ShippingServiceTest {
     }
 
     void confirm() {
+      service.confirm(sender, top);
       service.confirm(sender, top);
     }
 

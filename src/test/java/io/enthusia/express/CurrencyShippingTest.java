@@ -18,6 +18,19 @@ import org.bukkit.plugin.*;
 import org.junit.jupiter.api.Test;
 
 class CurrencyShippingTest {
+  /** A virtual-currency quote is visible before the provider is asked to withdraw. */
+  @Test
+  void currencyQuotePrecedesWithdrawal() {
+    try (var f = new ShippingServiceTest.Fixture(OptionalLong.of(1))) {
+      Economy economy = install(f);
+      f.service.confirm(f.sender, f.top);
+      verify(f.sender).sendMessage(contains("2 currency"));
+      verifyNoInteractions(economy, f.repository);
+      f.service.confirm(f.sender, f.top);
+      verify(economy).withdrawPlayer((OfflinePlayer) f.sender, 2.0);
+    }
+  }
+
   private Economy install(ShippingServiceTest.Fixture f) {
     f.plugin.getConfig().set("payments.provider", "auto");
     PluginManager manager = mock(PluginManager.class);

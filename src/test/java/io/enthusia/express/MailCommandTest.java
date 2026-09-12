@@ -25,6 +25,25 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.junit.jupiter.api.Test;
 
 class MailCommandTest {
+    /** Offline names are available without reading player files during completion. */
+    @Test
+    void knownOfflineNamesAreSuggestedFromStartupSnapshot() {
+        try (var bukkit = mockStatic(Bukkit.class)) {
+            OfflinePlayer target = mock(OfflinePlayer.class);
+            when(target.getName()).thenReturn("OfflineAlice");
+            bukkit.when(Bukkit::getOfflinePlayers).thenReturn(new OfflinePlayer[] {target});
+            bukkit.when(Bukkit::getOnlinePlayers).thenReturn(List.of());
+            Player sender = mock(Player.class);
+            when(sender.hasPermission(anyString())).thenReturn(true);
+            MailCommand command = new MailCommand(mock(JavaPlugin.class), mock(ShippingService.class),
+                    mock(MailboxService.class), mock(CombatLogXHook.class), mock(BookMailService.class), mock(MainThread.class));
+            bukkit.clearInvocations();
+            assertEquals(List.of("OfflineAlice"), command.onTabComplete(sender, mock(Command.class), "mail",
+                    new String[] {"letter", "off"}));
+            bukkit.verify(Bukkit::getOfflinePlayers, never());
+        }
+    }
+
     /** Verifies a cache miss schedules UUID lookup before opening shipping. */
     @Test
     void uncachedKnownRecipientResolvesAwayFromCommandDispatch() {
@@ -78,9 +97,10 @@ class MailCommandTest {
             when(sender.hasPermission("enthusiaexpress.admin.announce")).thenReturn(true);
             when(target.getName()).thenReturn("Alice");
             bukkit.when(Bukkit::getOnlinePlayers).thenReturn(List.of(target));
-            bukkit.when(Bukkit::getOfflinePlayers).thenThrow(new AssertionError("Disk scan during completion"));
             MailCommand command = new MailCommand(mock(JavaPlugin.class), mock(ShippingService.class),
                     mock(MailboxService.class), mock(CombatLogXHook.class), mock(BookMailService.class), mock(MainThread.class));
+            bukkit.clearInvocations();
+            bukkit.when(Bukkit::getOfflinePlayers).thenThrow(new AssertionError("Disk scan during completion"));
             assertEquals(List.of("all", "Alice"), command.onTabComplete(sender, mock(Command.class), "mail",
                     new String[] {"announce", "al"}));
             bukkit.verify(Bukkit::getOfflinePlayers, never());

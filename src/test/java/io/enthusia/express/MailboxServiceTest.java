@@ -39,6 +39,18 @@ class MailboxServiceTest {
   MockedConstruction<ItemStack> icons;
   List<Runnable> callbacks;
 
+  /** Navigation must not close or reopen the active inventory. */
+  @Test
+  void navigationKeepsTheSameInventoryOpen() {
+    when(repository.listInbox(any(), any(), anyInt())).thenReturn(CompletableFuture.completedFuture(List.of()));
+    service.open(player, MailType.PACKAGE);
+    clearInvocations(player);
+    service.click(player, 4);
+    verify(player, never()).closeInventory();
+    verify(player, never()).openInventory(any(Inventory.class));
+    verify(top).clear();
+  }
+
   @SuppressWarnings("unchecked")
   @BeforeEach
   void setup() {

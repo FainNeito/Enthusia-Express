@@ -29,7 +29,6 @@ class NotificationAndSoundTest {
     Player player = mock(Player.class);
     UUID id = UUID.randomUUID();
     YamlConfiguration config = new YamlConfiguration();
-    config.set("messages.join-mail", "{packages}/{letters}/{announcements}/{total}");
     when(plugin.getConfig()).thenReturn(config);
     when(plugin.getLogger()).thenReturn(Logger.getAnonymousLogger());
     when(player.getUniqueId()).thenReturn(id);
@@ -48,8 +47,15 @@ class NotificationAndSoundTest {
     service.onJoin(mockJoin(player));
     try (var bukkit = mockStatic(Bukkit.class)) {
       bukkit.when(() -> Bukkit.getPlayer(id)).thenReturn(player);
-      callback[0].accept(new MailSummary(1, 2, 3), null);
-      verify(player).sendMessage("1/2/3/6");
+      callback[0].accept(new MailSummary(1, 0, 0), null);
+      verify(player).sendMessage(contains("1 package for pickup. Use /mail inbox packages to claim!"));
+      verify(player, never()).sendMessage(contains("0 letters"));
+      verify(player, never()).sendMessage(contains("0 announcements"));
+      clearInvocations(player);
+      callback[0].accept(new MailSummary(0, 2, 1), null);
+      verify(player).sendMessage(contains("2 letters for pickup. Use /mail inbox letters to read!"));
+      verify(player).sendMessage(contains("1 announcement for pickup. Use /mail inbox announcements to read!"));
+      verify(player, never()).sendMessage(contains("packages"));
       clearInvocations(player);
       bukkit.when(() -> Bukkit.getPlayer(id)).thenReturn(mock(Player.class));
       callback[0].accept(new MailSummary(1, 0, 0), null);
