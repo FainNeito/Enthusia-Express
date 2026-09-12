@@ -66,12 +66,17 @@ class MailRepository(
                 )
                 st.execute("CREATE INDEX IF NOT EXISTS idx_mail_recipient_status ON mail(recipient_uuid, status, type)")
                 st.execute("CREATE INDEX IF NOT EXISTS idx_mail_expiration ON mail(status, updated_at)")
+                st.execute("CREATE INDEX IF NOT EXISTS idx_mail_sent ON mail(sender_uuid, type, created_at DESC, id DESC)")
                 val columns = HashSet<String>()
                 st.executeQuery("PRAGMA table_info(mail)").use { rs ->
                     while (rs.next()) columns.add(rs.getString("name"))
                 }
                 if ("delivery_pending" !in columns)
                     st.execute("ALTER TABLE mail ADD COLUMN delivery_pending INTEGER NOT NULL DEFAULT 0")
+                if ("original_recipient_name" !in columns) {
+                    st.execute("ALTER TABLE mail ADD COLUMN original_recipient_name TEXT")
+                    st.execute("UPDATE mail SET original_recipient_name=recipient_name WHERE return_delivery=0")
+                }
             }
         }
     }
@@ -97,8 +102,8 @@ class MailRepository(
     private fun insert(data: InsertData): Long {
         val now = System.currentTimeMillis()
         val sql = "INSERT INTO" +
-            " mail(sender_uuid,sender_name,recipient_uuid,recipient_name,type,status,payload,packed_item_count,created_at,updated_at,unread,return_delivery)" +
-            " VALUES(?,?,?,?,?,?,?,?,?,?,1,?)"
+            " mail(sender_uuid,sender_name,recipient_uuid,recipient_name,type,status,payload,packed_item_count,created_at,updated_at,unread,return_delivery,original_recipient_name)" +
+            " VALUES(?,?,?,?,?,?,?,?,?,?,1,?,?)"
         connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS).use { ps ->
             ps.setString(1, data.sender?.toString())
             ps.setString(2, data.senderName)
@@ -111,6 +116,7 @@ class MailRepository(
             ps.setLong(9, now)
             ps.setLong(10, now)
             ps.setInt(11, if (data.returned) 1 else 0)
+            ps.setString(12, if (data.returned) null else data.recipientName)
             ps.executeUpdate()
             ps.generatedKeys.use { rs ->
                 if (!rs.next()) throw SQLException("Missing generated mail ID")
@@ -150,6 +156,24 @@ class MailRepository(
                 ps.setString(4, MailStatus.RETURNED.name)
                 ps.setInt(5, page * 45)
                 ps.executeQuery().use { rs -> while (rs.next()) out.add(read(rs)) }
+            }
+            out
+        }
+    }
+
+    /** Query only this sender's retained rows with stable pagination and original recipient metadata. */
+    override fun listSent(sender: UUID, type: MailType, page: Int): CompletableFuture<List<io.enthusia.express.domain.SentMailRecord>> {
+        if (page < 0 || page > 1_000_000) return CompletableFuture.failedFuture(IllegalArgumentException("Invalid page"))
+        return supply {
+            val out = ArrayList<io.enthusia.express.domain.SentMailRecord>()
+            connection.prepareStatement("SELECT * FROM mail WHERE sender_uuid=? AND type=? ORDER BY created_at DESC, id DESC LIMIT 45 OFFSET ?").use { ps ->
+                ps.setString(1, sender.toString())
+                ps.setString(2, type.name)
+                ps.setInt(3, page * 45)
+                ps.executeQuery().use { rs ->
+                    while (rs.next()) out.add(io.enthusia.express.domain.SentMailRecord(
+                        read(rs), rs.getString("original_recipient_name"), rs.getInt("delivery_pending") != 0))
+                }
             }
             out
         }
