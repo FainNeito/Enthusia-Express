@@ -21,6 +21,14 @@ data class ChargeResult(val receipt: PaymentReceipt?, val balance: Double = 0.0,
                         val unavailable: Boolean = false, val source: PaymentSource = PaymentSource.PHYSICAL)
 
 class ShippingPayments(private val plugin: JavaPlugin) {
+    /** Describe the selected route without withdrawing any balance. */
+    fun priceUnit(): String {
+        val mode = plugin.config.getString("payments.provider", "auto")
+        val physical = mode == "physical" ||
+            (mode == "auto" && Bukkit.getPluginManager().getPlugin("EnthusiaCurrency") == null)
+        return if (physical) "Raw Gold" else "currency"
+    }
+
     /** Select the configured postage provider and refuse incomplete installed-currency integrations. */
     fun charge(player: Player, cost: Int): ChargeResult {
         require(cost >= 0)
