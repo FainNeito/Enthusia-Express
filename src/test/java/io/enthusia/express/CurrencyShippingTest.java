@@ -67,7 +67,8 @@ class CurrencyShippingTest {
           new EconomyResponse(0, 1.75, EconomyResponse.ResponseType.FAILURE, "insufficient"));
       f.confirm();
       verify(f.sender).sendMessage("Need 2 currency; balance 1.75");
-      verifyNoInteractions(f.repository, f.sounds);
+      verifyNoInteractions(f.sounds);
+      verify(f.repository, never()).insertMailLimited(any(), anyString(), any(), anyString(), any(), any(), anyInt(), anyBoolean());
       verify(f.playerInventory, never()).setStorageContents(any());
     }
   }
@@ -103,7 +104,8 @@ class CurrencyShippingTest {
       when(economy.withdrawPlayer((OfflinePlayer) f.sender, 2.0)).thenReturn(
           new EconomyResponse(0, 1, EconomyResponse.ResponseType.FAILURE, "insufficient"));
       f.confirm();
-      verifyNoInteractions(f.repository, f.sounds);
+      verifyNoInteractions(f.sounds);
+      verify(f.repository, never()).insertMailLimited(any(), anyString(), any(), anyString(), any(), any(), anyInt(), anyBoolean());
       verify(f.top, never()).setItem(eq(13), isNull());
       verify(f.playerInventory, never()).setStorageContents(any());
       verify(economy, never()).depositPlayer(any(OfflinePlayer.class), anyDouble());
@@ -132,7 +134,8 @@ class CurrencyShippingTest {
       Economy economy = install(f);
       when(economy.isEnabled()).thenReturn(false);
       f.confirm();
-      verifyNoInteractions(f.repository, f.sounds);
+      verifyNoInteractions(f.sounds);
+      verify(f.repository, never()).insertMailLimited(any(), anyString(), any(), anyString(), any(), any(), anyInt(), anyBoolean());
       verify(economy, never()).withdrawPlayer(any(OfflinePlayer.class), anyDouble());
       verify(f.playerInventory, never()).setStorageContents(any());
     }
@@ -173,7 +176,8 @@ class CurrencyShippingTest {
         f.confirm();
         if (mode.equals("auto")) verify(f.playerInventory).setStorageContents(any());
         else {
-          verifyNoInteractions(f.repository, f.sounds);
+          verifyNoInteractions(f.sounds);
+      verify(f.repository, never()).insertMailLimited(any(), anyString(), any(), anyString(), any(), any(), anyInt(), anyBoolean());
           verify(f.playerInventory, never()).setStorageContents(any());
         }
       }

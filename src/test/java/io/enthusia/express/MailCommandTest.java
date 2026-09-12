@@ -1,5 +1,6 @@
 package io.enthusia.express;
 
+import io.enthusia.express.infrastructure.mail.MailBlockService;
 import io.enthusia.express.domain.MailType;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -27,6 +28,34 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.junit.jupiter.api.Test;
 
 class MailCommandTest {
+    /** Block commands route the caller and recipient without starting mail delivery. */
+    @Test
+    void blockCommandsUsePlayerPreferences() {
+        try (var bukkit = mockStatic(Bukkit.class)) {
+            Player sender = mock(Player.class);
+            when(sender.getUniqueId()).thenReturn(UUID.randomUUID());
+            when(sender.hasPermission(anyString())).thenReturn(true);
+            OfflinePlayer target = mock(OfflinePlayer.class);
+            when(target.getUniqueId()).thenReturn(UUID.randomUUID());
+            when(target.hasPlayedBefore()).thenReturn(true);
+            bukkit.when(() -> Bukkit.getOfflinePlayerIfCached("Alice")).thenReturn(target);
+            CombatLogXHook combat = mock(CombatLogXHook.class);
+            when(combat.mayUseMail(sender)).thenReturn(true);
+            var blocking = mock(MailBlockService.class);
+            var shipping = mock(ShippingService.class);
+            var books = mock(BookMailService.class);
+            MailCommand command = new MailCommand(mock(JavaPlugin.class), shipping,
+                    mock(MailboxService.class), combat, books, mock(MainThread.class), blocking);
+            command.onCommand(sender, mock(Command.class), "mail", new String[] {"block", "Alice"});
+            command.onCommand(sender, mock(Command.class), "mail", new String[] {"unblock", "Alice"});
+            command.onCommand(sender, mock(Command.class), "mail", new String[] {"blocked", "2"});
+            verify(blocking).change(sender, target, true);
+            verify(blocking).change(sender, target, false);
+            verify(blocking).list(sender, 2);
+            verifyNoInteractions(shipping, books);
+        }
+    }
+
     /** The sent command opens sender history and completes its categories. */
     @Test
     void sentCommandOpensHistory() {

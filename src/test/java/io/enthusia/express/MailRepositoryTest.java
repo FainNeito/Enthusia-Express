@@ -19,6 +19,58 @@ class MailRepositoryTest {
   UUID sender = UUID.randomUUID(), recipient = UUID.randomUUID();
   Path file;
 
+  /** A persisted recipient block prevents a new direct delivery. */
+  @Test
+  void blockedSenderCannotInsertMail() {
+    repository.setBlocked(recipient, sender, "Sender", true).join();
+    assertThrows(CompletionException.class, () -> insert());
+    assertThrows(CompletionException.class, () -> repository.insertMailLimited(sender, "Sender", recipient, "Recipient",
+        MailType.LETTER, new byte[] {1}, 0, false).join());
+    assertTrue(repository.listInbox(recipient, MailType.PACKAGE).join().isEmpty());
+  }
+
+  /** Block preferences survive restart, are private to their owner, and can be removed. */
+  @Test
+  void blockPreferencesPersistAndUnblock() {
+    repository.setBlocked(recipient, sender, "Sender", true).join();
+    repository.close();
+    repository = new MailRepository(null, file.toFile(), 5000);
+    repository.initialize().join();
+    assertTrue(repository.isBlocked(recipient, sender).join());
+    assertFalse(repository.isBlocked(sender, recipient).join());
+    assertEquals(List.of("Sender"), repository.listBlocked(recipient, 0).join());
+    assertTrue(repository.listBlocked(sender, 0).join().isEmpty());
+    repository.setBlocked(recipient, sender, "Sender", false).join();
+    assertFalse(repository.isBlocked(recipient, sender).join());
+    assertTrue(insert() > 0);
+  }
+
+  /** Broadcasts skip blocked recipients while preserving everyone else's independent copy. */
+  @Test
+  void broadcastsRespectRecipientBlocks() {
+    UUID other = UUID.randomUUID();
+    repository.setBlocked(recipient, sender, "Sender", true).join();
+    assertEquals(1, repository.announce(sender, "Sender", Map.of(recipient, "Recipient", other, "Other"), new byte[] {1}).join());
+    assertTrue(repository.listInbox(recipient, MailType.ANNOUNCEMENT).join().isEmpty());
+    assertEquals(1, repository.listInbox(other, MailType.ANNOUNCEMENT).join().size());
+    assertThrows(CompletionException.class, () -> repository.insertMail(sender, "Sender", recipient, "Recipient",
+        MailType.ANNOUNCEMENT, new byte[] {1}, 0, false).join());
+  }
+
+  /** Another connection sees committed blocks, while existing packages still return safely. */
+  @Test
+  void crossConnectionBlocksPreserveExistingReturns() {
+    long existing = insert();
+    MailRepository other = new MailRepository(null, file.toFile(), 5000);
+    try {
+        other.initialize().join();
+        repository.setBlocked(recipient, sender, "Sender", true).join();
+        assertThrows(CompletionException.class, () -> other.insertPackage(sender, "Sender", recipient, "Recipient", new byte[] {1}, 1, false).join());
+        repository.expire(100, Long.MAX_VALUE, 0, 0).join();
+        assertEquals(MailStatus.RETURNED, other.get(existing).join().status());
+    } finally { other.close(); }
+  }
+
   /** Sent history exposes retained rows belonging to the sender. */
   @Test
   void sentHistoryIsAvailableForTheSender() {

@@ -1,5 +1,7 @@
 package io.enthusia.express;
 
+import org.bukkit.plugin.Plugin;
+import org.bukkit.plugin.PluginManager;
 import io.enthusia.express.infrastructure.db.DeliveryAcknowledgments;
 
 import static org.mockito.Mockito.*;
@@ -38,6 +40,21 @@ class MailboxServiceTest {
   MockedStatic<ItemCodec> codec;
   MockedConstruction<ItemStack> icons;
   List<Runnable> callbacks;
+
+  /** Optional Nexo title glyphs can replace the plain mailbox title. */
+  @Test
+  void configuredNexoTitleIsUsedWhenAvailable() {
+    plugin.getConfig().set("gui.nexo.enabled", true);
+    plugin.getConfig().set("gui.nexo.titles.mailbox", "<glyph:mail_menu>");
+    PluginManager manager = mock(PluginManager.class);
+    Plugin nexo = mock(Plugin.class);
+    when(nexo.isEnabled()).thenReturn(true);
+    when(manager.getPlugin("Nexo")).thenReturn(nexo);
+    bukkit.when(Bukkit::getPluginManager).thenReturn(manager);
+    when(repository.listInbox(any(), any(), anyInt())).thenReturn(CompletableFuture.completedFuture(List.of()));
+    service.open(player, MailType.PACKAGE);
+    bukkit.verify(() -> Bukkit.createInventory(isNull(), eq(54), eq("<glyph:mail_menu>")));
+  }
 
   /** History cannot claim packages, even though the viewer owns the sender record. */
   @Test

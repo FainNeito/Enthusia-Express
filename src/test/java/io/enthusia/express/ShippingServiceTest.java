@@ -1,5 +1,6 @@
 package io.enthusia.express;
 
+import io.enthusia.express.domain.MailBlockedException;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
 
@@ -28,6 +29,45 @@ import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
 
 class ShippingServiceTest {
+  /** A recipient block is checked before withdrawing postage. */
+  @Test
+  void blockedRecipientTakesNoPayment() {
+    try (Fixture f = new Fixture(OptionalLong.of(1))) {
+      when(f.repository.isBlocked(f.targetId, f.senderId)).thenReturn(CompletableFuture.completedFuture(true));
+      f.confirm();
+      verify(f.playerInventory, never()).setStorageContents(any());
+      verify(f.repository, never()).insertMailLimited(any(), anyString(), any(), anyString(), any(), any(), anyInt(), anyBoolean());
+      verify(f.sender).sendMessage(contains("not accepting your mail"));
+    }
+  }
+
+  /** A block committed after the payment precheck refunds both cargo and postage. */
+  @Test
+  void concurrentBlockRefundsPostageAndCargo() {
+    try (Fixture f = new Fixture(CompletableFuture.failedFuture(new MailBlockedException()))) {
+      f.confirm();
+      verify(f.playerInventory).addItem(f.packageItem);
+      verify(f.playerInventory).addItem(argThat((ItemStack item) ->
+          item.getType() == Material.RAW_GOLD && item.getAmount() == 2));
+      verify(f.sender).sendMessage(contains("not accepting your mail"));
+      verifyNoInteractions(f.sounds);
+    }
+  }
+
+  /** A custom-textured marker remains protected even when its material changes. */
+  @Test
+  void customPlaceholderCannotBeReturnedOrShipped() {
+    try (Fixture f = new Fixture(OptionalLong.of(1))) {
+      ItemStack marker = f.constructed.constructed().getLast();
+      when(marker.getType()).thenReturn(Material.PAPER);
+      when(f.top.getItem(ShippingService.PACKAGE_SLOT)).thenReturn(marker);
+      f.confirm();
+      verifyNoInteractions(f.repository);
+      f.service.returnPackageOnClose(f.sender, f.top);
+      verify(f.playerInventory, never()).addItem(any(ItemStack.class));
+    }
+  }
+
   /** A changed fee must be shown and confirmed again before charging. */
   @Test
   void changedPostageRequiresANewConfirmation() {
@@ -188,6 +228,7 @@ class ShippingServiceTest {
       config.set("mail.limits.one-outstanding-package-per-recipient", true);
       when(plugin.getName()).thenReturn("EnthusiaExpress");
       when(plugin.getConfig()).thenReturn(config);
+      when(plugin.isEnabled()).thenReturn(true);
       when(plugin.getLogger()).thenReturn(Logger.getAnonymousLogger());
       when(sender.getUniqueId()).thenReturn(senderId);
       when(sender.getName()).thenReturn("Sender");
@@ -208,6 +249,7 @@ class ShippingServiceTest {
       when(gold.getAmount()).thenReturn(2);
       when(playerInventory.getStorageContents()).thenReturn(new ItemStack[] {gold});
       when(playerInventory.addItem(any(ItemStack.class))).thenReturn(new HashMap<>());
+      when(repository.isBlocked(any(), any())).thenReturn(CompletableFuture.completedFuture(false));
       when(repository.insertMailLimited(any(), anyString(), any(), anyString(), any(), any(), anyInt(), anyBoolean()))
           .thenReturn(result);
       doAnswer(
