@@ -11,8 +11,13 @@ object Text {
     /** Apply named placeholders and the configured prefix before translating message color codes. */
     @JvmStatic
     fun msg(config: FileConfiguration, key: String, vars: Map<String, String>): String {
+        return msgOrDefault(config, key, key, vars)
+    }
+
+    /** Supply usable defaults for new messages in existing server configurations. */
+    fun msgOrDefault(config: FileConfiguration, key: String, fallback: String, vars: Map<String, String> = emptyMap()): String {
         val prefix = config.getString("messages.prefix", "") ?: ""
-        var value = config.getString("messages.$key", key) ?: key
+        var value = config.getString("messages.$key", fallback) ?: fallback
         for ((name, replacement) in vars) value = value.replace("{$name}", replacement)
         return color(prefix + value)
     }
