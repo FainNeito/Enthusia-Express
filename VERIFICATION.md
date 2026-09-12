@@ -21,6 +21,8 @@ Production: 26 Kotlin files, Java 21, Kotlin 2.2.21, Gradle 8.14.3. The shaded J
 
 Five behavior regressions failed before implementation. The final suite additionally verifies same-window inbox navigation, offline-name suggestions without per-completion file scans, online-letter wording, two-click postage confirmation, invalidated cargo/fee quotes, virtual-currency quote labels, and nonempty singular/plural join notices. Chat filtering is deferred. The Medal clip informed the compact menu titles; actual mouse behavior and client text fit still require server testing.
 
+The final review corrected only a stale package-limit comment in config.yml. A baseline shadowJar rebuild passed; ZIP entry comparison confirmed that only config.yml changed, with all compiled classes identical to the tested JAR.
+
 ## SPEAR evidence
 
 Applied BadgersMC SPEAR at 2c91bae046649035f4abaa3c563f6676399e2eee. EARS requirements, failing behavior regressions, implementation, architecture checks and refinement are recorded in docs/requirements.md and docs/tasks.md. Java tests remain independent JVM clients of the Kotlin production code.
@@ -31,4 +33,4 @@ No live Paper, CombatLogX or EnthusiaCurrency server was started. Paper/Vault in
 
 The migration adds delivery_pending without changing existing payloads/statuses. Abrupt process death can leave uncertain inventory delivery or a pending reservation; inventory files and SQLite are not one atomic store. Back up player data, mail.db and delivery-receipts together. Durable receipts replay acknowledgments after restart; reconcile deliveries without a receipt before clearing uncertain reservations.
 
-JAR SHA-256: `4b77bc1058bd78a65d36d80ca0bae0c9367bce4c472ddc5ed831dc2c65c9a140`
+JAR SHA-256: `bcb5781547999ca8cf690089693971278520e2ac6eba7ba7cefc3f9c1707c110`
