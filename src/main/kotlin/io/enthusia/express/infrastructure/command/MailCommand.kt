@@ -42,6 +42,7 @@ class MailCommand(
     private val books: BookMailService,
     private val main: MainThread,
 ) : CommandExecutor, TabCompleter {
+    val recipientNames = RecipientNames()
     private val resolving = HashSet<UUID>()
     /** Validate the player command context and dispatch one supported mail action. */
     override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<String>): Boolean {
@@ -122,7 +123,7 @@ class MailCommand(
         }
     }
 
-    /** Suggest permitted commands and online names without enumerating offline player files. */
+    /** Suggest permitted commands and cached names without enumerating offline player files. */
     override fun onTabComplete(sender: CommandSender, command: Command, alias: String, args: Array<String>): List<String> =
         when (args.size) {
             1 -> (SendAction.entries.filter { sender.hasPermission(it.permission) }.map { it.key } + INBOX)
@@ -131,15 +132,13 @@ class MailCommand(
             else -> emptyList()
         }
 
-    /** Return matching inbox categories or online recipient names, capped at twenty results. */
+    /** Return matching inbox categories or cached recipient names, capped at twenty results. */
     private fun argumentSuggestions(sender: CommandSender, args: Array<String>): List<String> {
         if (args[0].equals(INBOX, true)) return listOf("packages", "letters", "announcements")
         val action = SendAction.entries.firstOrNull { it.key.equals(args[0], true) } ?: return emptyList()
         if (!sender.hasPermission(action.permission)) return emptyList()
         val partial = args[1].lowercase(Locale.ROOT)
         val broadcast = if (action == SendAction.ANNOUNCE && "all".startsWith(partial)) listOf("all") else emptyList()
-        // Online names require no player-file enumeration. Offline names can still be entered explicitly.
-        return (broadcast + Bukkit.getOnlinePlayers().map { it.name }
-            .filter { it.lowercase(Locale.ROOT).startsWith(partial) }).take(20)
+        return (broadcast + recipientNames.matching(partial)).take(20)
     }
 }
