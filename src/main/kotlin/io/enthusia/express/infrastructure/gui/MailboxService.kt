@@ -35,22 +35,25 @@ class MailboxService @JvmOverloads constructor(
     private val claiming = HashSet<UUID>()
     private var stopping = false
 
-    private class Session(val inventory: Inventory, val type: MailType, val page: Int) {
+    private class Session(val inventory: Inventory, val type: MailType, val page: Int, val sent: Boolean) {
         val records = HashMap<Int, MailRecord>()
         var loaded = false
     }
 
     /** Require an online, living, authorized player outside combat before mailbox access. */
-    private fun allowed(player: Player): Boolean =
+    private fun allowed(player: Player, sent: Boolean = false): Boolean =
         !stopping && player.isOnline && !player.isDead && player.hasPermission("enthusiaexpress.use") &&
-            player.hasPermission("enthusiaexpress.inbox") && combatHook.mayUseMail(player)
+            player.hasPermission(if (sent) "enthusiaexpress.sent" else "enthusiaexpress.inbox") && combatHook.mayUseMail(player)
 
     /** Open the first page of a mail category on the server thread. */
     fun open(player: Player, type: MailType) { openPage(player, type, 0) }
 
+    /** Open the sender-owned history without giving access to recipient claims. */
+    fun openSent(player: Player, type: MailType) { openPage(player, type, 0, true) }
+
     /** Create a bounded inbox session and request its rows asynchronously. */
-    private fun openPage(player: Player, type: MailType, page: Int) {
-        if (!allowed(player)) {
+    private fun openPage(player: Player, type: MailType, page: Int, sent: Boolean = false) {
+        if (!allowed(player, sent)) {
             player.sendMessage(Text.msg(plugin.config, "mail-unavailable"))
             return
         }
@@ -58,15 +61,16 @@ class MailboxService @JvmOverloads constructor(
         val existing = sessions[player.uniqueId]?.inventory?.takeIf { player.openInventory.topInventory === it }
         val inv = existing ?: Bukkit.createInventory(null, 54, TITLE_PREFIX)
         if (existing != null) inv.clear()
-        val session = Session(inv, type, page)
+        val session = Session(inv, type, page, sent)
         sessions[player.uniqueId] = session
-        inv.setItem(0, icon(Material.ARROW, "§ePrevious page"))
-        inv.setItem(1, icon(Material.CHEST, "§6Packages"))
-        inv.setItem(4, icon(Material.WRITABLE_BOOK, "§eLetters"))
-        inv.setItem(7, icon(Material.BELL, "§bAnnouncements"))
-        inv.setItem(8, icon(Material.ARROW, "§eNext page"))
-        inv.setItem(3, icon(Material.PAPER, "§7${type.name.lowercase().replaceFirstChar { it.uppercase() }}: page ${page + 1}"))
+        MailboxControls.render(inv, type, page, sent)
         if (existing == null) player.openInventory(inv)
+        if (sent) {
+            main.complete(repository.listSent(player.uniqueId, type, page)) { records, error ->
+                renderSent(player, session, records, error)
+            }
+            return
+        }
         main.complete(repository.listInbox(player.uniqueId, type, page)) { records, error ->
             renderInbox(player, session, records, error)
         }
@@ -92,6 +96,22 @@ class MailboxService @JvmOverloads constructor(
         if (inboxRecords.isEmpty()) player.sendMessage(Text.msg(plugin.config, "mailbox-empty"))
     }
 
+    /** Render only sender-owned history in the still-current session. */
+    private fun renderSent(player: Player, session: Session, records: List<io.enthusia.express.domain.SentMailRecord>?, error: Throwable?) {
+        if (!active(player, session)) return
+        if (error != null) {
+            player.sendMessage(Text.msg(plugin.config, "database-error"))
+            return
+        }
+        val entries = checkNotNull(records).filter { it.mail.sender == player.uniqueId }
+        entries.forEachIndexed { index, entry ->
+            session.inventory.setItem(index + 9, SentMailDisplay.icon(entry))
+            session.records[index + 9] = entry.mail
+        }
+        session.loaded = true
+        if (entries.isEmpty()) player.sendMessage(Text.msgOrDefault(plugin.config, "sent-empty", "&7No sent mail on this page."))
+    }
+
     /** Create a display copy of mail metadata, using a barrier for unreadable persisted payloads. */
     // Persisted ItemStack data can fail in version-specific serializers; show a barrier for that row.
     @Suppress("TooGenericExceptionCaught")
@@ -110,7 +130,7 @@ class MailboxService @JvmOverloads constructor(
     }
 
     /** Check permissions, player state and exact inventory-session identity before asynchronous completion. */
-    private fun active(player: Player, session: Session): Boolean = allowed(player) &&
+    private fun active(player: Player, session: Session): Boolean = allowed(player, session.sent) &&
         sessions[player.uniqueId] === session && player.openInventory.topInventory === session.inventory
 
     /** Identify the exact open inventory associated with this player session. */
@@ -129,12 +149,12 @@ class MailboxService @JvmOverloads constructor(
 
     /** Navigate backward only when a previous page exists. */
     private fun previousPage(player: Player, session: Session) {
-        if (session.page > 0) openPage(player, session.type, session.page - 1)
+        if (session.page > 0) openPage(player, session.type, session.page - 1, session.sent)
     }
 
     /** Request the next page only after a full current page has loaded. */
     private fun nextPage(player: Player, session: Session) {
-        if (session.loaded && session.records.size == 45) openPage(player, session.type, session.page + 1)
+        if (session.loaded && session.records.size == 45) openPage(player, session.type, session.page + 1, session.sent)
     }
 
     /** Handle navigation or reserve one in-flight lookup for a visible mail entry. */
@@ -146,6 +166,10 @@ class MailboxService @JvmOverloads constructor(
         }
         if (navigate(player, session, slot)) return
         val visible = session.records[slot] ?: return
+        if (session.sent) {
+            if (visible.sender == player.uniqueId) SentMailDisplay.readBook(player, visible)
+            return
+        }
         if (!claiming.add(player.uniqueId)) return
         main.complete(repository.get(visible.id)) { record, error ->
             completeLookup(player, session, record, error)
@@ -155,9 +179,10 @@ class MailboxService @JvmOverloads constructor(
     /** Handle category and page buttons, returning whether the slot was a navigation control. */
     private fun navigate(player: Player, session: Session, slot: Int): Boolean {
         when (slot) {
-            1 -> { open(player, MailType.PACKAGE) }
-            4 -> { open(player, MailType.LETTER) }
-            7 -> { open(player, MailType.ANNOUNCEMENT) }
+            1 -> { openPage(player, MailType.PACKAGE, 0, session.sent) }
+            4 -> { openPage(player, MailType.LETTER, 0, session.sent) }
+            7 -> { openPage(player, MailType.ANNOUNCEMENT, 0, session.sent) }
+            3 -> { openPage(player, session.type, 0, !session.sent) }
             0 -> { previousPage(player, session) }
             8 -> { nextPage(player, session) }
             else -> return false
