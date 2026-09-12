@@ -36,6 +36,8 @@ class ShippingService @JvmOverloads constructor(
     private val payments = ShippingPayments(plugin)
     private val placeholderKey = NamespacedKey(plugin, "shipping-placeholder")
     private val inventories = HashMap<UUID, Inventory>()
+    private data class Quote(val payload: ByteArray, val count: Int, val cost: Int, val unit: String)
+    private val quotes = HashMap<UUID, Quote>()
     private val pending = HashSet<UUID>()
     private val targets = HashMap<UUID, UUID>()
 
@@ -67,9 +69,11 @@ class ShippingService @JvmOverloads constructor(
         }
         sender.closeInventory()
         targets[sender.uniqueId] = target.uniqueId
-        val inv = Bukkit.createInventory(null, 27, TITLE_PREFIX + target.name)
+        val inv = Bukkit.createInventory(null, 27, TITLE_PREFIX)
         inv.setItem(CANCEL_SLOT, button(Material.BARRIER, "§cCancel"))
-        inv.setItem(CONFIRM_SLOT, button(Material.LIME_CONCRETE, "§aConfirm shipment"))
+        quotes.remove(sender.uniqueId)
+        inv.setItem(4, button(Material.PAPER, "§7To: ${target.name ?: "recipient"}"))
+        inv.setItem(CONFIRM_SLOT, button(Material.LIME_CONCRETE, "§eView postage"))
         refreshPlaceholder(inv)
         inventories[sender.uniqueId] = inv
         sender.openInventory(inv)
@@ -102,7 +106,29 @@ class ShippingService @JvmOverloads constructor(
             return
         }
         val shipment = prepareShipment(sender, inv) ?: return
-        chargeAndSubmit(sender, inv, target, shipment)
+        if (confirmQuote(sender, inv, shipment)) chargeAndSubmit(sender, inv, target, shipment)
+    }
+
+    /** Require a second click on the same cargo and price before taking payment. */
+    private fun confirmQuote(sender: Player, inv: Inventory, shipment: PreparedShipment): Boolean {
+        val unit = payments.priceUnit()
+        val previous = quotes[sender.uniqueId]
+        val unchanged = previous?.payload?.contentEquals(shipment.payload) == true &&
+            previous.count == shipment.count && previous.cost == shipment.cost
+        if (unchanged && previous?.unit == unit) {
+            quotes.remove(sender.uniqueId)
+            return true
+        }
+        quotes[sender.uniqueId] = Quote(shipment.payload.copyOf(), shipment.count, shipment.cost, unit)
+        val control = button(Material.LIME_CONCRETE, "§aSend package")
+        val meta = control.itemMeta!!
+        meta.lore = listOf("§eCost: ${shipment.cost} $unit", "§7${shipment.count} packed items", "§aClick again to send")
+        control.itemMeta = meta
+        inv.setItem(CONFIRM_SLOT, control)
+        sender.sendMessage(Text.msgOrDefault(plugin.config, "package-quote",
+            "&ePostage: {cost} {currency} for {items} packed items. Click Send package to confirm.",
+            mapOf("cost" to shipment.cost.toString(), "currency" to unit, "items" to shipment.count.toString())))
+        return false
     }
 
     private data class PreparedShipment(val payloadItem: ItemStack, val payload: ByteArray, val count: Int, val cost: Int)
@@ -152,6 +178,7 @@ class ShippingService @JvmOverloads constructor(
 
     /** Charge one payment route, reserve cargo and compensate rejected or failed persistence. */
     private fun chargeAndSubmit(sender: Player, inv: Inventory, target: OfflinePlayer, shipment: PreparedShipment) {
+        val unit = payments.priceUnit()
         val payment = payments.charge(sender, shipment.cost)
         val receipt = payment.receipt
         if (receipt == null) {
@@ -177,7 +204,7 @@ class ShippingService @JvmOverloads constructor(
                     sender.sendMessage(Text.msg(plugin.config, "outstanding-package"))
             } else {
                 sounds.play(sender, SoundFeedback.Cue.PACKAGE_SEND)
-                sender.sendMessage(Text.msg(plugin.config, "package-sent", mapOf("target" to targetName, "cost" to shipment.cost.toString(), "items" to shipment.count.toString())))
+                sender.sendMessage(Text.msg(plugin.config, "package-sent", mapOf("target" to targetName, "currency" to unit, "cost" to shipment.cost.toString(), "items" to shipment.count.toString())))
             }
         }
     }
@@ -199,6 +226,7 @@ class ShippingService @JvmOverloads constructor(
         }
         targets.remove(player.uniqueId)
         inventories.remove(player.uniqueId)
+        quotes.remove(player.uniqueId)
     }
 
     /** Recognize the tagged gray placement marker instead of ordinary player cargo. */
@@ -211,7 +239,7 @@ class ShippingService @JvmOverloads constructor(
         if (current != null && !current.type.isAir) return
         val marker = button(Material.GRAY_STAINED_GLASS_PANE, "§7Place package here")
         val meta = marker.itemMeta!!
-        meta.lore = listOf("§7Accepted: Shulker Boxes and Bundles")
+        meta.lore = listOf("§7Shulker boxes or bundles", "§7Click View postage for cost")
         meta.persistentDataContainer.set(placeholderKey, PersistentDataType.BYTE, 1.toByte())
         marker.itemMeta = meta
         inventory.setItem(PACKAGE_SLOT, marker)
@@ -259,7 +287,7 @@ class ShippingService @JvmOverloads constructor(
     }
 
     companion object {
-        const val TITLE_PREFIX = "Enthusia Express: Ship to "
+        const val TITLE_PREFIX = "Send package"
         const val PACKAGE_SLOT = 13
         const val CONFIRM_SLOT = 15
         const val CANCEL_SLOT = 11

@@ -55,8 +55,9 @@ class MailboxService @JvmOverloads constructor(
             return
         }
         if (page < 0 || page > 1_000_000) return
-        player.closeInventory()
-        val inv = Bukkit.createInventory(null, 54, "$TITLE_PREFIX - $type ${page + 1}")
+        val existing = sessions[player.uniqueId]?.inventory?.takeIf { player.openInventory.topInventory === it }
+        val inv = existing ?: Bukkit.createInventory(null, 54, TITLE_PREFIX)
+        if (existing != null) inv.clear()
         val session = Session(inv, type, page)
         sessions[player.uniqueId] = session
         inv.setItem(0, icon(Material.ARROW, "§ePrevious page"))
@@ -64,7 +65,8 @@ class MailboxService @JvmOverloads constructor(
         inv.setItem(4, icon(Material.WRITABLE_BOOK, "§eLetters"))
         inv.setItem(7, icon(Material.BELL, "§bAnnouncements"))
         inv.setItem(8, icon(Material.ARROW, "§eNext page"))
-        player.openInventory(inv)
+        inv.setItem(3, icon(Material.PAPER, "§7${type.name.lowercase().replaceFirstChar { it.uppercase() }}: page ${page + 1}"))
+        if (existing == null) player.openInventory(inv)
         main.complete(repository.listInbox(player.uniqueId, type, page)) { records, error ->
             renderInbox(player, session, records, error)
         }
@@ -275,7 +277,7 @@ class MailboxService @JvmOverloads constructor(
     }
 
     companion object {
-        const val TITLE_PREFIX = "Enthusia Express Mailbox"
+        const val TITLE_PREFIX = "Mailbox"
 
         /** Create a menu decoration with a display name and no persisted-mail mutation. */
         private fun icon(material: Material, name: String): ItemStack {
