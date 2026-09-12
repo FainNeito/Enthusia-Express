@@ -31,6 +31,7 @@ class MailboxService @JvmOverloads constructor(
     private val sounds: SoundFeedback = SoundFeedback(plugin),
     private val acknowledgments: DeliveryAcknowledgments? = null,
 ) {
+    private val theme = GuiTheme(plugin)
     private val sessions = HashMap<UUID, Session>()
     private val claiming = HashSet<UUID>()
     private var stopping = false
@@ -59,11 +60,11 @@ class MailboxService @JvmOverloads constructor(
         }
         if (page < 0 || page > 1_000_000) return
         val existing = sessions[player.uniqueId]?.inventory?.takeIf { player.openInventory.topInventory === it }
-        val inv = existing ?: Bukkit.createInventory(null, 54, TITLE_PREFIX)
+        val inv = existing ?: Bukkit.createInventory(null, 54, theme.title("mailbox", TITLE_PREFIX))
         if (existing != null) inv.clear()
         val session = Session(inv, type, page, sent)
         sessions[player.uniqueId] = session
-        MailboxControls.render(inv, type, page, sent)
+        MailboxControls.render(inv, type, page, sent, theme)
         if (existing == null) player.openInventory(inv)
         if (sent) {
             main.complete(repository.listSent(player.uniqueId, type, page)) { records, error ->

@@ -3,6 +3,7 @@
 
 package io.enthusia.express.infrastructure.gui
 
+import io.enthusia.express.domain.MailBlockedException
 import io.enthusia.express.application.MailStore
 import io.enthusia.express.domain.MailType
 import io.enthusia.express.infrastructure.hook.CombatLogXHook
@@ -33,6 +34,8 @@ class ShippingService @JvmOverloads constructor(
     private val main: MainThread,
     private val sounds: SoundFeedback = SoundFeedback(plugin),
 ) {
+    private val TARGET_ONLINE = "target-online"
+    private val theme = GuiTheme(plugin)
     private val payments = ShippingPayments(plugin)
     private val placeholderKey = NamespacedKey(plugin, "shipping-placeholder")
     private val inventories = HashMap<UUID, Inventory>()
@@ -64,16 +67,16 @@ class ShippingService @JvmOverloads constructor(
         if (!validateShippingAccess(sender, false)) return
         val online = target.player
         if (online != null && online.isOnline) {
-            sender.sendMessage(Text.msg(plugin.config, "target-online"))
+            sender.sendMessage(Text.msg(plugin.config, TARGET_ONLINE))
             return
         }
         sender.closeInventory()
         targets[sender.uniqueId] = target.uniqueId
-        val inv = Bukkit.createInventory(null, 27, TITLE_PREFIX)
-        inv.setItem(CANCEL_SLOT, button(Material.BARRIER, "§cCancel"))
+        val inv = Bukkit.createInventory(null, 27, theme.title("shipping", TITLE_PREFIX))
+        inv.setItem(CANCEL_SLOT, button("shipping.cancel", Material.BARRIER, "§cCancel"))
         quotes.remove(sender.uniqueId)
-        inv.setItem(4, button(Material.PAPER, "§7To: ${target.name ?: "recipient"}"))
-        inv.setItem(CONFIRM_SLOT, button(Material.LIME_CONCRETE, "§eView postage"))
+        inv.setItem(4, button("shipping.recipient", Material.PAPER, "§7To: ${target.name ?: "recipient"}"))
+        inv.setItem(CONFIRM_SLOT, button("shipping.quote", Material.LIME_CONCRETE, "§eView postage"))
         refreshPlaceholder(inv)
         inventories[sender.uniqueId] = inv
         sender.openInventory(inv)
@@ -101,12 +104,17 @@ class ShippingService @JvmOverloads constructor(
         val targetId = targets[sender.uniqueId] ?: return
         val target = Bukkit.getOfflinePlayer(targetId)
         if (target.isOnline) {
-            sender.sendMessage(Text.msg(plugin.config, "target-online"))
+            sender.sendMessage(Text.msg(plugin.config, TARGET_ONLINE))
             sender.closeInventory()
             return
         }
         val shipment = prepareShipment(sender, inv) ?: return
-        if (confirmQuote(sender, inv, shipment)) chargeAndSubmit(sender, inv, target, shipment)
+        if (confirmQuote(sender, inv, shipment)) {
+            pending.add(sender.uniqueId)
+            main.complete(repository.isBlocked(target.uniqueId, sender.uniqueId)) { blocked, error ->
+                checkedSend(sender, inv, target, blocked, error)
+            }
+        }
     }
 
     /** Require a second click on the same cargo and price before taking payment. */
@@ -116,11 +124,10 @@ class ShippingService @JvmOverloads constructor(
         val unchanged = previous?.payload?.contentEquals(shipment.payload) == true &&
             previous.count == shipment.count && previous.cost == shipment.cost
         if (unchanged && previous?.unit == unit) {
-            quotes.remove(sender.uniqueId)
             return true
         }
         quotes[sender.uniqueId] = Quote(shipment.payload.copyOf(), shipment.count, shipment.cost, unit)
-        val control = button(Material.LIME_CONCRETE, "§aSend package")
+        val control = button("shipping.confirm", Material.LIME_CONCRETE, "§aSend package")
         val meta = control.itemMeta!!
         meta.lore = listOf("§eCost: ${shipment.cost} $unit", "§7${shipment.count} packed items", "§aClick again to send")
         control.itemMeta = meta
@@ -176,8 +183,34 @@ class ShippingService @JvmOverloads constructor(
         return PreparedShipment(payloadItem, payload, count, cost)
     }
 
+    /** Ignore callbacks after disable, disconnect or closing the owned inventory. */
+    private fun currentShippingSession(sender: Player, inv: Inventory) =
+        plugin.isEnabled && sender.isOnline && Bukkit.getPlayer(sender.uniqueId) === sender && owns(sender, inv)
+
+    /** Recheck the live inventory and quote after the asynchronous block lookup, before charging. */
+    private fun checkedSend(sender: Player, inv: Inventory, target: OfflinePlayer, blocked: Boolean?, error: Throwable?) {
+        pending.remove(sender.uniqueId)
+        if (!currentShippingSession(sender, inv)) return
+        if (!validateShippingAccess(sender, true)) return
+        if (error != null) {
+            sender.sendMessage(Text.msg(plugin.config, "database-error"))
+            return
+        }
+        if (blocked != false) {
+            sender.sendMessage(Text.msgOrDefault(plugin.config, "recipient-not-accepting", "&cThat player is not accepting your mail."))
+            return
+        }
+        if (target.isOnline) {
+            sender.sendMessage(Text.msg(plugin.config, TARGET_ONLINE))
+            return
+        }
+        val current = prepareShipment(sender, inv) ?: return
+        if (confirmQuote(sender, inv, current)) chargeAndSubmit(sender, inv, target, current)
+    }
+
     /** Charge one payment route, reserve cargo and compensate rejected or failed persistence. */
     private fun chargeAndSubmit(sender: Player, inv: Inventory, target: OfflinePlayer, shipment: PreparedShipment) {
+        quotes.remove(sender.uniqueId)
         val unit = payments.priceUnit()
         val payment = payments.charge(sender, shipment.cost)
         val receipt = payment.receipt
@@ -195,7 +228,10 @@ class ShippingService @JvmOverloads constructor(
         main.complete(repository.insertMailLimited(sender.uniqueId, sender.name, target.uniqueId, targetName,
             MailType.PACKAGE, shipment.payload, shipment.count, plugin.config.getBoolean("mail.limits.one-outstanding-package-per-recipient", false))) { result, error ->
             pending.remove(sender.uniqueId)
-            if (error != null) {
+            if (MailBlockedException.causedBy(error)) {
+                if (refundPlayer(sender, shipment.payloadItem, receipt))
+                    sender.sendMessage(Text.msgOrDefault(plugin.config, "recipient-not-accepting", "&cThat player is not accepting your mail."))
+            } else if (error != null) {
                 if (refundPlayer(sender, shipment.payloadItem, receipt))
                     sender.sendMessage("§cShipment failed; your package and fee were refunded.")
                 plugin.logger.severe("Package insert failed: " + error.message)
@@ -230,14 +266,13 @@ class ShippingService @JvmOverloads constructor(
     }
 
     /** Recognize the tagged gray placement marker instead of ordinary player cargo. */
-    fun isPlaceholder(item: ItemStack?): Boolean = item?.type == Material.GRAY_STAINED_GLASS_PANE &&
-        item.itemMeta?.persistentDataContainer?.has(placeholderKey, PersistentDataType.BYTE) == true
+    fun isPlaceholder(item: ItemStack?): Boolean = item?.itemMeta?.persistentDataContainer?.has(placeholderKey, PersistentDataType.BYTE) == true
 
     /** Show placement guidance only when the cargo slot is empty. */
     fun refreshPlaceholder(inventory: Inventory) {
         val current = inventory.getItem(PACKAGE_SLOT)
         if (current != null && !current.type.isAir) return
-        val marker = button(Material.GRAY_STAINED_GLASS_PANE, "§7Place package here")
+        val marker = button("shipping.placeholder", Material.GRAY_STAINED_GLASS_PANE, "§7Place package here")
         val meta = marker.itemMeta!!
         meta.lore = listOf("§7Shulker boxes or bundles", "§7Click View postage for cost")
         meta.persistentDataContainer.set(placeholderKey, PersistentDataType.BYTE, 1.toByte())
@@ -286,6 +321,16 @@ class ShippingService @JvmOverloads constructor(
         for (player in Bukkit.getOnlinePlayers()) if (inventories.containsKey(player.uniqueId)) player.closeInventory()
     }
 
+    /** Create a named decorative shipping control. */
+    private fun button(key: String, material: Material, name: String): ItemStack {
+        val stack = theme.item(key, material)
+        val meta = stack.itemMeta!!
+        meta.setDisplayName(name)
+        stack.itemMeta = meta
+        return stack
+    }
+
+
     companion object {
         const val TITLE_PREFIX = "Send package"
         const val PACKAGE_SLOT = 13
@@ -297,14 +342,6 @@ class ShippingService @JvmOverloads constructor(
             player.inventory.addItem(item).values.forEach { player.world.dropItemNaturally(player.location, it) }
         }
 
-        /** Create a named decorative shipping control. */
-        private fun button(material: Material, name: String): ItemStack {
-            val stack = ItemStack(material)
-            val meta = stack.itemMeta!!
-            meta.setDisplayName(name)
-            stack.itemMeta = meta
-            return stack
-        }
 
     }
 }
