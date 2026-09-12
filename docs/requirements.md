@@ -109,3 +109,23 @@ WHEN book serialization fails THE SYSTEM SHALL log the player identity and cause
 ## REQ-027
 
 WHEN a known recipient is absent from the runtime cache THE SYSTEM SHALL resolve its UUID without blocking the server thread and revalidate the sender session before sending.
+
+## REQ-028
+
+WHEN inbox navigation is clicked THE SYSTEM SHALL reuse the active inventory without resetting the mouse cursor and display compact menu titles.
+
+## REQ-029
+
+WHEN a letter targets an online player THE SYSTEM SHALL explain that a letter is unnecessary because the recipient is online.
+
+## REQ-030
+
+WHEN a player completes a recipient name THE SYSTEM SHALL suggest known offline names from a cached directory without enumerating player files during completion.
+
+## REQ-031
+
+WHEN a sender requests shipment THE SYSTEM SHALL display the postage before charging and require confirmation of the unchanged package and price.
+
+## REQ-032
+
+WHEN a player joins with mail THE SYSTEM SHALL notify only nonempty categories with correct singular or plural wording and the matching inbox command.
