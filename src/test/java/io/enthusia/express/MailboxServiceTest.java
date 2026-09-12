@@ -23,6 +23,61 @@ import org.junit.jupiter.api.*;
 import org.mockito.*;
 
 class MailboxServiceTest {
+  /** History cannot claim packages, even though the viewer owns the sender record. */
+  @Test
+  void sentPackagesAreReadOnlyAndNavigationKeepsSentMode() {
+    MailRecord sent = sentRecord(MailType.PACKAGE);
+    when(repository.listSent(id, MailType.PACKAGE, 0)).thenReturn(CompletableFuture.completedFuture(
+        List.of(new SentMailRecord(sent, "Recipient", false))));
+    when(repository.listSent(id, MailType.LETTER, 0)).thenReturn(CompletableFuture.completedFuture(List.of()));
+    service.openSent(player, MailType.PACKAGE);
+    drain();
+    clearInvocations(repository, player);
+    service.click(player, 9);
+    verifyNoInteractions(repository);
+    verify(inventory, never()).addItem(any(ItemStack.class));
+    service.click(player, 4);
+    verify(repository).listSent(id, MailType.LETTER, 0);
+    verify(player, never()).openInventory(any(Inventory.class));
+  }
+
+  /** Reading a sent letter must not alter its recipient's unread state. */
+  @Test
+  void sentLettersOpenWithoutMarkingRecipientCopyRead() {
+    MailRecord sent = sentRecord(MailType.LETTER);
+    ItemStack book = mock(ItemStack.class);
+    codec.when(() -> ItemCodec.decode(sent.payload())).thenReturn(book);
+    when(repository.listSent(id, MailType.LETTER, 0)).thenReturn(CompletableFuture.completedFuture(
+        List.of(new SentMailRecord(sent, "Recipient", false))));
+    service.openSent(player, MailType.LETTER);
+    drain();
+    clearInvocations(repository);
+    service.click(player, 9);
+    verify(player).openBook(book);
+    verifyNoInteractions(repository);
+  }
+
+  /** Sent permission is rechecked before showing a history page. */
+  @Test
+  void sentHistoryRequiresPermission() {
+    when(player.hasPermission("enthusiaexpress.sent")).thenReturn(false);
+    service.openSent(player, MailType.PACKAGE);
+    verifyNoInteractions(repository);
+  }
+
+  private MailRecord sentRecord(MailType type) {
+    return new MailRecord(1, id, "Sender", UUID.randomUUID(), "Recipient", type, MailStatus.UNCLAIMED,
+        new byte[] {1}, 2, 1, 1, true, false);
+  }
+
+  /** The current category is explicitly marked instead of relying on a long title. */
+  @Test
+  void selectedCategoryHasAnExplicitLabel() {
+    when(repository.listInbox(any(), any(), anyInt())).thenReturn(CompletableFuture.completedFuture(List.of()));
+    service.open(player, MailType.PACKAGE);
+    verify(icons.constructed().get(1).getItemMeta()).setDisplayName("§a▶ Packages");
+  }
+
   JavaPlugin plugin;
   MailRepository repository;
   CombatLogXHook combat;

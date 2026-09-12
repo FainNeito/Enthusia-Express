@@ -25,6 +25,24 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.junit.jupiter.api.Test;
 
 class MailCommandTest {
+    /** The sent command opens sender history and completes its categories. */
+    @Test
+    void sentCommandOpensHistory() {
+        try (var bukkit = mockStatic(Bukkit.class)) {
+            Player sender = mock(Player.class);
+            when(sender.hasPermission(anyString())).thenReturn(true);
+            CombatLogXHook combat = mock(CombatLogXHook.class);
+            when(combat.mayUseMail(sender)).thenReturn(true);
+            MailboxService mailbox = mock(MailboxService.class);
+            MailCommand command = new MailCommand(mock(JavaPlugin.class), mock(ShippingService.class),
+                    mailbox, combat, mock(BookMailService.class), mock(MainThread.class));
+            command.onCommand(sender, mock(Command.class), "mail", new String[] {"sent", "letters"});
+            verify(mailbox).openSent(sender, io.enthusia.express.domain.MailType.LETTER);
+            assertEquals(List.of("letters"), command.onTabComplete(sender, mock(Command.class), "mail",
+                    new String[] {"sent", "le"}));
+        }
+    }
+
     /** Offline names are available without reading player files during completion. */
     @Test
     void knownOfflineNamesAreSuggestedFromStartupSnapshot() {

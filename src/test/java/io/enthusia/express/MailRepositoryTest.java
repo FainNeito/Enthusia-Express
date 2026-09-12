@@ -14,6 +14,74 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 
 class MailRepositoryTest {
+  /** Sent history exposes retained rows belonging to the sender. */
+  @Test
+  void sentHistoryIsAvailableForTheSender() {
+    insert();
+    assertEquals(1, repository.listSent(sender, MailType.PACKAGE, 0).join().size());
+    assertTrue(repository.listSent(recipient, MailType.PACKAGE, 0).join().isEmpty());
+    assertTrue(repository.listSent(sender, MailType.LETTER, 0).join().isEmpty());
+  }
+
+  /** Return-to-sender preserves the intended recipient, including after purge and restart. */
+  @Test
+  void sentHistoryPreservesOriginalRecipientAfterReturnAndPurge() {
+    long id = insert();
+    repository.expire(100, Long.MAX_VALUE, 0, 0).join();
+    var returned = repository.listSent(sender, MailType.PACKAGE, 0).join().getFirst();
+    assertEquals("Recipient", returned.getRecipientName());
+    assertEquals(sender, returned.getMail().recipient());
+    assertEquals(MailStatus.RETURNED, returned.getMail().status());
+    repository.expire(200, 0, Long.MAX_VALUE, 0).join();
+    repository.close();
+    repository = new MailRepository(null, file.toFile(), 5000);
+    repository.initialize().join();
+    var expired = repository.listSent(sender, MailType.PACKAGE, 0).join().getFirst();
+    assertEquals(id, expired.getMail().id());
+    assertEquals("Recipient", expired.getRecipientName());
+    assertEquals(MailStatus.PURGED, expired.getMail().status());
+  }
+
+  /** History pages are disjoint, ordered and include collection reservations. */
+  @Test
+  void sentHistoryPagesAndCollectionState() {
+    for (int i = 0; i < 47; i++) insert();
+    var first = repository.listSent(sender, MailType.PACKAGE, 0).join();
+    var second = repository.listSent(sender, MailType.PACKAGE, 1).join();
+    assertEquals(45, first.size());
+    assertEquals(2, second.size());
+    assertTrue(first.getLast().getMail().id() > second.getFirst().getMail().id());
+    long id = first.getFirst().getMail().id();
+    assertTrue(repository.claim(id, recipient).join());
+    assertTrue(repository.listSent(sender, MailType.PACKAGE, 0).join().getFirst().getDeliveryPending());
+    assertTrue(repository.confirmDelivery(id, recipient).join());
+    assertFalse(repository.listSent(sender, MailType.PACKAGE, 0).join().getFirst().getDeliveryPending());
+    assertThrows(CompletionException.class, () -> repository.listSent(sender, MailType.PACKAGE, -1).join());
+  }
+
+  /** Migration recovers normal recipients but does not invent recipients for legacy returns. */
+  @Test
+  void sentHistoryMigrationHandlesLegacyReturns() throws Exception {
+    long normal = insert();
+    long returned = insert();
+    repository.close();
+    try (Connection connection = DriverManager.getConnection("jdbc:sqlite:" + file);
+        Statement statement = connection.createStatement()) {
+      statement.execute("ALTER TABLE mail DROP COLUMN original_recipient_name");
+      try (PreparedStatement update = connection.prepareStatement(
+          "UPDATE mail SET return_delivery=1,status='RETURNED',recipient_name='Sender',recipient_uuid=? WHERE id=?")) {
+        update.setString(1, sender.toString());
+        update.setLong(2, returned);
+        update.executeUpdate();
+      }
+    }
+    repository = new MailRepository(null, file.toFile(), 5000);
+    repository.initialize().join();
+    var history = repository.listSent(sender, MailType.PACKAGE, 0).join();
+    assertEquals("Recipient", history.stream().filter(e -> e.getMail().id() == normal).findFirst().orElseThrow().getRecipientName());
+    assertNull(history.stream().filter(e -> e.getMail().id() == returned).findFirst().orElseThrow().getRecipientName());
+  }
+
   @TempDir Path directory;
   MailRepository repository;
   UUID sender = UUID.randomUUID(), recipient = UUID.randomUUID();
