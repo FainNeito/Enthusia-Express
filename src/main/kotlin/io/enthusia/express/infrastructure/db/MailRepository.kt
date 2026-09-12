@@ -3,6 +3,7 @@
 
 package io.enthusia.express.infrastructure.db
 
+import io.enthusia.express.domain.MailBlockedException
 import io.enthusia.express.application.MailStore
 import io.enthusia.express.domain.MailRecord
 import io.enthusia.express.domain.MailStatus
@@ -31,6 +32,7 @@ class MailRepository(
     constructor(plugin: JavaPlugin, dbFile: File) :
         this(plugin, dbFile, plugin.config.getInt("database.busy-timeout-ms", 5000))
 
+    private val INVALID_PAGE = "Invalid page"
     private val executor = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "EnthusiaExpress-SQLite").apply { isDaemon = true }
     }
@@ -67,6 +69,7 @@ class MailRepository(
                 st.execute("CREATE INDEX IF NOT EXISTS idx_mail_recipient_status ON mail(recipient_uuid, status, type)")
                 st.execute("CREATE INDEX IF NOT EXISTS idx_mail_expiration ON mail(status, updated_at)")
                 st.execute("CREATE INDEX IF NOT EXISTS idx_mail_sent ON mail(sender_uuid, type, created_at DESC, id DESC)")
+                st.execute("CREATE TABLE IF NOT EXISTS mail_blocks (owner_uuid TEXT NOT NULL, sender_uuid TEXT NOT NULL, sender_name TEXT NOT NULL, PRIMARY KEY(owner_uuid,sender_uuid))")
                 val columns = HashSet<String>()
                 st.executeQuery("PRAGMA table_info(mail)").use { rs ->
                     while (rs.next()) columns.add(rs.getString("name"))
@@ -90,7 +93,7 @@ class MailRepository(
     override fun insertMail(sender: UUID?, senderName: String, recipient: UUID, recipientName: String,
                             type: MailType, payload: ByteArray, packedCount: Int, returned: Boolean): CompletableFuture<Long> {
         val copy = payload.clone()
-        return supply { insert(InsertData(sender, senderName, recipient, recipientName, type, copy, packedCount, returned)) }
+        return supply { inTransaction { insert(InsertData(sender, senderName, recipient, recipientName, type, copy, packedCount, returned)) } }
     }
 
     private data class InsertData(
@@ -98,8 +101,13 @@ class MailRepository(
         val type: MailType, val payload: ByteArray, val packedCount: Int, val returned: Boolean,
     )
 
+    /** Preserve recovery deliveries while enforcing recipient preferences for new mail. */
+    private fun rejectBlocked(data: InsertData) = !data.returned && data.sender != null && blocked(data.recipient, data.sender)
+
     /** Bind a prepared mail record to the shared connection and return its generated identifier. */
     private fun insert(data: InsertData): Long {
+        if (rejectBlocked(data))
+            throw MailBlockedException()
         val now = System.currentTimeMillis()
         val sql = "INSERT INTO" +
             " mail(sender_uuid,sender_name,recipient_uuid,recipient_name,type,status,payload,packed_item_count,created_at,updated_at,unread,return_delivery,original_recipient_name)" +
@@ -131,10 +139,14 @@ class MailRepository(
         val copy = payload.clone()
         return supply {
             inTransaction {
+                var delivered = 0
                 for ((recipient, recipientName) in snapshot) {
-                    insert(InsertData(sender, senderName, recipient, recipientName, MailType.ANNOUNCEMENT, copy, 0, false))
+                    if (sender == null || !blocked(recipient, sender)) {
+                        insert(InsertData(sender, senderName, recipient, recipientName, MailType.ANNOUNCEMENT, copy, 0, false))
+                        delivered++
+                    }
                 }
-                snapshot.size
+                delivered
             }
         }
     }
@@ -144,7 +156,7 @@ class MailRepository(
 
     /** Load one bounded inbox page for the requested recipient and mail type. */
     override fun listInbox(recipient: UUID, type: MailType, page: Int): CompletableFuture<List<MailRecord>> {
-        if (page < 0 || page > 1_000_000) return CompletableFuture.failedFuture(IllegalArgumentException("Invalid page"))
+        if (page < 0 || page > 1_000_000) return CompletableFuture.failedFuture(IllegalArgumentException(INVALID_PAGE))
         return supply {
             val out = ArrayList<MailRecord>()
             val sql = "SELECT * FROM mail WHERE recipient_uuid=? AND type=? AND status IN (?,?) ORDER BY" +
@@ -163,7 +175,7 @@ class MailRepository(
 
     /** Query only this sender's retained rows with stable pagination and original recipient metadata. */
     override fun listSent(sender: UUID, type: MailType, page: Int): CompletableFuture<List<io.enthusia.express.domain.SentMailRecord>> {
-        if (page < 0 || page > 1_000_000) return CompletableFuture.failedFuture(IllegalArgumentException("Invalid page"))
+        if (page < 0 || page > 1_000_000) return CompletableFuture.failedFuture(IllegalArgumentException(INVALID_PAGE))
         return supply {
             val out = ArrayList<io.enthusia.express.domain.SentMailRecord>()
             connection.prepareStatement("SELECT * FROM mail WHERE sender_uuid=? AND type=? ORDER BY created_at DESC, id DESC LIMIT 45 OFFSET ?").use { ps ->
@@ -292,9 +304,9 @@ class MailRepository(
             IllegalArgumentException("Announcements do not use outstanding-mail limits"))
         val copy = payload.clone()
         return supply {
-            if (!enforceLimit) OptionalLong.of(insert(InsertData(sender, senderName, recipient, recipientName, type, copy, packedCount, false)))
-            else inTransaction {
-                if (hasOutstanding(sender, recipient, type)) OptionalLong.empty()
+            inTransaction {
+                if (blocked(recipient, sender)) throw MailBlockedException()
+                if (enforceLimit && hasOutstanding(sender, recipient, type)) OptionalLong.empty()
                 else OptionalLong.of(insert(InsertData(sender, senderName, recipient, recipientName, type, copy, packedCount, false)))
             }
         }
@@ -311,6 +323,46 @@ class MailRepository(
             ps.setString(3, type.name)
             ps.setString(4, type.name)
             ps.executeQuery().use { it.next() }
+        }
+    }
+
+    /** Serialize block updates with delivery transactions and reject self-blocks. */
+    override fun setBlocked(owner: UUID, sender: UUID, senderName: String, enabled: Boolean): CompletableFuture<Void> {
+        if (owner == sender) return CompletableFuture.failedFuture(IllegalArgumentException("Cannot block yourself"))
+        return run {
+            val sql = if (enabled) "INSERT INTO mail_blocks(owner_uuid,sender_uuid,sender_name) VALUES(?,?,?) ON CONFLICT(owner_uuid,sender_uuid) DO UPDATE SET sender_name=excluded.sender_name"
+                else "DELETE FROM mail_blocks WHERE owner_uuid=? AND sender_uuid=?"
+            connection.prepareStatement(sql).use { ps ->
+                ps.setString(1, owner.toString())
+                ps.setString(2, sender.toString())
+                if (enabled) ps.setString(3, senderName)
+                ps.executeUpdate()
+            }
+        }
+    }
+
+    /** Read block preferences on the serialized connection. */
+    override fun isBlocked(owner: UUID, sender: UUID): CompletableFuture<Boolean> = supply { blocked(owner, sender) }
+
+    /** Inspect a block within the caller's current storage transaction. */
+    private fun blocked(owner: UUID, sender: UUID): Boolean =
+        connection.prepareStatement("SELECT 1 FROM mail_blocks WHERE owner_uuid=? AND sender_uuid=?").use { ps ->
+            ps.setString(1, owner.toString())
+            ps.setString(2, sender.toString())
+            ps.executeQuery().use { it.next() }
+        }
+
+    /** List only this player's preferences using bounded stable pagination. */
+    override fun listBlocked(owner: UUID, page: Int): CompletableFuture<List<String>> {
+        if (page < 0 || page > 1_000_000) return CompletableFuture.failedFuture(IllegalArgumentException(INVALID_PAGE))
+        return supply {
+            val names = ArrayList<String>()
+            connection.prepareStatement("SELECT sender_name FROM mail_blocks WHERE owner_uuid=? ORDER BY sender_name,sender_uuid LIMIT 20 OFFSET ?").use { ps ->
+                ps.setString(1, owner.toString())
+                ps.setInt(2, page * 20)
+                ps.executeQuery().use { rs -> while (rs.next()) names.add(rs.getString(1)) }
+            }
+            names
         }
     }
 
