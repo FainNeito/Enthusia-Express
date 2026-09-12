@@ -137,3 +137,11 @@ WHEN a player opens sent mail THE SYSTEM SHALL show only that sender's paginated
 ## REQ-034
 
 WHEN a mailbox category is selected THE SYSTEM SHALL visibly highlight its category control and show a compact page and Inbox or Sent indicator without reopening the window.
+
+## REQ-035
+
+WHEN a recipient blocks a sender THE SYSTEM SHALL persist the block and reject future direct mail and broadcast deliveries from that sender while retaining existing mail and return-to-sender recovery.
+
+## REQ-036
+
+WHEN configured Nexo assets are available THE SYSTEM SHALL use their custom GUI icons and title glyphs while falling back to vanilla controls when the optional integration is unavailable.
