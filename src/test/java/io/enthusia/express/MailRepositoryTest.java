@@ -2,8 +2,9 @@ package io.enthusia.express;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import io.enthusia.express.db.MailRepository;
-import io.enthusia.express.mail.*;
+import io.enthusia.express.infrastructure.db.MailRepository;
+import io.enthusia.express.domain.*;
+import io.enthusia.express.infrastructure.mail.*;
 import java.nio.file.Path;
 import java.sql.*;
 import java.util.*;
@@ -17,6 +18,128 @@ class MailRepositoryTest {
   MailRepository repository;
   UUID sender = UUID.randomUUID(), recipient = UUID.randomUUID();
   Path file;
+
+  /** A persisted recipient block prevents a new direct delivery. */
+  @Test
+  void blockedSenderCannotInsertMail() {
+    repository.setBlocked(recipient, sender, "Sender", true).join();
+    assertThrows(CompletionException.class, () -> insert());
+    assertThrows(CompletionException.class, () -> repository.insertMailLimited(sender, "Sender", recipient, "Recipient",
+        MailType.LETTER, new byte[] {1}, 0, false).join());
+    assertTrue(repository.listInbox(recipient, MailType.PACKAGE).join().isEmpty());
+  }
+
+  /** Block preferences survive restart, are private to their owner, and can be removed. */
+  @Test
+  void blockPreferencesPersistAndUnblock() {
+    repository.setBlocked(recipient, sender, "Sender", true).join();
+    repository.close();
+    repository = new MailRepository(null, file.toFile(), 5000);
+    repository.initialize().join();
+    assertTrue(repository.isBlocked(recipient, sender).join());
+    assertFalse(repository.isBlocked(sender, recipient).join());
+    assertEquals(List.of("Sender"), repository.listBlocked(recipient, 0).join());
+    assertTrue(repository.listBlocked(sender, 0).join().isEmpty());
+    repository.setBlocked(recipient, sender, "Sender", false).join();
+    assertFalse(repository.isBlocked(recipient, sender).join());
+    assertTrue(insert() > 0);
+  }
+
+  /** Broadcasts skip blocked recipients while preserving everyone else's independent copy. */
+  @Test
+  void broadcastsRespectRecipientBlocks() {
+    UUID other = UUID.randomUUID();
+    repository.setBlocked(recipient, sender, "Sender", true).join();
+    assertEquals(1, repository.announce(sender, "Sender", Map.of(recipient, "Recipient", other, "Other"), new byte[] {1}).join());
+    assertTrue(repository.listInbox(recipient, MailType.ANNOUNCEMENT).join().isEmpty());
+    assertEquals(1, repository.listInbox(other, MailType.ANNOUNCEMENT).join().size());
+    assertThrows(CompletionException.class, () -> repository.insertMail(sender, "Sender", recipient, "Recipient",
+        MailType.ANNOUNCEMENT, new byte[] {1}, 0, false).join());
+  }
+
+  /** Another connection sees committed blocks, while existing packages still return safely. */
+  @Test
+  void crossConnectionBlocksPreserveExistingReturns() {
+    long existing = insert();
+    MailRepository other = new MailRepository(null, file.toFile(), 5000);
+    try {
+        other.initialize().join();
+        repository.setBlocked(recipient, sender, "Sender", true).join();
+        assertThrows(CompletionException.class, () -> other.insertPackage(sender, "Sender", recipient, "Recipient", new byte[] {1}, 1, false).join());
+        repository.expire(100, Long.MAX_VALUE, 0, 0).join();
+        assertEquals(MailStatus.RETURNED, other.get(existing).join().status());
+    } finally { other.close(); }
+  }
+
+  /** Sent history exposes retained rows belonging to the sender. */
+  @Test
+  void sentHistoryIsAvailableForTheSender() {
+    insert();
+    assertEquals(1, repository.listSent(sender, MailType.PACKAGE, 0).join().size());
+    assertTrue(repository.listSent(recipient, MailType.PACKAGE, 0).join().isEmpty());
+    assertTrue(repository.listSent(sender, MailType.LETTER, 0).join().isEmpty());
+  }
+
+  /** Return-to-sender preserves the intended recipient, including after purge and restart. */
+  @Test
+  void sentHistoryPreservesOriginalRecipientAfterReturnAndPurge() {
+    long id = insert();
+    repository.expire(100, Long.MAX_VALUE, 0, 0).join();
+    var returned = repository.listSent(sender, MailType.PACKAGE, 0).join().getFirst();
+    assertEquals("Recipient", returned.getRecipientName());
+    assertEquals(sender, returned.getMail().recipient());
+    assertEquals(MailStatus.RETURNED, returned.getMail().status());
+    repository.expire(200, 0, Long.MAX_VALUE, 0).join();
+    repository.close();
+    repository = new MailRepository(null, file.toFile(), 5000);
+    repository.initialize().join();
+    var expired = repository.listSent(sender, MailType.PACKAGE, 0).join().getFirst();
+    assertEquals(id, expired.getMail().id());
+    assertEquals("Recipient", expired.getRecipientName());
+    assertEquals(MailStatus.PURGED, expired.getMail().status());
+  }
+
+  /** History pages are disjoint, ordered and include collection reservations. */
+  @Test
+  void sentHistoryPagesAndCollectionState() {
+    for (int i = 0; i < 47; i++) insert();
+    var first = repository.listSent(sender, MailType.PACKAGE, 0).join();
+    var second = repository.listSent(sender, MailType.PACKAGE, 1).join();
+    assertEquals(45, first.size());
+    assertEquals(2, second.size());
+    assertTrue(first.getLast().getMail().id() > second.getFirst().getMail().id());
+    long id = first.getFirst().getMail().id();
+    assertTrue(repository.claim(id, recipient).join());
+    assertTrue(repository.listSent(sender, MailType.PACKAGE, 0).join().getFirst().getDeliveryPending());
+    assertTrue(repository.confirmDelivery(id, recipient).join());
+    assertFalse(repository.listSent(sender, MailType.PACKAGE, 0).join().getFirst().getDeliveryPending());
+    assertThrows(CompletionException.class, () -> repository.listSent(sender, MailType.PACKAGE, -1).join());
+  }
+
+  /** Migration recovers normal recipients but does not invent recipients for legacy returns. */
+  @Test
+  void sentHistoryMigrationHandlesLegacyReturns() throws Exception {
+    long normal = insert();
+    long returned = insert();
+    repository.close();
+    try (Connection connection = DriverManager.getConnection("jdbc:sqlite:" + file);
+        Statement statement = connection.createStatement()) {
+      statement.execute("ALTER TABLE mail DROP COLUMN original_recipient_name");
+      try (PreparedStatement update = connection.prepareStatement(
+          "UPDATE mail SET return_delivery=1,status='RETURNED',recipient_name='Sender',recipient_uuid=? WHERE id=?")) {
+        update.setString(1, sender.toString());
+        update.setLong(2, returned);
+        update.executeUpdate();
+      }
+    }
+    repository = new MailRepository(null, file.toFile(), 5000);
+    repository.initialize().join();
+    var history = repository.listSent(sender, MailType.PACKAGE, 0).join();
+    assertEquals("Recipient", history.stream().filter(e -> e.getMail().id() == normal).findFirst().orElseThrow().getRecipientName());
+    assertNull(history.stream().filter(e -> e.getMail().id() == returned).findFirst().orElseThrow().getRecipientName());
+  }
+
+
 
   @BeforeEach
   void start() {
@@ -35,6 +158,27 @@ class MailRepositoryTest {
         .insertPackage(sender, "Sender", recipient, "Recipient", new byte[] {1, 2, 3}, 4, false)
         .join();
   }
+  /** Verifies that committed insert survives auto commit reset failure. */
+
+  @Test
+  @SuppressWarnings("PMD.AvoidAccessibilityAlteration")
+  void committedInsertSurvivesAutoCommitResetFailure() throws Exception {
+    var field = MailRepository.class.getDeclaredField("connection");
+    // Test-only fault injection on this isolated repository; production visibility stays private.
+    field.setAccessible(true);
+    Connection connection = org.mockito.Mockito.spy((Connection) field.get(repository));
+    org.mockito.Mockito.doThrow(new SQLException("reset failed"))
+        .when(connection).setAutoCommit(true);
+    field.set(repository, connection);
+    var accepted = repository.insertMailLimited(sender, "Sender", recipient, "Recipient",
+        MailType.PACKAGE, new byte[] {1}, 1, true).join();
+    assertTrue(accepted.isPresent(), "A committed send must not trigger compensation");
+    assertEquals(1, repository.listInbox(recipient, MailType.PACKAGE).join().size());
+    assertTrue(repository.insertMailLimited(sender, "Sender", recipient, "Recipient",
+        MailType.PACKAGE, new byte[] {2}, 1, true).join().isEmpty());
+    assertTrue(repository.claim(accepted.getAsLong(), recipient).join());
+  }
+  /** Verifies that sqlite uses wal and persists bytes across restart. */
 
   @Test
   void sqliteUsesWalAndPersistsBytesAcrossRestart() throws Exception {
@@ -49,6 +193,7 @@ class MailRepositoryTest {
       assertEquals("wal", rs.getString(1));
     }
   }
+  /** Verifies that concurrent inserts and claims have exactly one winner. */
 
   @Test
   void concurrentInsertsAndClaimsHaveExactlyOneWinner() {
@@ -62,6 +207,7 @@ class MailRepositoryTest {
         1, claims.stream().map(CompletableFuture::join).filter(Boolean::booleanValue).count());
     assertFalse(repository.claim(ids.get(1), UUID.randomUUID()).join());
   }
+  /** Verifies that competing connections cannot duplicate claim. */
 
   @Test
   void competingConnectionsCannotDuplicateClaim() {
@@ -79,6 +225,7 @@ class MailRepositoryTest {
       other.close();
     }
   }
+  /** Verifies that return and purge respect boundaries and never overwrite claim. */
 
   @Test
   void returnAndPurgeRespectBoundariesAndNeverOverwriteClaim() {
@@ -96,6 +243,7 @@ class MailRepositoryTest {
     repository.expire(stamp + 300, Long.MAX_VALUE, Long.MAX_VALUE, 0).join();
     assertEquals(MailStatus.RETURN_CLAIMED, repository.get(id).join().status());
   }
+  /** Verifies that unclaimed return purges payload and does not loop. */
 
   @Test
   void unclaimedReturnPurgesPayloadAndDoesNotLoop() {
@@ -108,6 +256,7 @@ class MailRepositoryTest {
     assertEquals(0, repository.get(id).join().payload().length);
     assertFalse(repository.claim(id, sender).join());
   }
+  /** Verifies that claim racing expiration cannot be both returned and delivered. */
 
   @Test
   void claimRacingExpirationCannotBeBothReturnedAndDelivered() {
@@ -126,6 +275,7 @@ class MailRepositoryTest {
       other.close();
     }
   }
+  /** Verifies that texts can be reread and expire without returning. */
 
   @Test
   void textsCanBeRereadAndExpireWithoutReturning() {
@@ -144,6 +294,7 @@ class MailRepositoryTest {
     repository.expire(System.currentTimeMillis(), 0, 0, Long.MAX_VALUE).join();
     assertEquals(MailStatus.PURGED, repository.get(id).join().status());
   }
+  /** Verifies that broadcast is atomic and per recipient unread is independent. */
 
   @Test
   void broadcastIsAtomicAndPerRecipientUnreadIsIndependent() throws Exception {
@@ -175,6 +326,7 @@ class MailRepositoryTest {
     }
     assertTrue(insert() > 0); // transaction state recovered after rollback
   }
+  /** Verifies that pagination has stable order and no overlap. */
 
   @Test
   void paginationHasStableOrderAndNoOverlap() {
@@ -186,6 +338,7 @@ class MailRepositoryTest {
     assertEquals(100, ids.size());
     assertTrue(repository.listInbox(recipient, MailType.PACKAGE, 3).join().isEmpty());
   }
+  /** Verifies that graceful close drains writes and rejects new work. */
 
   @Test
   void gracefulCloseDrainsWritesAndRejectsNewWork() {
@@ -199,6 +352,7 @@ class MailRepositoryTest {
     assertTrue(writes.stream().allMatch(CompletableFuture::isDone));
     assertThrows(CompletionException.class, () -> repository.get(1).join());
   }
+  /** Verifies that failed delivery restores claim without resetting expiration. */
 
   @Test
   void failedDeliveryRestoresClaimWithoutResettingExpiration() {
@@ -210,6 +364,7 @@ class MailRepositoryTest {
     assertEquals(original.updatedAt(), repository.get(id).join().updatedAt());
     assertTrue(repository.claim(id, recipient).join());
   }
+  /** Verifies that busy timeout allows external writer to finish. */
 
   @Test
   void busyTimeoutAllowsExternalWriterToFinish() throws Exception {
@@ -223,6 +378,7 @@ class MailRepositoryTest {
       assertTrue(pending.get(5, TimeUnit.SECONDS) > 0);
     }
   }
+  /** Verifies that package limit is atomic across connections and resolved states release it. */
 
   @Test
   void packageLimitIsAtomicAcrossConnectionsAndResolvedStatesReleaseIt() {
@@ -243,6 +399,7 @@ class MailRepositoryTest {
               .count());
       long id = first.join().isPresent() ? first.join().getAsLong() : second.join().getAsLong();
       assertTrue(repository.claim(id, recipient).join());
+      assertTrue(repository.confirmDelivery(id, recipient).join());
       assertTrue(
           repository
               .insertMailLimited(
@@ -253,6 +410,7 @@ class MailRepositoryTest {
       other.close();
     }
   }
+  /** Verifies that disabled limits allow duplicates and types and recipients are independent. */
 
   @Test
   void disabledLimitsAllowDuplicatesAndTypesAndRecipientsAreIndependent() {
@@ -277,6 +435,7 @@ class MailRepositoryTest {
             .join()
             .isPresent());
   }
+  /** Verifies that unread letter blocks but read retained history and announcements do not. */
 
   @Test
   void unreadLetterBlocksButReadRetainedHistoryAndAnnouncementsDoNot() {
@@ -304,6 +463,7 @@ class MailRepositoryTest {
             .join()
             .isPresent());
   }
+  /** Verifies that pending summary excludes claimed read and purged history. */
 
   @Test
   void pendingSummaryExcludesClaimedReadAndPurgedHistory() {
@@ -328,6 +488,7 @@ class MailRepositoryTest {
     assertEquals(new MailSummary(1, 1, 1), summary);
     assertNotNull(repository.get(packageId).join());
   }
+  /** Verifies that returned return claimed and purged packages do not block original pair. */
 
   @Test
   void returnedReturnClaimedAndPurgedPackagesDoNotBlockOriginalPair() {

@@ -1,0 +1,43 @@
+complexity:
+  active: true
+  CyclomaticComplexMethod:
+    active: true
+    threshold: 10
+  ComplexCondition:
+    active: true
+    threshold: 4
+  LabeledExpression:
+    active: true
+  LongMethod:
+    active: true
+    threshold: 60
+  LongParameterList:
+    active: true
+    functionThreshold: 6
+    constructorThreshold: 7
+    ignoreDataClasses: true
+  StringLiteralDuplication:
+    active: true
+    threshold: 3
+  TooManyFunctions:
+    active: true
+    thresholdInClasses: 11
+    thresholdInInterfaces: 11
+    ignoreOverridden: true
+exceptions:
+  active: true
+  TooGenericExceptionCaught:
+    active: true
+empty-blocks:
+  active: true
+  EmptyElseBlock:
+    active: true
+performance:
+  active: true
+  SpreadOperator:
+    active: true
+
+comments:
+  active: true
+  CommentOverPrivateFunction:
+    active: true

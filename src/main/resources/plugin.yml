@@ -1,18 +1,22 @@
 name: EnthusiaExpress
 version: '${version}'
-main: io.enthusia.express.EnthusiaExpressPlugin
+main: io.enthusia.express.infrastructure.EnthusiaExpressPlugin
 api-version: '1.21'
 author: Enthusia
-softdepend: [CombatLogX]
+softdepend: [CombatLogX, Vault, EnthusiaCurrency, Nexo]
 commands:
   mail:
     description: Packages, letters and admin announcements
-    usage: /mail <send|letter|announce|inbox>
+    usage: /mail <send|letter|announce|inbox|sent|block|unblock|blocked>
     permission: enthusiaexpress.use
 permissions:
   enthusiaexpress.use:
     default: true
   enthusiaexpress.inbox:
+    default: true
+  enthusiaexpress.sent:
+    default: true
+  enthusiaexpress.block:
     default: true
   enthusiaexpress.packages.send:
     default: true

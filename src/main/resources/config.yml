@@ -10,7 +10,8 @@ mail:
   max-recursive-container-depth: 8
   limits:
     # Scope is per sender + recipient + type. Other senders and recipients are independent.
-    # A package stops blocking after claim, return or purge.
+    # A package stops blocking after delivery acknowledgment, return or purge.
+    # A claimed package with delivery_pending = 1 still blocks until acknowledgment or durable receipt retry.
     one-outstanding-package-per-recipient: false
     # A retained letter stops blocking as soon as it is read. Announcements are never limited.
     one-outstanding-letter-per-recipient: false
@@ -48,8 +49,44 @@ sounds:
     sound: "minecraft:item.book.page_turn"
     volume: 1.0
     pitch: 1.0
+payments:
+  # auto: use EnthusiaCurrency through Vault; use physical Raw Gold only when EnthusiaCurrency is absent.
+  # An installed but disabled currency plugin or missing Vault blocks payment until repaired.
+  # enthusia-currency: require that provider. physical: always use inventory Raw Gold.
+  provider: auto
+gui:
+  nexo:
+    # Opt-in. Nexo supplies assets and its resource pack; absent/unloaded items use vanilla icons.
+    enabled: false
+    # Nexo glyph/shift tags require its inventory-title packet formatting.
+    # Keep one mailbox title for all categories to preserve cursor position.
+    titles:
+      mailbox: ""
+      shipping: ""
+    icons:
+      mailbox:
+        packages: ""
+        packages-selected: ""
+        letters: ""
+        letters-selected: ""
+        announcements: ""
+        announcements-selected: ""
+        previous: ""
+        next: ""
+        inbox: ""
+        sent: ""
+        page: ""
+      shipping:
+        cancel: ""
+        recipient: ""
+        quote: ""
+        confirm: ""
+        placeholder: ""
 messages:
   prefix: "&6[Enthusia Express]&r "
+  letter-target-online: "&eThere is no need to send a letter: that player is currently online."
+  letter-invalid-recipient: "&cChoose another player to send a letter to."
+  package-quote: "&ePostage: {cost} {currency} for {items} packed items. Click Send package to confirm."
   target-online: "&cThat player is online. Trade with them in person."
   target-never-joined: "&cThat player is not in this server's player cache."
   combat-blocked: "&cMail is unavailable while combat protection blocks access."
@@ -59,11 +96,20 @@ messages:
   feature-disabled: "&cThis mail feature is disabled."
   invalid-container: "&cShipments must be packed in a Shulker Box or Bundle."
   empty-container: "&cThat container is empty."
+  insufficient-currency: "&cYou need {cost} currency, but your combined balance is {have}."
   insufficient-gold: "&cYou need {cost} Raw Gold, but only have {have}."
-  package-sent: "&aPackage sent to {target} for {cost} Raw Gold ({items} packed items)."
+  payment-unavailable: "&cThe currency payment provider is unavailable. Your package was not sent."
+  package-sent: "&aPackage sent to {target} for {cost} {currency} ({items} packed items)."
   outstanding-package: "&eYou already have an unresolved package for that recipient. Your package and fee were refunded."
   outstanding-letter: "&eThat recipient still has an unread letter from you."
-  join-mail: "&eYou have mail: {packages} package(s), {letters} letter(s), {announcements} announcement(s). Use /mail inbox."
+  # One message per nonempty category; {noun} chooses singular/plural automatically.
+  join-mail-packages: "&eYou've got mail! You have {count} {noun} for pickup. Use /mail inbox packages to claim!"
+  join-mail-letters: "&eYou've got mail! You have {count} {noun} for pickup. Use /mail inbox letters to read!"
+  join-mail-announcements: "&eYou've got mail! You have {count} {noun} for pickup. Use /mail inbox announcements to read!"
+  recipient-not-accepting: "&cThat player is not accepting your mail."
+  player-blocked: "&aBlocked mail from {player}."
+  player-unblocked: "&aUnblocked mail from {player}."
+  sent-empty: "&7No sent mail on this page."
   mailbox-empty: "&7No mail on this page."
   hold-signed-book: "&cHold a signed written book in your main hand. A copy will be sent."
   book-too-large: "&cThat book exceeds the configured page or payload limit."

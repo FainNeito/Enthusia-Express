@@ -39,7 +39,7 @@ Each option applies independently to a `(sender, recipient, mail type)` combinat
 
 | Type | Blocks another send | Does not block |
 | --- | --- | --- |
-| Package | Original delivery is `UNCLAIMED` for that sender and recipient | `CLAIMED`, `RETURNED`, `RETURN_CLAIMED`, or `PURGED` history |
+| Package | Original delivery is `UNCLAIMED`, or `CLAIMED` with delivery pending, for that sender and recipient | Acknowledged `CLAIMED`, `RETURNED`, `RETURN_CLAIMED`, or `PURGED` history |
 | Letter | Active `UNCLAIMED` row with `unread = 1` | Read retained letters or `PURGED` history |
 | Announcement | Never governed by these limits | All announcement states |
 
@@ -140,3 +140,7 @@ Minecraft player inventory files and SQLite cannot participate in one shared tra
 Automated tests exercise PDC marker authority, hostile click/drag paths, full-inventory return behavior, cross-connection limit races, every relevant lifecycle release, pending-summary filtering, stale join callbacks, sound success/failure ordering, disabled and malformed sound configuration, default YAML parsing, the full prior regression suite, shaded-JAR contents, and the supported Paper compile matrix.
 
 No live Paper client was used. Before production rollout, verify the pane appearance and click feel, audible sound choices, real book presentation, join timing after restart, CombatLogX behavior and real ItemStack/PDC round trips on a staging server. See `VERIFICATION.md` for exact automated results and the live checklist.
+
+## Kotlin 1.2.0 update
+
+A package claim keeps its limit reservation while inventory delivery is pending. Successful acknowledgment releases it; compensation restores the original package. See README.md for the EnthusiaCurrency provider setting and TESTING.md for the expanded staging checks.

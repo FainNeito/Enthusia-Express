@@ -2,10 +2,11 @@ package io.enthusia.express;
 
 import static org.mockito.Mockito.*;
 
-import io.enthusia.express.db.MailRepository;
-import io.enthusia.express.hook.CombatLogXHook;
-import io.enthusia.express.mail.*;
-import io.enthusia.express.util.*;
+import io.enthusia.express.infrastructure.db.MailRepository;
+import io.enthusia.express.infrastructure.hook.CombatLogXHook;
+import io.enthusia.express.domain.*;
+import io.enthusia.express.infrastructure.mail.*;
+import io.enthusia.express.infrastructure.util.*;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.OptionalLong;
@@ -29,6 +30,27 @@ class BookMailServiceTest {
   ItemStack book;
   BookMeta meta;
   SoundFeedback sounds;
+
+  /** Verifies serialization failures are reported without persistence. */
+  @Test
+  void encodingFailureReportsConfiguredMessageWithoutPersistence() {
+    config.set("messages.book-too-large", "Encoding refused");
+    try (var codec = mockStatic(ItemCodec.class)) {
+      codec.when(() -> ItemCodec.encode(book)).thenThrow(new IllegalStateException("bad payload"));
+      service.send(player, target, false, false);
+      verify(player).sendMessage(contains("Encoding refused"));
+      verifyNoInteractions(repository, sounds, main);
+    }
+  }
+
+  /** An online letter recipient receives an explanation specific to letters. */
+  @Test
+  void onlineRecipientExplainsThatLetterIsUnnecessary() {
+    when(target.isOnline()).thenReturn(true);
+    service.send(player, target, false, false);
+    verify(player).sendMessage(contains("no need to send a letter"));
+    verifyNoInteractions(repository);
+  }
 
   @BeforeEach
   void setup() {
@@ -60,6 +82,7 @@ class BookMailServiceTest {
     sounds = mock(SoundFeedback.class);
     service = new BookMailService(plugin, repository, combat, main, sounds);
   }
+  /** Verifies that letter copies signed book and rejects duplicate pending send. */
 
   @Test
   void letterCopiesSignedBookAndRejectsDuplicatePendingSend() {
@@ -84,6 +107,7 @@ class BookMailServiceTest {
       verify(player.getInventory(), never()).setItemInMainHand(any());
     }
   }
+  /** Verifies that enabled letter limit uses atomic insert and rejects without success feedback. */
 
   @Test
   void enabledLetterLimitUsesAtomicInsertAndRejectsWithoutSuccessFeedback() {
@@ -108,6 +132,7 @@ class BookMailServiceTest {
       verifyNoInteractions(sounds);
     }
   }
+  /** Verifies that letter sound requires accepted persistence. */
 
   @Test
   void letterSoundRequiresAcceptedPersistence() {
@@ -128,6 +153,7 @@ class BookMailServiceTest {
       verify(sounds).play(player, SoundFeedback.Cue.LETTER_SEND);
     }
   }
+  /** Verifies that failed letter persistence produces no success sound. */
 
   @Test
   void failedLetterPersistenceProducesNoSuccessSound() {
@@ -149,6 +175,7 @@ class BookMailServiceTest {
       verify(player).sendMessage(contains("database-error"));
     }
   }
+  /** Verifies that ordinary player cannot publish an announcement. */
 
   @Test
   void ordinaryPlayerCannotPublishAnAnnouncement() {
@@ -157,6 +184,7 @@ class BookMailServiceTest {
     service.send(player, null, true, true);
     verifyNoInteractions(repository);
   }
+  /** Verifies that online recipient and combat and disabled feature block letters. */
 
   @Test
   void onlineRecipientAndCombatAndDisabledFeatureBlockLetters() {
@@ -170,6 +198,7 @@ class BookMailServiceTest {
     service.send(player, target, false, false);
     verifyNoInteractions(repository);
   }
+  /** Verifies that oversized or unsigned books are rejected. */
 
   @Test
   void oversizedOrUnsignedBooksAreRejected() {
@@ -179,6 +208,7 @@ class BookMailServiceTest {
     service.send(player, target, false, false);
     verifyNoInteractions(repository);
   }
+  /** Verifies that broadcast snapshots known and online recipients. */
 
   @Test
   void broadcastSnapshotsKnownAndOnlineRecipients() {
