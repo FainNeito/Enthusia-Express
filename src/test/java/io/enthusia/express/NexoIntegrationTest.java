@@ -25,7 +25,8 @@ public class NexoIntegrationTest {
       JavaPlugin plugin = configuredPlugin();
       Plugin nexo = install(bukkit);
       NexoItemSource source = mock(NexoItemSource.class);
-      ItemStack template = mock(ItemStack.class), copy = mock(ItemStack.class);
+      ItemStack template = mock(ItemStack.class);
+      ItemStack copy = mock(ItemStack.class);
       Material customMaterial = mock(Material.class);
       when(template.getType()).thenReturn(customMaterial);
       when(template.clone()).thenReturn(copy);
