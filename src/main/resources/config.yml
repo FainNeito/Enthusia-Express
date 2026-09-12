@@ -78,6 +78,7 @@ messages:
   join-mail-packages: "&eYou've got mail! You have {count} {noun} for pickup. Use /mail inbox packages to claim!"
   join-mail-letters: "&eYou've got mail! You have {count} {noun} for pickup. Use /mail inbox letters to read!"
   join-mail-announcements: "&eYou've got mail! You have {count} {noun} for pickup. Use /mail inbox announcements to read!"
+  sent-empty: "&7No sent mail on this page."
   mailbox-empty: "&7No mail on this page."
   hold-signed-book: "&cHold a signed written book in your main hand. A copy will be sent."
   book-too-large: "&cThat book exceeds the configured page or payload limit."

@@ -7,12 +7,14 @@ softdepend: [CombatLogX, Vault, EnthusiaCurrency]
 commands:
   mail:
     description: Packages, letters and admin announcements
-    usage: /mail <send|letter|announce|inbox>
+    usage: /mail <send|letter|announce|inbox|sent>
     permission: enthusiaexpress.use
 permissions:
   enthusiaexpress.use:
     default: true
   enthusiaexpress.inbox:
+    default: true
+  enthusiaexpress.sent:
     default: true
   enthusiaexpress.packages.send:
     default: true
