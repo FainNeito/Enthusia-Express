@@ -3,6 +3,7 @@
 
 package io.enthusia.express.infrastructure.mail
 
+import io.enthusia.express.domain.MailBlockedException
 import io.enthusia.express.application.MailStore
 import io.enthusia.express.domain.MailType
 import io.enthusia.express.infrastructure.hook.CombatLogXHook
@@ -42,7 +43,9 @@ class BookMailService @JvmOverloads constructor(
         pending.add(player.uniqueId)
         main.complete(result) { count, error ->
             pending.remove(player.uniqueId)
-            if (error != null) {
+            if (MailBlockedException.causedBy(error)) {
+                player.sendMessage(Text.msgOrDefault(plugin.config, "recipient-not-accepting", "&cThat player is not accepting your mail."))
+            } else if (error != null) {
                 plugin.logger.severe("Book delivery failed: $error")
                 player.sendMessage(Text.msg(plugin.config, "database-error"))
             } else if (count == 0 && !announcement) {
