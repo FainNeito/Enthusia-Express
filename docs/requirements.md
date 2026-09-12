@@ -129,3 +129,11 @@ WHEN a sender requests shipment THE SYSTEM SHALL display the postage before char
 ## REQ-032
 
 WHEN a player joins with mail THE SYSTEM SHALL notify only nonempty categories with correct singular or plural wording and the matching inbox command.
+
+## REQ-033
+
+WHEN a player opens sent mail THE SYSTEM SHALL show only that sender's paginated history with original recipients, dates and statuses without permitting claims or changing unread state.
+
+## REQ-034
+
+WHEN a mailbox category is selected THE SYSTEM SHALL visibly highlight its category control and show a compact page and Inbox or Sent indicator without reopening the window.
