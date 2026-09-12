@@ -28,4 +28,16 @@ Automated checks use real SQLite databases and mocked Paper interactions. They d
 Automated integration tests use real SQLite and mocked Paper/Vault services. Live behavior with your server's currency and combat plugins still needs the checks above.
 
 - Retain delivery-receipts/ with database backups. After a simulated acknowledgment failure on a disposable server, restart and verify the reservation clears without giving a second package. Unknown deliveries without a durable receipt still need manual inventory reconciliation.
-- Confirm insufficient currency messages show fractional combined balances, and tab completion performs no offline-file scan.
+- Confirm insufficient currency messages show fractional combined balances. Completion uses a startup snapshot of known names, refreshed when players join; it performs no offline-file scan during completion.
+
+## Gameplay feedback checks
+
+- With the recipient online, use `/mail letter <player>` and confirm it explains that a letter is unnecessary. Announcements should still reach online players.
+- Move the mouse away from the center, then navigate inbox categories and pages. The same inventory window should stay open and the mouse should remain in place. The title is `Mailbox`; category and page are shown inside the menu.
+- Open `/mail send <player>` for a long recipient name. The title is `Send package`, with the recipient shown on the paper icon.
+- Place a filled container and click `View postage`. Confirm the cost appears in chat and on the `Send package` button without deducting money. Click again to send. Replace the cargo after quoting: the next click must show a fresh quote before it can send. Repeat using physical Raw Gold and EnthusiaCurrency bank funds.
+- Tab-complete a known offline player's name with `/mail send`, `/mail letter`, and `/mail announce`. Join with a new account and verify its name becomes available too.
+- Join with one package only, multiple letters only, and mixed unread mail. Each notice should show only a nonempty category, correct singular/plural wording, and its matching inbox command.
+- Existing configurations use defaults for the new `letter-target-online`, `letter-invalid-recipient`, `package-quote`, and `join-mail-packages/letters/announcements` messages. The old aggregate `join-mail` message is retired. In a customized `package-sent` message, replace the hardcoded `Raw Gold` label with `{currency}` to describe the selected payment route.
+
+Chat-filter integration is deferred at the user's request. GUI cursor behavior and text fit still need confirmation on the actual client; automated tests check inventory identity and message contents.
