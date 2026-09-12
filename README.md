@@ -7,6 +7,7 @@ A Kotlin plugin requiring Java 21 for Paper 1.21.x. Packages and letters go to o
 | Command | Behavior | Permission (in addition to `enthusiaexpress.use`) |
 | --- | --- | --- |
 | `/mail` or `/mail inbox [packages\|letters\|announcements]` | Open the mailbox. Arrows change pages; tabs change categories. | `enthusiaexpress.inbox` |
+| `/mail sent [packages\|letters\|announcements]` | View your sent history, recipients, dates and status. Sent books open without changing the recipient's unread state. | `enthusiaexpress.sent` |
 | `/mail send <player>` | Open a shipping inventory for a known offline player. Put one packed shulker box or bundle in the center and confirm. | `enthusiaexpress.packages.send` |
 | Click a package | Claim it into an empty inventory slot. | `enthusiaexpress.packages.claim` |
 | `/mail letter <player>` | Send a copy of the signed book in your main hand to a known offline player. | `enthusiaexpress.letters.send` |
@@ -16,6 +17,8 @@ A Kotlin plugin requiring Java 21 for Paper 1.21.x. Packages and letters go to o
 Write and sign a book with Minecraft's normal book editor, hold it in your main hand, then send it. The original remains yours; text mail has no item fee. Click a letter or announcement to open the book. Reading clears its unread flag, and it can be read again until text retention expires. Broadcast unread state is independent for every recipient. Future first-time players are not included in past broadcasts. `all` is reserved as the broadcast target.
 
 The general use, inbox, package and letter permissions default to everyone. Announcement publishing defaults to operators. `enthusiaexpress.admin` grants the announcement permission. Permissions are checked again inside services; there is no combat bypass permission. Commands require a player because authoring uses a held book. Recipient lookup uses the server's cached player profiles and does not perform a blocking network lookup.
+
+The selected category is marked in green with an arrow and a Selected tooltip. The compact Inbox/Sent indicator shows the page number; a separate button switches between received and sent mail without reopening the window. History cannot be used to claim packages. It includes retained expired metadata, but expired content cannot be reopened. Existing returned packages whose original destination was overwritten before this upgrade show an unknown recipient. New sends preserve the destination through returns. The `enthusiaexpress.sent` permission defaults to everyone.
 
 ## Build
 

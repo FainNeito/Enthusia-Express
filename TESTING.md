@@ -41,3 +41,12 @@ Automated integration tests use real SQLite and mocked Paper/Vault services. Liv
 - Existing configurations use defaults for the new `letter-target-online`, `letter-invalid-recipient`, `package-quote`, and `join-mail-packages/letters/announcements` messages. The old aggregate `join-mail` message is retired. In a customized `package-sent` message, replace the hardcoded `Raw Gold` label with `{currency}` to describe the selected payment route.
 
 Chat-filter integration is deferred at the user's request. GUI cursor behavior and text fit still need confirmation on the actual client; automated tests check inventory identity and message contents.
+
+## Sent history and category selection
+
+- Use `/mail sent [packages|letters|announcements]`, or click `View sent mail` in the mailbox. Only your sent mail should appear, with original recipient, send time in UTC, and current status. Announcements have one row per recipient. History includes retained claimed, returned and expired entries.
+- Hover over a retained package for its container preview and packed-item count. Clicking it must never collect or duplicate the package. Open a sent letter and confirm the recipient's copy stays unread.
+- Send enough mail for two pages and navigate both directions. Switch categories while in Sent; it should remain in Sent. Click `Open inbox` to return to received mail.
+- The selected category uses a green icon, a leading arrow, and `Selected` in its tooltip. The separate Inbox/Sent indicator shows the page number. Check that these stay current without reopening the inventory or recentering the cursor.
+- Remove `enthusiaexpress.sent` permission and confirm history cannot open. This permission defaults to true; sending and claiming retain their existing permissions.
+- Upgrade a backup of an existing database. The additive `original_recipient_name` column preserves destinations before future returns. Normal existing records are backfilled. Previously returned records whose destination was overwritten show `Unknown (legacy return)` rather than a guessed recipient. Expired content cannot be reopened, but retained metadata stays visible.
