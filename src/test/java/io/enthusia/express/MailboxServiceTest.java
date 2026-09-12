@@ -23,6 +23,22 @@ import org.junit.jupiter.api.*;
 import org.mockito.*;
 
 class MailboxServiceTest {
+  JavaPlugin plugin;
+  MailRepository repository;
+  CombatLogXHook combat;
+  MainThread main;
+  Player player;
+  PlayerInventory inventory;
+  Inventory top;
+  InventoryView view;
+  MailboxService service;
+  SoundFeedback sounds;
+  UUID id;
+  MockedStatic<Bukkit> bukkit;
+  MockedStatic<ItemCodec> codec;
+  MockedConstruction<ItemStack> icons;
+  List<Runnable> callbacks;
+
   /** History cannot claim packages, even though the viewer owns the sender record. */
   @Test
   void sentPackagesAreReadOnlyAndNavigationKeepsSentMode() {
@@ -78,21 +94,7 @@ class MailboxServiceTest {
     verify(icons.constructed().get(1).getItemMeta()).setDisplayName("§a▶ Packages");
   }
 
-  JavaPlugin plugin;
-  MailRepository repository;
-  CombatLogXHook combat;
-  MainThread main;
-  Player player;
-  PlayerInventory inventory;
-  Inventory top;
-  InventoryView view;
-  MailboxService service;
-  SoundFeedback sounds;
-  UUID id;
-  MockedStatic<Bukkit> bukkit;
-  MockedStatic<ItemCodec> codec;
-  MockedConstruction<ItemStack> icons;
-  List<Runnable> callbacks;
+
 
   /** Navigation must not close or reopen the active inventory. */
   @Test

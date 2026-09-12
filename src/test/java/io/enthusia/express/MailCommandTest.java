@@ -1,5 +1,7 @@
 package io.enthusia.express;
 
+import io.enthusia.express.domain.MailType;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.Mockito.*;
@@ -37,7 +39,7 @@ class MailCommandTest {
             MailCommand command = new MailCommand(mock(JavaPlugin.class), mock(ShippingService.class),
                     mailbox, combat, mock(BookMailService.class), mock(MainThread.class));
             command.onCommand(sender, mock(Command.class), "mail", new String[] {"sent", "letters"});
-            verify(mailbox).openSent(sender, io.enthusia.express.domain.MailType.LETTER);
+            verify(mailbox).openSent(sender, MailType.LETTER);
             assertEquals(List.of("letters"), command.onTabComplete(sender, mock(Command.class), "mail",
                     new String[] {"sent", "le"}));
         }

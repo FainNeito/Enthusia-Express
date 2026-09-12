@@ -14,6 +14,11 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 
 class MailRepositoryTest {
+  @TempDir Path directory;
+  MailRepository repository;
+  UUID sender = UUID.randomUUID(), recipient = UUID.randomUUID();
+  Path file;
+
   /** Sent history exposes retained rows belonging to the sender. */
   @Test
   void sentHistoryIsAvailableForTheSender() {
@@ -82,10 +87,7 @@ class MailRepositoryTest {
     assertNull(history.stream().filter(e -> e.getMail().id() == returned).findFirst().orElseThrow().getRecipientName());
   }
 
-  @TempDir Path directory;
-  MailRepository repository;
-  UUID sender = UUID.randomUUID(), recipient = UUID.randomUUID();
-  Path file;
+
 
   @BeforeEach
   void start() {
