@@ -46,7 +46,8 @@ class EnthusiaExpressPlugin : JavaPlugin() {
         val shipping = ShippingService(this, repository, combatHook, main, sounds).also { shippingService = it }
         val mailbox = MailboxService(this, repository, combatHook, main, sounds, acknowledgments).also { mailboxService = it }
         val expiration = ExpirationService(this, repository).also { expirationService = it }
-        val command = MailCommand(this, shipping, mailbox, combatHook, BookMailService(this, repository, combatHook, main, sounds), main)
+        val command = MailCommand(this, shipping, mailbox, combatHook, BookMailService(this, repository, combatHook, main, sounds), main,
+            io.enthusia.express.infrastructure.mail.MailBlockService(this, repository, main))
         getCommand("mail")!!.setExecutor(command)
         getCommand("mail")!!.tabCompleter = command
         Bukkit.getPluginManager().registerEvents(command.recipientNames, this)
