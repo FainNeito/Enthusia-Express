@@ -7,7 +7,16 @@ import java.util.OptionalLong
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 
-interface MailStore : MailQueries, MailWrites, MailClaims, MailLifecycle
+interface MailStore : MailQueries, MailWrites, MailClaims, MailLifecycle, MailBlocks
+
+interface MailBlocks {
+    /** Persist or remove a recipient's sender block by UUID. */
+    fun setBlocked(owner: UUID, sender: UUID, senderName: String, enabled: Boolean): CompletableFuture<Void>
+    /** Check whether a recipient currently blocks a sender. */
+    fun isBlocked(owner: UUID, sender: UUID): CompletableFuture<Boolean>
+    /** List one bounded page of the owner's blocked player names. */
+    fun listBlocked(owner: UUID, page: Int): CompletableFuture<List<String>>
+}
 
 interface MailLifecycle {
     /** Create or migrate storage before accepting asynchronous mail operations. */
