@@ -26,11 +26,20 @@ class JoinNotificationService(private val plugin: JavaPlugin, private val reposi
             if (error != null) {
                 plugin.logger.warning("Could not check joining player's mail: $error")
             } else if (session.isOnline && Bukkit.getPlayer(id) === session && hasMail(summary)) {
-                session.sendMessage(Text.msg(plugin.config, "join-mail", mapOf(
-                    "packages" to checkNotNull(summary).packages.toString(), "letters" to summary.letters.toString(),
-                    "announcements" to summary.announcements.toString(), "total" to summary.total().toString()
-                )))
+                checkNotNull(summary)
+                notifyCategory(session, summary.packages, "package", "claim")
+                notifyCategory(session, summary.letters, "letter", "read")
+                notifyCategory(session, summary.announcements, "announcement", "read")
             }
         }
     }
+    /** Announce only categories containing mail, with a matching pickup command. */
+    private fun notifyCategory(player: org.bukkit.entity.Player, count: Int, noun: String, action: String) {
+        if (count <= 0) return
+        val category = "${noun}s"
+        player.sendMessage(Text.msgOrDefault(plugin.config, "join-mail-$category",
+            "&eYou've got mail! You have {count} {noun} for pickup. Use /mail inbox $category to $action!",
+            mapOf("count" to count.toString(), "noun" to if (count == 1) noun else category)))
+    }
+
 }

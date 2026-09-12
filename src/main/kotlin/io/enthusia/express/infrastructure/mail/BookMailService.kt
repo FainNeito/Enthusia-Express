@@ -76,11 +76,17 @@ class BookMailService @JvmOverloads constructor(
             return false
         }
         if (!announcement && invalidLetterRecipient(player, target)) {
-            player.sendMessage(Text.msg(plugin.config, "target-online"))
+            player.sendMessage(recipientRejection(target))
             return false
         }
         return readyToSend(player, section)
     }
+
+    /** Explain online letters separately from absent or self recipients. */
+    private fun recipientRejection(target: OfflinePlayer?): String = if (target?.isOnline == true)
+        Text.msgOrDefault(plugin.config, "letter-target-online",
+            "&eThere is no need to send a letter: that player is currently online.")
+        else Text.msgOrDefault(plugin.config, "letter-invalid-recipient", "&cChoose another player to send a letter to.")
 
     /** Reject overlapping saves and sends within the configured cooldown. */
     private fun readyToSend(player: Player, section: String): Boolean {
