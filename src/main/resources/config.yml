@@ -10,7 +10,8 @@ mail:
   max-recursive-container-depth: 8
   limits:
     # Scope is per sender + recipient + type. Other senders and recipients are independent.
-    # A package stops blocking after claim, return or purge.
+    # A package stops blocking after delivery acknowledgment, return or purge.
+    # A claimed package with delivery_pending = 1 still blocks until acknowledgment or durable receipt retry.
     one-outstanding-package-per-recipient: false
     # A retained letter stops blocking as soon as it is read. Announcements are never limited.
     one-outstanding-letter-per-recipient: false
