@@ -25,6 +25,7 @@ import org.bukkit.entity.Player
 import org.bukkit.plugin.java.JavaPlugin
 
 private const val INBOX = "inbox"
+private const val SENT = "sent"
 private const val NO_PERMISSION = "no-permission"
 private const val UNKNOWN_RECIPIENT = "target-never-joined"
 
@@ -67,6 +68,7 @@ class MailCommand(
     private fun dispatch(sender: Player, args: Array<String>) {
         val subcommand = args.firstOrNull()?.lowercase(Locale.ROOT) ?: INBOX
         if (subcommand == INBOX) mailbox.open(sender, inboxType(args.getOrNull(1)))
+        else if (subcommand == SENT) mailbox.openSent(sender, inboxType(args.getOrNull(1)))
         else {
             val action = SendAction.entries.firstOrNull { it.key == subcommand }
             if (action == null) sender.sendMessage("§e/mail send <OfflinePlayer> §7or §e/mail inbox [packages|letters|announcements]")
@@ -126,7 +128,7 @@ class MailCommand(
     /** Suggest permitted commands and cached names without enumerating offline player files. */
     override fun onTabComplete(sender: CommandSender, command: Command, alias: String, args: Array<String>): List<String> =
         when (args.size) {
-            1 -> (SendAction.entries.filter { sender.hasPermission(it.permission) }.map { it.key } + INBOX)
+            1 -> (SendAction.entries.filter { sender.hasPermission(it.permission) }.map { it.key } + listOf(INBOX, SENT))
                 .filter { it.startsWith(args[0].lowercase(Locale.ROOT)) }
             2 -> argumentSuggestions(sender, args)
             else -> emptyList()
@@ -134,7 +136,8 @@ class MailCommand(
 
     /** Return matching inbox categories or cached recipient names, capped at twenty results. */
     private fun argumentSuggestions(sender: CommandSender, args: Array<String>): List<String> {
-        if (args[0].equals(INBOX, true)) return listOf("packages", "letters", "announcements")
+        if (args[0].lowercase(Locale.ROOT) in listOf(INBOX, SENT)) return listOf("packages", "letters", "announcements")
+            .filter { it.startsWith(args[1], ignoreCase = true) }
         val action = SendAction.entries.firstOrNull { it.key.equals(args[0], true) } ?: return emptyList()
         if (!sender.hasPermission(action.permission)) return emptyList()
         val partial = args[1].lowercase(Locale.ROOT)
