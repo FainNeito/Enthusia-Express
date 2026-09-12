@@ -50,3 +50,9 @@ Chat-filter integration is deferred at the user's request. GUI cursor behavior a
 - The selected category uses a green icon, a leading arrow, and `Selected` in its tooltip. The separate Inbox/Sent indicator shows the page number. Check that these stay current without reopening the inventory or recentering the cursor.
 - Remove `enthusiaexpress.sent` permission and confirm history cannot open. This permission defaults to true; sending and claiming retain their existing permissions.
 - Upgrade a backup of an existing database. The additive `original_recipient_name` column preserves destinations before future returns. Normal existing records are backfilled. Previously returned records whose destination was overwritten show `Unknown (legacy return)` rather than a guessed recipient. Expired content cannot be reopened, but retained metadata stays visible.
+# Recipient blocking and Nexo
+
+- Block another player, restart, and inspect `/mail blocked`. Try a letter, package and announcement from that player, including a broadcast; verify no new mail or postage charge. Unblock and repeat. Verify existing mail and returned packages remain claimable.
+- Deny `enthusiaexpress.block` and verify block management is unavailable. Check name completion for block/unblock.
+- With Nexo absent or disabled, verify every normal menu control works. Follow NEXO.md with real pack assets; check category selection, stable cursor position, title alignment and all buttons.
+- Use a custom shipping placeholder, close/reopen, and attempt click/drag/shift-click: no marker may enter player inventory or become a shipment. Unknown Nexo IDs must retain usable vanilla controls.

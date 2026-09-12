@@ -75,6 +75,10 @@ The optional typed adapter calls the published `getCombatManager().isInCombat(Pl
 
 ## Storage and delivery behavior
 
+Players can use `/mail block <player>`, `/mail unblock <player>` and `/mail blocked [page]` to manage unwanted mail. The `enthusiaexpress.block` permission defaults to true and also requires normal mail access. Preferences persist by UUID. Blocks reject future packages, letters and player-authored announcements, including broadcasts; administrators do not bypass them. Existing mail and return-to-sender recovery remain available. Blocked package sends take no payment; a block committed during a send causes the package and payment to be returned.
+
+Optional Nexo icons and GUI backgrounds are configured under `gui.nexo`; see [Nexo setup](NEXO.md). The integration is disabled by default and falls back to vanilla controls when assets are unavailable.
+
 SQLite runs on one dedicated worker using WAL, `synchronous=FULL` and a configurable busy timeout. Book broadcasts commit as one transaction. Claims use a conditional update, so only one caller wins, including with two repository connections. Expiration is a single transaction: only unclaimed packages return; only returned packages purge; letters and announcements expire separately. Purging erases their payload bytes while retaining the audit row. Claimed package rows remain as audit records.
 
 Item encoding, decoding, inventories and book opening stay on the server thread. GUI state uses inventory identity, preventing stale loads and title-based ownership mistakes. Shipping allows ordinary cursor pickup/placement but blocks shift-click, number-key, double-click and control-slot drag operations. Cancel/close returns the deposited package. Colored bundles are recognized by their bundle metadata. Nested physical container items count toward the shipping fee along with their contents.
