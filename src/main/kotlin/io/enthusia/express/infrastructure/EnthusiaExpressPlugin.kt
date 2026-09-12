@@ -49,6 +49,7 @@ class EnthusiaExpressPlugin : JavaPlugin() {
         val command = MailCommand(this, shipping, mailbox, combatHook, BookMailService(this, repository, combatHook, main, sounds), main)
         getCommand("mail")!!.setExecutor(command)
         getCommand("mail")!!.tabCompleter = command
+        Bukkit.getPluginManager().registerEvents(command.recipientNames, this)
         Bukkit.getPluginManager().registerEvents(GuiListener(shipping, mailbox), this)
         Bukkit.getPluginManager().registerEvents(JoinNotificationService(this, repository, main), this)
         expiration.start()
