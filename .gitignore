@@ -3,3 +3,6 @@ build/
 *.log
 .idea/
 *.iml
+
+.kotlin/
+.claude/

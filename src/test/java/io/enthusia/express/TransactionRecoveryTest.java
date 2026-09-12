@@ -2,8 +2,8 @@ package io.enthusia.express;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import io.enthusia.express.db.MailRepository;
-import io.enthusia.express.mail.MailType;
+import io.enthusia.express.infrastructure.db.MailRepository;
+import io.enthusia.express.domain.MailType;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -16,11 +16,13 @@ import org.junit.jupiter.api.io.TempDir;
 
 class TransactionRecoveryTest {
   @TempDir Path directory;
+  /** Verifies that announcement rollback preserves failure and recovers. */
 
   @Test
   void announcementRollbackPreservesFailureAndRecovers() throws Exception {
     verifyRecovery(false);
   }
+  /** Verifies that expiry rollback preserves failure and recovers. */
 
   @Test
   void expiryRollbackPreservesFailureAndRecovers() throws Exception {
@@ -59,6 +61,7 @@ class TransactionRecoveryTest {
       repository.close();
     }
   }
+  /** Verifies that sqlite rollback preserves original error and allows later transactions. */
 
   @Test
   void sqliteRollbackPreservesOriginalErrorAndAllowsLaterTransactions() throws Exception {

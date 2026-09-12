@@ -1,0 +1,48 @@
+name: Plugin verification
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Paper ${{ matrix.paper }} / Java 21
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        paper: ['1.21', '1.21.8', '1.21.11']
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Clean build and regression tests
+        run: sh ./gradlew --no-daemon clean build -PpaperVersion=${{ matrix.paper }}
+      - name: Compile all supported Paper APIs
+        if: matrix.paper == '1.21'
+        run: sh ./gradlew --no-daemon verifyPaperCompatibility
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: test-reports-paper-${{ matrix.paper }}
+          path: |
+            build/reports/tests/test/
+            build/test-results/test/*.xml
+          if-no-files-found: warn
+      - name: Upload baseline testing plugin
+        if: success() && matrix.paper == '1.21'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: EnthusiaExpress-testing-jar
+          path: build/libs/EnthusiaExpress-1.2.0.jar
+          if-no-files-found: error

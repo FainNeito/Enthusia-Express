@@ -2,11 +2,11 @@ package io.enthusia.express;
 
 import static org.mockito.Mockito.*;
 
-import io.enthusia.express.db.MailRepository;
-import io.enthusia.express.mail.JoinNotificationService;
-import io.enthusia.express.mail.MailSummary;
-import io.enthusia.express.util.MainThread;
-import io.enthusia.express.util.SoundFeedback;
+import io.enthusia.express.infrastructure.db.MailRepository;
+import io.enthusia.express.infrastructure.mail.JoinNotificationService;
+import io.enthusia.express.domain.MailSummary;
+import io.enthusia.express.infrastructure.util.MainThread;
+import io.enthusia.express.infrastructure.util.SoundFeedback;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
@@ -20,6 +20,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.junit.jupiter.api.Test;
 
 class NotificationAndSoundTest {
+  /** Verifies that join summary messages only the still current online session. */
   @Test
   void joinSummaryMessagesOnlyTheStillCurrentOnlineSession() {
     JavaPlugin plugin = mock(JavaPlugin.class);
@@ -28,7 +29,6 @@ class NotificationAndSoundTest {
     Player player = mock(Player.class);
     UUID id = UUID.randomUUID();
     YamlConfiguration config = new YamlConfiguration();
-    config.set("messages.join-mail", "{packages}/{letters}/{announcements}/{total}");
     when(plugin.getConfig()).thenReturn(config);
     when(plugin.getLogger()).thenReturn(Logger.getAnonymousLogger());
     when(player.getUniqueId()).thenReturn(id);
@@ -47,14 +47,26 @@ class NotificationAndSoundTest {
     service.onJoin(mockJoin(player));
     try (var bukkit = mockStatic(Bukkit.class)) {
       bukkit.when(() -> Bukkit.getPlayer(id)).thenReturn(player);
-      callback[0].accept(new MailSummary(1, 2, 3), null);
-      verify(player).sendMessage("1/2/3/6");
+      callback[0].accept(new MailSummary(1, 0, 0), null);
+      verify(player).sendMessage(contains("1 package for pickup. Use /mail inbox packages to claim!"));
+      verify(player, never()).sendMessage(contains("0 letters"));
+      verify(player, never()).sendMessage(contains("0 announcements"));
       clearInvocations(player);
+      callback[0].accept(new MailSummary(0, 2, 1), null);
+      verify(player).sendMessage(contains("2 letters for pickup. Use /mail inbox letters to read!"));
+      verify(player).sendMessage(contains("1 announcement for pickup. Use /mail inbox announcements to read!"));
+      verify(player, never()).sendMessage(contains("packages"));
+      clearInvocations(player);
+      bukkit.when(() -> Bukkit.getPlayer(id)).thenReturn(mock(Player.class));
+      callback[0].accept(new MailSummary(1, 0, 0), null);
+      verify(player, never()).sendMessage(anyString());
+      bukkit.when(() -> Bukkit.getPlayer(id)).thenReturn(player);
       when(player.isOnline()).thenReturn(false);
       callback[0].accept(new MailSummary(1, 0, 0), null);
       verify(player, never()).sendMessage(anyString());
     }
   }
+  /** Verifies that zero join summary and disabled notification stay silent. */
 
   @Test
   void zeroJoinSummaryAndDisabledNotificationStaySilent() {
@@ -85,6 +97,7 @@ class NotificationAndSoundTest {
       verify(repository, times(1)).pendingMail(id);
     }
   }
+  /** Verifies that configured sound plays and malformed cosmetic config degrades safely. */
 
   @Test
   void configuredSoundPlaysAndMalformedCosmeticConfigDegradesSafely() {

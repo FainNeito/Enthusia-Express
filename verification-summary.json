@@ -1,7 +1,29 @@
 {
-  "java": "21.0.8",
+  "version": "1.2.0",
+  "java": 21,
+  "kotlin": "2.2.21",
   "gradle": "8.14.3",
-  "paper_compile_versions": [
+  "testResults": {
+    "1.21": {
+      "tests": 132,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "1.21.8": {
+      "tests": 132,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "1.21.11": {
+      "tests": 132,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "paperCompilationTargets": [
     "1.21",
     "1.21.1",
     "1.21.3",
@@ -14,27 +36,9 @@
     "1.21.10",
     "1.21.11"
   ],
-  "tests": {
-    "1.21": {
-      "tests": 61,
-      "failures": 0,
-      "errors": 0,
-      "skipped": 0
-    },
-    "1.21.8": {
-      "tests": 61,
-      "failures": 0,
-      "errors": 0,
-      "skipped": 0
-    },
-    "1.21.11": {
-      "tests": 61,
-      "failures": 0,
-      "errors": 0,
-      "skipped": 0
-    }
-  },
-  "jar_sha256": "3f082d19ea940e181164d9b00e79ba42f392eee0f8d5db63be25156d86d663c9",
-  "platform": "Windows x86-64",
-  "verified_at": "2026-09-09"
+  "productionKotlinFiles": 32,
+  "jarSha256": "cc67dfda57b0f66b331ce798dde5997270bcb365c4ef22f1bbcab849ebe17826",
+  "liveServerTested": false,
+  "remoteChecks": "Verify checks on the final PR commit; local evidence does not establish remote status.",
+  "focusedDetektFindings": 0
 }

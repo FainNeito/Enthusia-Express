@@ -12,6 +12,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 class ShadedJarTest {
   @TempDir Path directory;
+  /** Verifies that distributable contains metadata and loads its own native sqlite driver. */
 
   @Test
   void distributableContainsMetadataAndLoadsItsOwnNativeSqliteDriver() throws Exception {
@@ -21,12 +22,13 @@ class ShadedJarTest {
           new String(
               archive.getInputStream(archive.getJarEntry("plugin.yml")).readAllBytes(),
               java.nio.charset.StandardCharsets.UTF_8);
-      assertTrue(metadata.contains("version: '1.1.0'"));
+      assertTrue(metadata.contains("version: '1.2.0'"));
       assertTrue(metadata.contains("api-version: '1.21'"));
       assertNotNull(archive.getJarEntry("org/sqlite/native/Windows/x86_64/sqlitejdbc.dll"));
       assertNotNull(archive.getJarEntry("org/sqlite/native/Linux/x86_64/libsqlitejdbc.so"));
       assertNotNull(archive.getJarEntry("META-INF/services/java.sql.Driver"));
       assertNull(archive.getJarEntry("org/bukkit/Bukkit.class"));
+      assertNull(archive.getJarEntry("net/milkbowl/vault/economy/Economy.class"));
       assertNull(archive.getJarEntry("com/github/sirblobman/combatlogx/api/ICombatLogX.class"));
     }
     try (URLClassLoader loader =

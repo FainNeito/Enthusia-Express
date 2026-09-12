@@ -1,0 +1,347 @@
+// Private callback contracts document thread ownership and recovery; CodeRabbit requires method documentation.
+@file:Suppress("CommentOverPrivateFunction")
+
+package io.enthusia.express.infrastructure.gui
+
+import io.enthusia.express.domain.MailBlockedException
+import io.enthusia.express.application.MailStore
+import io.enthusia.express.domain.MailType
+import io.enthusia.express.infrastructure.hook.CombatLogXHook
+import io.enthusia.express.infrastructure.payment.PaymentReceipt
+import io.enthusia.express.infrastructure.payment.ShippingPayments
+import io.enthusia.express.infrastructure.util.ContainerScanner
+import io.enthusia.express.infrastructure.util.ItemCodec
+import io.enthusia.express.infrastructure.util.MainThread
+import io.enthusia.express.infrastructure.util.SoundFeedback
+import io.enthusia.express.infrastructure.util.Text
+import java.util.UUID
+import org.bukkit.Bukkit
+import org.bukkit.Material
+import org.bukkit.NamespacedKey
+import org.bukkit.OfflinePlayer
+import org.bukkit.entity.Player
+import org.bukkit.inventory.Inventory
+import org.bukkit.inventory.ItemStack
+import org.bukkit.persistence.PersistentDataType
+import org.bukkit.plugin.java.JavaPlugin
+
+// This lifecycle owner keeps inventory identity, pending payments and close compensation together.
+@Suppress("TooManyFunctions")
+class ShippingService @JvmOverloads constructor(
+    private val plugin: JavaPlugin,
+    private val repository: MailStore,
+    private val combatHook: CombatLogXHook,
+    private val main: MainThread,
+    private val sounds: SoundFeedback = SoundFeedback(plugin),
+) {
+    private val TARGET_ONLINE = "target-online"
+    private val theme = GuiTheme(plugin)
+    private val payments = ShippingPayments(plugin)
+    private val placeholderKey = NamespacedKey(plugin, "shipping-placeholder")
+    private val inventories = HashMap<UUID, Inventory>()
+    private data class Quote(val payload: ByteArray, val count: Int, val cost: Int, val unit: String)
+    private val quotes = HashMap<UUID, Quote>()
+    private val pending = HashSet<UUID>()
+    private val targets = HashMap<UUID, UUID>()
+
+    /** Centralize permission, in-flight-send and combat checks before accepting shipping actions. */
+    private fun validateShippingAccess(sender: Player, closeBlocked: Boolean): Boolean {
+        if (!sender.hasPermission("enthusiaexpress.use") || !sender.hasPermission("enthusiaexpress.packages.send")) {
+            sender.sendMessage(Text.msg(plugin.config, "no-permission"))
+            return false
+        }
+        if (pending.contains(sender.uniqueId)) {
+            sender.sendMessage("§eYour shipment is still being saved.")
+            return false
+        }
+        if (!combatHook.mayUseMail(sender)) {
+            sender.sendMessage(Text.msg(plugin.config, if (combatHook.isAvailable()) "combat-blocked" else "combatlogx-missing"))
+            if (closeBlocked) sender.closeInventory()
+            return false
+        }
+        return true
+    }
+
+    /** Create the sender-owned cargo menu for an offline recipient. */
+    fun open(sender: Player, target: OfflinePlayer) {
+        if (!validateShippingAccess(sender, false)) return
+        val online = target.player
+        if (online != null && online.isOnline) {
+            sender.sendMessage(Text.msg(plugin.config, TARGET_ONLINE))
+            return
+        }
+        sender.closeInventory()
+        targets[sender.uniqueId] = target.uniqueId
+        val inv = Bukkit.createInventory(null, 27, theme.title("shipping", TITLE_PREFIX))
+        inv.setItem(CANCEL_SLOT, button("shipping.cancel", Material.BARRIER, "§cCancel"))
+        quotes.remove(sender.uniqueId)
+        inv.setItem(4, button("shipping.recipient", Material.PAPER, "§7To: ${target.name ?: "recipient"}"))
+        inv.setItem(CONFIRM_SLOT, button("shipping.quote", Material.LIME_CONCRETE, "§eView postage"))
+        refreshPlaceholder(inv)
+        inventories[sender.uniqueId] = inv
+        sender.openInventory(inv)
+    }
+
+    /** Compare the exact inventory instance with the sender-owned shipping menu. */
+    fun owns(player: Player, inventory: Inventory?): Boolean = inventory != null && inventories[player.uniqueId] === inventory
+
+    /** Move confirm or cancel handling out of the click event and reject stale inventories. */
+    fun defer(player: Player, inventory: Inventory, confirm: Boolean) {
+        Bukkit.getScheduler().runTask(plugin, Runnable {
+            if (owns(player, inventory) && player.openInventory.topInventory === inventory) {
+                if (confirm) confirm(player, inventory) else cancel(player)
+            }
+        })
+    }
+
+    /** Close the shipping menu so its close handler returns any cargo. */
+    fun cancel(player: Player) { player.closeInventory() }
+
+    /** Revalidate sender and recipient state, then prepare and submit the current cargo. */
+    fun confirm(sender: Player, inv: Inventory) {
+        if (!validateShippingAccess(sender, true)) return
+        if (!owns(sender, inv)) return
+        val targetId = targets[sender.uniqueId] ?: return
+        val target = Bukkit.getOfflinePlayer(targetId)
+        if (target.isOnline) {
+            sender.sendMessage(Text.msg(plugin.config, TARGET_ONLINE))
+            sender.closeInventory()
+            return
+        }
+        val shipment = prepareShipment(sender, inv) ?: return
+        if (confirmQuote(sender, inv, shipment)) {
+            pending.add(sender.uniqueId)
+            main.complete(repository.isBlocked(target.uniqueId, sender.uniqueId)) { blocked, error ->
+                checkedSend(sender, inv, target, blocked, error)
+            }
+        }
+    }
+
+    /** Require a second click on the same cargo and price before taking payment. */
+    private fun confirmQuote(sender: Player, inv: Inventory, shipment: PreparedShipment): Boolean {
+        val unit = payments.priceUnit()
+        val previous = quotes[sender.uniqueId]
+        val unchanged = previous?.payload?.contentEquals(shipment.payload) == true &&
+            previous.count == shipment.count && previous.cost == shipment.cost
+        if (unchanged && previous?.unit == unit) {
+            return true
+        }
+        quotes[sender.uniqueId] = Quote(shipment.payload.copyOf(), shipment.count, shipment.cost, unit)
+        val control = button("shipping.confirm", Material.LIME_CONCRETE, "§aSend package")
+        val meta = control.itemMeta!!
+        meta.lore = listOf("§eCost: ${shipment.cost} $unit", "§7${shipment.count} packed items", "§aClick again to send")
+        control.itemMeta = meta
+        inv.setItem(CONFIRM_SLOT, control)
+        sender.sendMessage(Text.msgOrDefault(plugin.config, "package-quote",
+            "&ePostage: {cost} {currency} for {items} packed items. Click Send package to confirm.",
+            mapOf("cost" to shipment.cost.toString(), "currency" to unit, "items" to shipment.count.toString())))
+        return false
+    }
+
+    private data class PreparedShipment(val payloadItem: ItemStack, val payload: ByteArray, val count: Int, val cost: Int)
+
+    /** Validate nesting and payload limits before calculating postage or removing items. */
+    // Item serializers are supplied by Paper and may reject malformed/version-specific metadata.
+    @Suppress("TooGenericExceptionCaught")
+    private fun prepareShipment(sender: Player, inv: Inventory): PreparedShipment? {
+        val packageItem = inv.getItem(PACKAGE_SLOT)
+        if (isPlaceholder(packageItem) || !ContainerScanner.isAllowedShippingContainer(packageItem)) {
+            sender.sendMessage(Text.msg(plugin.config, "invalid-container"))
+            return null
+        }
+        checkNotNull(packageItem)
+        if (packageItem.amount != 1) {
+            sender.sendMessage("§cSend one container at a time.")
+            return null
+        }
+        val count: Int
+        val cost: Int
+        try {
+            count = ContainerScanner.countPackedItems(packageItem, plugin.config.getInt("mail.max-recursive-container-depth", 8))
+            cost = Math.multiplyExact(count, plugin.config.getInt("mail.raw-gold-per-item", 1))
+        } catch (e: IllegalArgumentException) {
+            sender.sendMessage("§cContainer nesting or shipment cost exceeds the configured limits.")
+            return null
+        } catch (e: ArithmeticException) {
+            sender.sendMessage("§cContainer nesting or shipment cost exceeds the configured limits.")
+            return null
+        }
+        if (count <= 0) {
+            sender.sendMessage(Text.msg(plugin.config, "empty-container"))
+            return null
+        }
+        // Copy and encode on the primary thread before database work.
+        val payloadItem = packageItem.clone()
+        val payload: ByteArray
+        try {
+            payload = ItemCodec.encode(payloadItem)
+        } catch (e: RuntimeException) {
+            plugin.logger.log(java.util.logging.Level.WARNING, "Cannot serialize package for ${sender.uniqueId}", e)
+            sender.sendMessage("§cCould not encode that container.")
+            return null
+        }
+        return PreparedShipment(payloadItem, payload, count, cost)
+    }
+
+    /** Ignore callbacks after disable, disconnect or closing the owned inventory. */
+    private fun currentShippingSession(sender: Player, inv: Inventory) =
+        plugin.isEnabled && sender.isOnline && Bukkit.getPlayer(sender.uniqueId) === sender && owns(sender, inv)
+
+    /** Recheck the live inventory and quote after the asynchronous block lookup, before charging. */
+    private fun checkedSend(sender: Player, inv: Inventory, target: OfflinePlayer, blocked: Boolean?, error: Throwable?) {
+        pending.remove(sender.uniqueId)
+        if (!currentShippingSession(sender, inv)) return
+        if (!validateShippingAccess(sender, true)) return
+        if (error != null) {
+            sender.sendMessage(Text.msg(plugin.config, "database-error"))
+            return
+        }
+        if (blocked != false) {
+            sender.sendMessage(Text.msgOrDefault(plugin.config, "recipient-not-accepting", "&cThat player is not accepting your mail."))
+            return
+        }
+        if (target.isOnline) {
+            sender.sendMessage(Text.msg(plugin.config, TARGET_ONLINE))
+            return
+        }
+        val current = prepareShipment(sender, inv) ?: return
+        if (confirmQuote(sender, inv, current)) chargeAndSubmit(sender, inv, target, current)
+    }
+
+    /** Charge one payment route, reserve cargo and compensate rejected or failed persistence. */
+    private fun chargeAndSubmit(sender: Player, inv: Inventory, target: OfflinePlayer, shipment: PreparedShipment) {
+        quotes.remove(sender.uniqueId)
+        val unit = payments.priceUnit()
+        val payment = payments.charge(sender, shipment.cost)
+        val receipt = payment.receipt
+        if (receipt == null) {
+            sender.sendMessage(Text.msg(plugin.config,
+                paymentFailureMessage(payment),
+                mapOf("cost" to shipment.cost.toString(), "have" to java.math.BigDecimal.valueOf(payment.balance).stripTrailingZeros().toPlainString())))
+            return
+        }
+        inv.setItem(PACKAGE_SLOT, null)
+        sender.closeInventory()
+        targets.remove(sender.uniqueId)
+        val targetName = target.name ?: target.uniqueId.toString()
+        pending.add(sender.uniqueId)
+        main.complete(repository.insertMailLimited(sender.uniqueId, sender.name, target.uniqueId, targetName,
+            MailType.PACKAGE, shipment.payload, shipment.count, plugin.config.getBoolean("mail.limits.one-outstanding-package-per-recipient", false))) { result, error ->
+            pending.remove(sender.uniqueId)
+            if (MailBlockedException.causedBy(error)) {
+                if (refundPlayer(sender, shipment.payloadItem, receipt))
+                    sender.sendMessage(Text.msgOrDefault(plugin.config, "recipient-not-accepting", "&cThat player is not accepting your mail."))
+            } else if (error != null) {
+                if (refundPlayer(sender, shipment.payloadItem, receipt))
+                    sender.sendMessage("§cShipment failed; your package and fee were refunded.")
+                plugin.logger.severe("Package insert failed: " + error.message)
+            } else if (result!!.isEmpty) {
+                if (refundPlayer(sender, shipment.payloadItem, receipt))
+                    sender.sendMessage(Text.msg(plugin.config, "outstanding-package"))
+            } else {
+                sounds.play(sender, SoundFeedback.Cue.PACKAGE_SEND)
+                sender.sendMessage(Text.msg(plugin.config, "package-sent", mapOf("target" to targetName, "currency" to unit, "cost" to shipment.cost.toString(), "items" to shipment.count.toString())))
+            }
+        }
+    }
+
+    /** Choose unavailable, physical-gold or currency messaging from the actual payment result. */
+    private fun paymentFailureMessage(payment: io.enthusia.express.infrastructure.payment.ChargeResult): String = when {
+        payment.unavailable -> "payment-unavailable"
+        payment.source == io.enthusia.express.infrastructure.payment.PaymentSource.CURRENCY -> "insufficient-currency"
+        else -> "insufficient-gold"
+    }
+
+    /** Remove and return cargo during the close event, never returning the placement marker. */
+    fun returnPackageOnClose(player: Player, inv: Inventory) {
+        if (!owns(player, inv)) return
+        val stack = inv.getItem(PACKAGE_SLOT)
+        inv.setItem(PACKAGE_SLOT, null)
+        if (stack != null && !isPlaceholder(stack) && !stack.type.isAir) {
+            player.inventory.addItem(stack).values.forEach { player.world.dropItemNaturally(player.location, it) }
+        }
+        targets.remove(player.uniqueId)
+        inventories.remove(player.uniqueId)
+        quotes.remove(player.uniqueId)
+    }
+
+    /** Recognize the tagged gray placement marker instead of ordinary player cargo. */
+    fun isPlaceholder(item: ItemStack?): Boolean = item?.itemMeta?.persistentDataContainer?.has(placeholderKey, PersistentDataType.BYTE) == true
+
+    /** Show placement guidance only when the cargo slot is empty. */
+    fun refreshPlaceholder(inventory: Inventory) {
+        val current = inventory.getItem(PACKAGE_SLOT)
+        if (current != null && !current.type.isAir) return
+        val marker = button("shipping.placeholder", Material.GRAY_STAINED_GLASS_PANE, "§7Place package here")
+        val meta = marker.itemMeta!!
+        meta.lore = listOf("§7Shulker boxes or bundles", "§7Click View postage for cost")
+        meta.persistentDataContainer.set(placeholderKey, PersistentDataType.BYTE, 1.toByte())
+        marker.itemMeta = meta
+        inventory.setItem(PACKAGE_SLOT, marker)
+    }
+
+    /** Refresh placement guidance next tick only for the same shipping session. */
+    fun deferPlaceholderRefresh(player: Player, inventory: Inventory) {
+        Bukkit.getScheduler().runTask(plugin, Runnable {
+            if (owns(player, inventory)) refreshPlaceholder(inventory)
+        })
+    }
+
+    /** Defer cursor-to-cargo placement until the inventory click event has completed. */
+    fun deferPlaceholderDeposit(player: Player, inventory: Inventory) {
+        Bukkit.getScheduler().runTask(plugin, Runnable { depositCursor(player, inventory) })
+    }
+
+    /** Transfer a nonempty cursor into the marker slot only while the same menu still owns it. */
+    private fun depositCursor(player: Player, inventory: Inventory) {
+        if (!player.isOnline || !owns(player, inventory)) return
+        if (player.openInventory.topInventory !== inventory || !isPlaceholder(inventory.getItem(PACKAGE_SLOT))) return
+        val cursor: ItemStack? = player.itemOnCursor
+        if (cursor == null || cursor.type.isAir || isPlaceholder(cursor)) return
+        val cargo = cursor.clone()
+        player.setItemOnCursor(null)
+        inventory.setItem(PACKAGE_SLOT, cargo)
+    }
+
+    /** Return cargo and refund its original payment receipt, reporting refused refunds to the operator. */
+    private fun refundPlayer(sender: Player, payloadItem: ItemStack, receipt: PaymentReceipt): Boolean {
+        val target = Bukkit.getPlayer(sender.uniqueId) ?: sender
+        give(target, payloadItem)
+        if (!target.isOnline) target.saveData()
+        val refunded = receipt.refund()
+        if (!refunded) {
+            target.sendMessage("§cYour package was returned, but the fee refund failed. Contact an administrator.")
+            plugin.logger.severe("Postage refund requires administrator action for ${sender.uniqueId}")
+        }
+        return refunded
+    }
+
+    /** Close owned shipping menus so cargo returns before pending persistence callbacks drain. */
+    fun shutdown() {
+        for (player in Bukkit.getOnlinePlayers()) if (inventories.containsKey(player.uniqueId)) player.closeInventory()
+    }
+
+    /** Create a named decorative shipping control. */
+    private fun button(key: String, material: Material, name: String): ItemStack {
+        val stack = theme.item(key, material)
+        val meta = stack.itemMeta!!
+        meta.setDisplayName(name)
+        stack.itemMeta = meta
+        return stack
+    }
+
+
+    companion object {
+        const val TITLE_PREFIX = "Send package"
+        const val PACKAGE_SLOT = 13
+        const val CONFIRM_SLOT = 15
+        const val CANCEL_SLOT = 11
+
+        /** Return an item to player storage and drop only inventory overflow. */
+        private fun give(player: Player, item: ItemStack) {
+            player.inventory.addItem(item).values.forEach { player.world.dropItemNaturally(player.location, it) }
+        }
+
+
+    }
+}
