@@ -38,7 +38,7 @@ internal class ClaimRestorations(private val directory: Path, private val reposi
         try {
             Files.createDirectories(directory)
             Files.list(directory).use { paths ->
-                paths.filter { it.fileName.toString().endsWith(suffix) }.forEach { read(it) }
+                paths.filter { it.fileName.toString().endsWith(suffix) || it.fileName.toString().endsWith(".tmp") }.forEach { read(it) }
             }
         } catch (error: Exception) {
             logger.log(Level.WARNING, "Cannot scan undelivered claim receipts", error)
@@ -51,7 +51,10 @@ internal class ClaimRestorations(private val directory: Path, private val reposi
     private fun read(path: Path) {
         try {
             require(Files.size(path) <= 512)
-            val fields = Files.readString(path).trim().split('\n')
+            val content = Files.readString(path)
+            val temporary = path.fileName.toString().endsWith(".tmp")
+            require(!temporary || content.endsWith("\n"))
+            val fields = content.trim().split('\n')
             require(fields.size == 5)
             val id = fields[0].toLong()
             val recipient = UUID.fromString(fields[1])
@@ -60,7 +63,7 @@ internal class ClaimRestorations(private val directory: Path, private val reposi
             val generation = fields[4].toLong()
             require(id > 0 && generation >= 0 && status in setOf(MailStatus.UNCLAIMED, MailStatus.RETURNED))
             val key = "$id-$generation"
-            require(path.fileName.toString() == key + suffix)
+            require(path.fileName.toString() == key + if (temporary) ".tmp" else suffix)
             pending.putIfAbsent(key, MailRecord(id, null, "", recipient, "", MailType.PACKAGE, status,
                 byteArrayOf(), 0, 0, updated, true, status == MailStatus.RETURNED, generation))
         } catch (error: Exception) {
