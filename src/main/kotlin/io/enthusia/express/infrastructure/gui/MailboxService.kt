@@ -34,6 +34,8 @@ class MailboxService @JvmOverloads constructor(
     private val theme = GuiTheme(plugin)
     private val sessions = HashMap<UUID, Session>()
     private val claiming = HashSet<UUID>()
+    private val loading = HashSet<UUID>()
+    private val requested = HashMap<UUID, Pair<Player, Session>>()
     private var stopping = false
 
     private class Session(val inventory: Inventory, val type: MailType, val page: Int, val sent: Boolean) {
@@ -66,13 +68,35 @@ class MailboxService @JvmOverloads constructor(
         sessions[player.uniqueId] = session
         MailboxControls.render(inv, type, page, sent, theme)
         if (existing == null) player.openInventory(inv)
-        if (sent) {
+        requested[player.uniqueId] = player to session
+        loadPendingPages()
+    }
+
+    /** Start at most one lookup per player; repeated navigation replaces the pending view. */
+    fun loadPendingPages() {
+        for ((id, request) in requested.toMap()) {
+            if (id in loading) continue
+            requested.remove(id)
+            val (player, session) = request
+            if (!active(player, session)) continue
+            loading.add(id)
+            loadPage(player, session)
+        }
+    }
+
+    /** Dispatch a single bounded page; the scheduler starts the next desired view after completion. */
+    private fun loadPage(player: Player, session: Session) {
+        val type = session.type
+        val page = session.page
+        if (session.sent) {
             main.complete(repository.listSent(player.uniqueId, type, page)) { records, error ->
+                loading.remove(player.uniqueId)
                 renderSent(player, session, records, error)
             }
             return
         }
         main.complete(repository.listInbox(player.uniqueId, type, page)) { records, error ->
+            loading.remove(player.uniqueId)
             renderInbox(player, session, records, error)
         }
     }
@@ -117,7 +141,7 @@ class MailboxService @JvmOverloads constructor(
     // Persisted ItemStack data can fail in version-specific serializers; show a barrier for that row.
     @Suppress("TooGenericExceptionCaught")
     private fun mailIcon(record: MailRecord): ItemStack = try {
-        val decoded = if (record.type == MailType.PACKAGE) ItemCodec.decode(record.payload) else
+        val decoded = if (record.type == MailType.PACKAGE) icon(Material.CHEST, "§ePackage #${record.id}") else
             icon(Material.WRITTEN_BOOK, (if (record.unread) "§e[Unread] " else "§7[Read] ") + record.senderName)
         val meta = decoded.itemMeta!!
         meta.lore = listOf("§7From: " + record.senderName, "§7Mail #" + record.id,
@@ -168,13 +192,33 @@ class MailboxService @JvmOverloads constructor(
         if (navigate(player, session, slot)) return
         val visible = session.records[slot] ?: return
         if (session.sent) {
-            if (visible.sender == player.uniqueId) SentMailDisplay.readBook(player, visible)
+            readSent(player, session, visible)
             return
         }
         if (!claiming.add(player.uniqueId)) return
         main.complete(repository.get(visible.id)) { record, error ->
             completeLookup(player, session, record, error)
         }
+    }
+
+    /** Load only the selected sent book, keeping page queries free of payloads. */
+    private fun readSent(player: Player, session: Session, visible: MailRecord) {
+        if (visible.sender != player.uniqueId || visible.type == MailType.PACKAGE) return
+        if (!claiming.add(player.uniqueId)) return
+        main.complete(repository.get(visible.id)) { record, error ->
+            claiming.remove(player.uniqueId)
+            if (error == null && record != null && active(player, session)) showSentBook(player, record)
+        }
+    }
+
+    /** Recheck sender ownership and the byte budget before decoding a retained sent book. */
+    private fun showSentBook(player: Player, record: MailRecord) {
+        if (record.sender != player.uniqueId) return
+        if (record.payload.size > plugin.config.getInt("letters.max-payload-bytes", 262144)) {
+            player.sendMessage("§cThis legacy book exceeds the safe item-data limit. Contact an administrator.")
+            return
+        }
+        SentMailDisplay.readBook(player, record)
     }
 
     /** Handle category and page buttons, returning whether the slot was a navigation control. */
@@ -205,6 +249,13 @@ class MailboxService @JvmOverloads constructor(
             return
         }
         val item: ItemStack
+        val byteLimit = plugin.config.getInt(if (record.type == MailType.PACKAGE)
+            "mail.max-package-payload-bytes" else "letters.max-payload-bytes", 262144)
+        if (record.payload.size > byteLimit) {
+            claiming.remove(player.uniqueId)
+            player.sendMessage("§cThis legacy mail exceeds the safe item-data limit. Contact an administrator; its contents are retained.")
+            return
+        }
         try {
             item = ItemCodec.decode(record.payload)
         } catch (e: RuntimeException) {
@@ -242,7 +293,7 @@ class MailboxService @JvmOverloads constructor(
             player.sendMessage("§cYou need claim permission and an empty inventory slot.")
             return
         }
-        main.complete(repository.claim(record.id, player.uniqueId)) { claimed, error ->
+        main.complete(repository.claim(record)) { claimed, error ->
             completeClaim(player, record, stack, claimed, error)
         }
     }
@@ -283,7 +334,8 @@ class MailboxService @JvmOverloads constructor(
 
     /** Compensate a successful reservation when player state prevents inventory delivery. */
     private fun restoreUndelivered(player: Player, record: MailRecord) {
-        main.complete(repository.restoreClaim(record)) { restored, failure ->
+        val restoration = acknowledgments?.restore(record) ?: repository.restoreClaim(record)
+        main.complete(restoration) { restored, failure ->
             claiming.remove(player.uniqueId)
             if (failure != null || restored != true) plugin.logger.severe("Could not restore undelivered claim #${record.id}: $failure")
         }
@@ -292,7 +344,10 @@ class MailboxService @JvmOverloads constructor(
     /** Discard only the session belonging to the inventory being closed. */
     fun close(player: Player, inventory: Inventory) {
         val session = sessions[player.uniqueId]
-        if (session != null && session.inventory === inventory) sessions.remove(player.uniqueId)
+        if (session != null && session.inventory === inventory) {
+            sessions.remove(player.uniqueId)
+            requested.remove(player.uniqueId)
+        }
     }
 
     /** Reject new mailbox access and close owned menus before pending completions drain. */
@@ -300,6 +355,7 @@ class MailboxService @JvmOverloads constructor(
         stopping = true
         for (player in Bukkit.getOnlinePlayers()) if (owns(player)) player.closeInventory()
         sessions.clear()
+        requested.clear()
     }
 
     companion object {

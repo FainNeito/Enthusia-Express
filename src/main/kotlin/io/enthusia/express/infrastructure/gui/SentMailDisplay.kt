@@ -22,7 +22,7 @@ object SentMailDisplay {
     /** Show the original destination, content summary, date and current delivery state. */
     fun icon(entry: SentMailRecord): ItemStack {
         val mail = entry.mail
-        val item = if (mail.type == MailType.PACKAGE) packagePreview(mail) else ItemStack(Material.WRITTEN_BOOK)
+        val item = if (mail.type == MailType.PACKAGE) ItemStack(Material.CHEST) else ItemStack(Material.WRITTEN_BOOK)
         val meta = item.itemMeta!!
         meta.setDisplayName("§eTo: ${entry.recipientName ?: "Unknown (legacy return)"}")
         meta.lore = listOf("§7${mail.type.name.lowercase().replaceFirstChar { it.uppercase() }} #${mail.id}",
@@ -30,14 +30,6 @@ object SentMailDisplay {
             contentHint(mail))
         item.itemMeta = meta
         return item
-    }
-
-    /** Keep a package's native container tooltip when its retained payload can be decoded. */
-    @Suppress("TooGenericExceptionCaught")
-    private fun packagePreview(mail: MailRecord): ItemStack = try {
-        if (mail.payload.isEmpty()) ItemStack(Material.CHEST) else ItemCodec.decode(mail.payload) ?: ItemStack(Material.CHEST)
-    } catch (error: RuntimeException) {
-        ItemStack(Material.CHEST)
     }
 
     /** Describe retained content without suggesting collection from history. */

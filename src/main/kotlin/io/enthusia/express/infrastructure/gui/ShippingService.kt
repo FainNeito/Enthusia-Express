@@ -180,6 +180,10 @@ class ShippingService @JvmOverloads constructor(
             sender.sendMessage("§cCould not encode that container.")
             return null
         }
+        if (payload.size > plugin.config.getInt("mail.max-package-payload-bytes", 262144)) {
+            sender.sendMessage(Text.msgOrDefault(plugin.config, "package-too-large", "&cThat package contains too much item data. Split its contents into smaller packages."))
+            return null
+        }
         return PreparedShipment(payloadItem, payload, count, cost)
     }
 
@@ -212,15 +216,48 @@ class ShippingService @JvmOverloads constructor(
     private fun chargeAndSubmit(sender: Player, inv: Inventory, target: OfflinePlayer, shipment: PreparedShipment) {
         quotes.remove(sender.uniqueId)
         val unit = payments.priceUnit()
-        val payment = payments.charge(sender, shipment.cost)
+        // Transfer ownership before any provider callback can close or reenter this menu.
+        pending.add(sender.uniqueId)
+        inv.setItem(PACKAGE_SLOT, null)
+        val receipt = takePayment(sender, inv, shipment) ?: return
+        if (!currentShippingSession(sender, inv) || target.isOnline || !eligibleSender(sender)) {
+            refundPlayer(sender, shipment.payloadItem, receipt)
+            pending.remove(sender.uniqueId)
+            return
+        }
+        submitReserved(sender, target, shipment, receipt, unit)
+    }
+
+    /** Reserve payment while preserving cargo on rejection and ambiguous provider failures. */
+    @Suppress("TooGenericExceptionCaught")
+    private fun takePayment(sender: Player, inv: Inventory, shipment: PreparedShipment): PaymentReceipt? {
+        val payment = try {
+            payments.charge(sender, shipment.cost)
+        } catch (failure: RuntimeException) {
+            returnReservedCargo(sender, inv, shipment.payloadItem)
+            pending.remove(sender.uniqueId)
+            plugin.logger.log(java.util.logging.Level.SEVERE, "Payment outcome uncertain for ${sender.uniqueId}; reconcile provider before refunding postage", failure)
+            sender.sendMessage("§cPayment failed. Your package was returned; contact an administrator to check the fee.")
+            return null
+        }
         val receipt = payment.receipt
         if (receipt == null) {
+            returnReservedCargo(sender, inv, shipment.payloadItem)
+            pending.remove(sender.uniqueId)
             sender.sendMessage(Text.msg(plugin.config,
                 paymentFailureMessage(payment),
                 mapOf("cost" to shipment.cost.toString(), "have" to java.math.BigDecimal.valueOf(payment.balance).stripTrailingZeros().toPlainString())))
-            return
+            return null
         }
-        inv.setItem(PACKAGE_SLOT, null)
+        return receipt
+    }
+
+    /** Recheck permission and combat changes caused by payment listeners. */
+    private fun eligibleSender(sender: Player): Boolean = combatHook.mayUseMail(sender) &&
+        sender.hasPermission("enthusiaexpress.use") && sender.hasPermission("enthusiaexpress.packages.send")
+
+    /** Submit reserved cargo once; repository rejection completes through the original refund route. */
+    private fun submitReserved(sender: Player, target: OfflinePlayer, shipment: PreparedShipment, receipt: PaymentReceipt, unit: String) {
         sender.closeInventory()
         targets.remove(sender.uniqueId)
         val targetName = target.name ?: target.uniqueId.toString()
@@ -244,6 +281,21 @@ class ShippingService @JvmOverloads constructor(
             }
         }
     }
+
+    /** Return the reservation to its original empty slot or the current player, never both. */
+    private fun returnReservedCargo(sender: Player, inv: Inventory, cargo: ItemStack) {
+        val current = inv.getItem(PACKAGE_SLOT)
+        if (currentShippingSession(sender, inv) && cargoSlotEmpty(current)) {
+            inv.setItem(PACKAGE_SLOT, cargo)
+        } else {
+            val player = Bukkit.getPlayer(sender.uniqueId) ?: sender
+            give(player, cargo)
+            if (!player.isOnline) player.saveData()
+        }
+    }
+
+    /** Empty placement guidance does not own player cargo. */
+    private fun cargoSlotEmpty(item: ItemStack?): Boolean = item == null || item.type.isAir || isPlaceholder(item)
 
     /** Choose unavailable, physical-gold or currency messaging from the actual payment result. */
     private fun paymentFailureMessage(payment: io.enthusia.express.infrastructure.payment.ChargeResult): String = when {
