@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "io.enthusia"
-version = "1.2.0"
+version = "1.2.1"
 
 java {
     toolchain.languageVersion.set(JavaLanguageVersion.of(21))
@@ -30,7 +30,7 @@ dependencies {
     compileOnly(vaultApi) { isTransitive = false }
     testImplementation(vaultApi) { isTransitive = false }
     compileOnly("io.papermc.paper:paper-api:${providers.gradleProperty("paperVersion").getOrElse("1.21")}-R0.1-SNAPSHOT")
-    implementation("org.xerial:sqlite-jdbc:3.50.3.0")
+    implementation("org.xerial:sqlite-jdbc:3.51.3.0")
     testImplementation("io.papermc.paper:paper-api:${providers.gradleProperty("paperVersion").getOrElse("1.21")}-R0.1-SNAPSHOT")
     compileOnly(combatApi)
     compileOnly(combatCore)
@@ -59,7 +59,10 @@ tasks {
     }
     withType<JavaCompile>().configureEach { options.encoding = "UTF-8"; options.release.set(21) }
     withType<KotlinCompile>().configureEach { compilerOptions.jvmTarget.set(JvmTarget.JVM_21) }
-    processResources { filesMatching("plugin.yml") { expand("version" to pluginVersion) } }
+    processResources {
+        inputs.property("pluginVersion", pluginVersion)
+        filesMatching("plugin.yml") { expand("version" to pluginVersion) }
+    }
     withType<AbstractArchiveTask>().configureEach { isPreserveFileTimestamps = false; isReproducibleFileOrder = true }
     build { dependsOn(shadowJar) }
 }

@@ -1,4 +1,6 @@
-# Enthusia Express 1.2.0
+# Enthusia Express 1.2.1
+
+Version 1.2.1 fixes reentrant shipping duplication and durable claim restoration, adds resource limits, and updates SQLite. Read the [production safety and staging guide](docs/production-safety.md) before upgrading. Live integration acceptance is required before production deployment.
 
 A Kotlin plugin requiring Java 21 for Paper 1.21.x. Packages and letters go to offline players; administrators can publish announcements to online or offline players.
 
@@ -29,7 +31,7 @@ sh ./gradlew clean build
 sh ./gradlew verifyPaperCompatibility
 ```
 
-On Windows, use `gradlew.bat`. Install **`build/libs/EnthusiaExpress-1.2.0.jar`**, the shaded JAR. The `-plain.jar` is not the installable artifact. Kotlin standard library, SQLite and its native libraries are included; Paper, Vault and CombatLogX are not bundled.
+On Windows, use `gradlew.bat`. Install **`build/libs/EnthusiaExpress-1.2.1.jar`**, the shaded JAR. The `-plain.jar` is not the installable artifact. Kotlin standard library, SQLite and its native libraries are included; Paper, Vault and CombatLogX are not bundled.
 
 The default compile API is Paper 1.21, with Java bytecode level 21. To run the tests with a later API classpath:
 
