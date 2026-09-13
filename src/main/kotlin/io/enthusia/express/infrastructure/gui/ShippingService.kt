@@ -244,6 +244,10 @@ class ShippingService @JvmOverloads constructor(
         if (receipt == null) {
             returnReservedCargo(sender, inv, shipment.payloadItem)
             pending.remove(sender.uniqueId)
+            if (payment.reconciliationId != null) {
+                sender.sendMessage("§cPayment outcome is uncertain. Your cargo was returned; ask an administrator to reconcile fee reference ${payment.reconciliationId}.")
+                return null
+            }
             sender.sendMessage(Text.msg(plugin.config,
                 paymentFailureMessage(payment),
                 mapOf("cost" to shipment.cost.toString(), "have" to java.math.BigDecimal.valueOf(payment.balance).stripTrailingZeros().toPlainString())))
