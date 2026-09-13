@@ -1,11 +1,13 @@
 # Enthusia Express 1.2.1 verification
 
-Reviewed baseline: merged main `66786088c3988478afe34518d779694b00d882b1`. This safety release contains 34 Kotlin production files and uses Java 21, Kotlin 2.2.21, Gradle 8.14.3 and bundled SQLite JDBC 3.51.3.0.
+Reviewed baseline: merged main `66786088c3988478afe34518d779694b00d882b1`. This safety release contains 34 Kotlin production files and uses Java 21 baseline bytecode, Kotlin 2.3.21, Gradle 9.1.0 and bundled SQLite JDBC 3.51.3.0.
+
+See [Paper 26 compatibility](docs/paper-26-compatibility.md) for exact pinned APIs, reproduction commands and prerelease limits. Final 26.3 is not verified.
 
 ## Automated results
 
 - Clean `build verifyPaperCompatibility`: passed; all eleven Paper API compilation targets passed (1.21, 1.21.1 and 1.21.3 through 1.21.11).
-- 149 tests passed on each representative Paper API classpath: 1.21, 1.21.8 and 1.21.11. No failures, errors or skips. These are API/mocked integration test environments, not running Minecraft servers.
+- 149 tests passed with the updated toolchain on Paper 1.21 / Java 21 and against the preserved baseline JAR on Paper 26.2 and 26.3-pre-2 / Java 25. No failures, errors or skips. The earlier safety-review toolchain also passed all 149 tests on 1.21.8 and 1.21.11; CI retains those representative jobs. These are API/mocked integration test environments, not running Minecraft servers.
 - Focused Detekt reports zero findings using `docs/detekt-focused.yml`.
 - Konsist architecture and compiled project/lambda call-graph checks passed. No project call cycles were detected; arbitrary reflection and external dispatch are outside this check.
 - Shaded-JAR tests loaded the bundled native driver and asserted SQLite runtime version 3.51.3. Paper, Vault and CombatLogX are not bundled.
@@ -27,9 +29,9 @@ Existing currency, CombatLogX, Nexo, GUI, block, notification, sound, migration,
 
 ## Evidence and limits
 
-The testing artifact was copied from the clean Paper 1.21 baseline before API override runs. Local dependency resolution used an untracked Maven directory containing the unmodified official SQLite POM/JAR; their SHA-256 values were verified against Maven Central. The repository's Gradle configuration continues to resolve the pinned release from Maven Central normally. No local dependency override is committed.
+The testing artifact was copied from the clean Paper 1.21 baseline before API override runs. Local dependency resolution used an untracked Maven directory containing the unmodified official SQLite POM/JAR; their SHA-256 values were verified against Maven Central. The repository's Gradle configuration continues to resolve the pinned release from Maven Central normally. The Java 25 compatibility runs additionally used an untracked loopback dependency bridge with Python-verified upstream HTTPS and unmodified official artifacts. No local dependency override or bridge is committed.
 
-SPEAR requirements REQ-037 through REQ-043 and tasks TDD-015 and TDD-016 record the changes, red/green evidence, import evidence and architecture checks.
+SPEAR requirements REQ-037 through REQ-043 and tasks TDD-015 and TDD-016 record the safety changes, red/green evidence, import evidence and architecture checks. REQ-044 / INFRA-011 record the Paper 26 build verification.
 
 **Live staging has not been performed.** The actual staging server, installed currency/CombatLogX/Nexo configuration and resource pack were not available. Do not interpret automated success as production approval. Follow [the staging and recovery guide](docs/production-safety.md) before deployment.
 

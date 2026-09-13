@@ -3,17 +3,32 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
     java
-    kotlin("jvm") version "2.2.21"
-    id("com.gradleup.shadow") version "8.3.6"
+    kotlin("jvm") version "2.3.21"
+    id("com.gradleup.shadow") version "9.2.2"
 }
 
 group = "io.enthusia"
 version = "1.2.1"
 
-java {
-    toolchain.languageVersion.set(JavaLanguageVersion.of(21))
+// Keep the released JAR on the oldest API. Newer targets are verification builds.
+val paperVersion = providers.gradleProperty("paperVersion").getOrElse("1.21")
+val modernPaperApis = mapOf(
+    "26.2" to "26.2.build.123-stable",
+    "26.3-pre-2" to "26.3-pre-2.build.0-alpha"
+)
+val paperApiVersion = modernPaperApis[paperVersion] ?: run {
+    require(paperVersion.startsWith("1.21")) {
+        "Unverified Paper target: $paperVersion. Use 26.3-pre-2 for experimental 26.3 verification."
+    }
+    "$paperVersion-R0.1-SNAPSHOT"
 }
-kotlin { jvmToolchain(21) }
+val targetJava = if (paperVersion in modernPaperApis) 25 else 21
+val baselineJar = providers.gradleProperty("baselineJar")
+
+java {
+    toolchain.languageVersion.set(JavaLanguageVersion.of(targetJava))
+}
+kotlin { jvmToolchain(targetJava) }
 
 repositories {
     mavenCentral()
@@ -29,17 +44,17 @@ val vaultApi = "com.github.MilkBowl:VaultAPI:1.7.1"
 dependencies {
     compileOnly(vaultApi) { isTransitive = false }
     testImplementation(vaultApi) { isTransitive = false }
-    compileOnly("io.papermc.paper:paper-api:${providers.gradleProperty("paperVersion").getOrElse("1.21")}-R0.1-SNAPSHOT")
+    compileOnly("io.papermc.paper:paper-api:$paperApiVersion")
     implementation("org.xerial:sqlite-jdbc:3.51.3.0")
-    testImplementation("io.papermc.paper:paper-api:${providers.gradleProperty("paperVersion").getOrElse("1.21")}-R0.1-SNAPSHOT")
+    testImplementation("io.papermc.paper:paper-api:$paperApiVersion")
     compileOnly(combatApi)
     compileOnly(combatCore)
     testImplementation(combatApi)
     testImplementation(combatCore)
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
-    testImplementation("org.mockito:mockito-core:5.15.2")
+    testImplementation("org.mockito:mockito-core:5.20.0")
     testImplementation("com.lemonappdev:konsist:0.17.3")
-    testImplementation("org.ow2.asm:asm:9.7.1")
+    testImplementation("org.ow2.asm:asm:9.8")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
@@ -47,7 +62,7 @@ val pluginVersion = version.toString()
 
 tasks {
     shadowJar {
-        archiveClassifier.set("")
+        archiveClassifier.set(if (targetJava == 21) "" else "verify-$paperVersion")
         // Keep SQLite's JNI package and native-resource paths intact.
         mergeServiceFiles()
     }
@@ -55,10 +70,18 @@ tasks {
     test {
         useJUnitPlatform()
         dependsOn(shadowJar)
-        systemProperty("pluginJar", shadowJar.get().archiveFile.get().asFile.absolutePath)
+        if (baselineJar.isPresent) {
+            val artifact = file(baselineJar.get())
+            inputs.file(artifact)
+            // Exercise the actual distributable against the newer server API at runtime.
+            classpath = files(artifact) + (classpath - sourceSets.main.get().output)
+            systemProperty("pluginJar", artifact.absolutePath)
+        } else {
+            systemProperty("pluginJar", shadowJar.get().archiveFile.get().asFile.absolutePath)
+        }
     }
-    withType<JavaCompile>().configureEach { options.encoding = "UTF-8"; options.release.set(21) }
-    withType<KotlinCompile>().configureEach { compilerOptions.jvmTarget.set(JvmTarget.JVM_21) }
+    withType<JavaCompile>().configureEach { options.encoding = "UTF-8"; options.release.set(targetJava) }
+    withType<KotlinCompile>().configureEach { compilerOptions.jvmTarget.set(JvmTarget.fromTarget(targetJava.toString())) }
     processResources {
         inputs.property("pluginVersion", pluginVersion)
         filesMatching("plugin.yml") { expand("version" to pluginVersion) }
