@@ -62,15 +62,16 @@ class InventorySafetyTest {
             ContainerScanner.countPackedItems(
                 bundle(item(Material.STONE, Integer.MAX_VALUE), item(Material.STONE, 1)), 8));
   }
-  /** Verifies that cyclic container rejects at depth limit without recursive calls. */
+  /** Verifies that the work budget rejects a cyclic container before its larger depth limit. */
 
   @Test
-  void cyclicContainerRejectsAtDepthLimitWithoutRecursiveCalls() {
+  void cyclicContainerRejectsAtWorkBudgetBeforeDepthLimit() {
     ItemStack cyclic = bundle();
     BundleMeta meta = (BundleMeta) cyclic.getItemMeta();
     when(meta.getItems()).thenReturn(List.of(cyclic));
-    assertThrows(
+    IllegalArgumentException failure = assertThrows(
         IllegalArgumentException.class, () -> ContainerScanner.countPackedItems(cyclic, 10_000));
+    assertEquals("Container traversal exceeds safe work budget", failure.getMessage());
   }
   /** Verifies that shulker contents respect depth boundary and ignore empty slots. */
 

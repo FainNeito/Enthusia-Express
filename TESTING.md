@@ -1,9 +1,11 @@
-# Testing Enthusia Express 1.2.0
+# Testing Enthusia Express 1.2.1
+
+Complete the [production safety staging checklist](docs/production-safety.md#required-staging-acceptance) with the actual server plugins before deployment. The upgrade adds recovery-generation guards; preserve a coordinated backup before replacing the JAR.
 
 This is the Kotlin rewrite. Use Java 21 and an ordinary Paper 1.21.x test server.
 
 1. Stop the server and back up player data and `plugins/EnthusiaExpress` together.
-2. Replace the previous Enthusia Express JAR with `EnthusiaExpress-1.2.0.jar` in `plugins`. Keep only one version installed. The Kotlin runtime and SQLite driver are bundled.
+2. Replace the previous Enthusia Express JAR with `EnthusiaExpress-1.2.1.jar` in `plugins`. Keep only one version installed. The Kotlin runtime and SQLite driver are bundled.
 3. Install CombatLogX and its required dependencies, or explicitly set `mail.require-combatlogx: false` for a test without combat protection. The default blocks mail when CombatLogX is missing.
 4. Start the server. Confirm the plugin enables without errors and `/mail` opens the inbox.
 5. With two known players, log the recipient out. Send a signed book with `/mail letter <player>`, then log in as the recipient and open it in the letters tab. Reopen it and confirm its unread flag clears.

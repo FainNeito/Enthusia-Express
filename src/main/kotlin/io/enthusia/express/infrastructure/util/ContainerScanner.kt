@@ -24,7 +24,9 @@ object ContainerScanner {
         val limit = maxOf(1, maxDepth)
         val frames = ArrayDeque<Frame>()
         frames.push(Frame(contents(stack, 0, limit), 0, 0))
+        var visited = 0
         while (frames.isNotEmpty()) {
+            require(++visited <= 8192) { "Container traversal exceeds safe work budget" }
             val frame = frames.peek()
             if (frame.children.hasNext()) {
                 visitChild(frames, limit)

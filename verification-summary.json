@@ -1,23 +1,23 @@
 {
-  "version": "1.2.0",
+  "version": "1.2.1",
   "java": 21,
-  "kotlin": "2.2.21",
-  "gradle": "8.14.3",
+  "kotlin": "2.3.21",
+  "gradle": "9.1.0",
   "testResults": {
     "1.21": {
-      "tests": 132,
+      "tests": 149,
       "failures": 0,
       "errors": 0,
       "skipped": 0
     },
-    "1.21.8": {
-      "tests": 132,
+    "26.2": {
+      "tests": 149,
       "failures": 0,
       "errors": 0,
       "skipped": 0
     },
-    "1.21.11": {
-      "tests": 132,
+    "26.3-pre-2": {
+      "tests": 149,
       "failures": 0,
       "errors": 0,
       "skipped": 0
@@ -34,11 +34,22 @@
     "1.21.8",
     "1.21.9",
     "1.21.10",
-    "1.21.11"
+    "1.21.11",
+    "26.2.build.123-stable",
+    "26.3-pre-2.build.0-alpha"
   ],
-  "productionKotlinFiles": 32,
-  "jarSha256": "cc67dfda57b0f66b331ce798dde5997270bcb365c4ef22f1bbcab849ebe17826",
+  "productionKotlinFiles": 34,
+  "jarSha256": "686ad3c17955ca6f09e816cc4d5a0f5f3eb28b1f8cc6261c8794e098b0525b38",
   "liveServerTested": false,
   "remoteChecks": "Verify checks on the final PR commit; local evidence does not establish remote status.",
-  "focusedDetektFindings": 0
+  "focusedDetektFindings": 0,
+  "sqliteJdbc": "3.51.3.0",
+  "stagingStatus": "Pending access to actual server, plugins, configuration and resource pack",
+  "testJavaVersions": {
+    "1.21": 21,
+    "26.2": 25,
+    "26.3-pre-2": 25
+  },
+  "newerApiRuntimeArtifact": "Baseline shaded JAR (Java 21 bytecode)",
+  "final26_3Tested": false
 }

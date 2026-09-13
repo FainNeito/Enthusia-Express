@@ -28,15 +28,24 @@ class DeliveryAcknowledgments(
     private val executor = Executors.newSingleThreadExecutor { task ->
         Thread(task, "EnthusiaExpress-DeliveryReceipts").apply { isDaemon = true }
     }
+    private val closedMessage = "Delivery journal is closed"
     private val pending = HashMap<Long, UUID>()
+    private val restorations = ClaimRestorations(directory.resolve("undelivered"), repository, logger)
     private var retryFuture: CompletableFuture<Void>? = null
     private var closed = false
+
+    /** Persist and retry a known-undelivered claim independently from delivered receipts. */
+    @Synchronized
+    fun restore(record: io.enthusia.express.domain.MailRecord): CompletableFuture<Boolean> {
+        if (closed) return CompletableFuture.failedFuture(IllegalStateException(closedMessage))
+        return CompletableFuture.supplyAsync({ restorations.record(record) }, executor)
+    }
 
     /** Queue a receipt after item delivery; persist it before attempting to release the database reservation. */
     @Synchronized
     fun record(id: Long, recipient: UUID): CompletableFuture<Void> {
         require(id > 0)
-        if (closed) return CompletableFuture.failedFuture(IllegalStateException("Delivery journal is closed"))
+        if (closed) return CompletableFuture.failedFuture(IllegalStateException(closedMessage))
         return CompletableFuture.runAsync({
             pending[id] = recipient
             deliverReceipt(id, recipient)
@@ -46,7 +55,7 @@ class DeliveryAcknowledgments(
     /** Coalesce overlapping retry requests onto one serialized background pass. */
     @Synchronized
     fun retry(): CompletableFuture<Void> {
-        if (closed) return CompletableFuture.failedFuture(IllegalStateException("Delivery journal is closed"))
+        if (closed) return CompletableFuture.failedFuture(IllegalStateException(closedMessage))
         val current = retryFuture
         if (current != null && !current.isDone) return current
         return CompletableFuture.runAsync({ replay() }, executor).also { retryFuture = it }
@@ -56,6 +65,7 @@ class DeliveryAcknowledgments(
     private fun replay() {
         loadReceipts()
         pending.toMap().forEach { (id, recipient) -> deliverReceipt(id, recipient) }
+        restorations.retry()
     }
 
     /** Scan persisted receipts off the server thread while isolating damaged entries. */

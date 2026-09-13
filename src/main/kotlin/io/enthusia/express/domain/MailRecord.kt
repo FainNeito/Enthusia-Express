@@ -2,7 +2,7 @@ package io.enthusia.express.domain
 
 import java.util.UUID
 
-data class MailRecord(
+data class MailRecord @JvmOverloads constructor(
     @get:JvmName("id") val id: Long,
     @get:JvmName("sender") val sender: UUID?,
     @get:JvmName("senderName") val senderName: String,
@@ -16,4 +16,5 @@ data class MailRecord(
     @get:JvmName("updatedAt") val updatedAt: Long,
     @get:JvmName("unread") val unread: Boolean,
     @get:JvmName("returnDelivery") val returnDelivery: Boolean,
+    @get:JvmName("claimGeneration") val claimGeneration: Long = 0,
 )

@@ -18,7 +18,10 @@ import java.sql.Statement
 import java.util.OptionalLong
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.Executors
+import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.RejectedExecutionException
 import org.bukkit.plugin.java.JavaPlugin
 import org.sqlite.SQLiteConfig
 
@@ -33,9 +36,13 @@ class MailRepository(
         this(plugin, dbFile, plugin.config.getInt("database.busy-timeout-ms", 5000))
 
     private val INVALID_PAGE = "Invalid page"
-    private val executor = Executors.newSingleThreadExecutor { runnable ->
-        Thread(runnable, "EnthusiaExpress-SQLite").apply { isDaemon = true }
-    }
+    private val PAGE_COLUMNS = "id,sender_uuid,sender_name,recipient_uuid,recipient_name,type,status," +
+        "X'' AS payload,packed_item_count,created_at,updated_at,unread,return_delivery,claim_generation," +
+        "delivery_pending,original_recipient_name"
+    private val executor = ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS,
+        ArrayBlockingQueue<Runnable>(plugin?.config?.getInt("database.max-queued-operations", 256) ?: 256),
+        { runnable -> Thread(runnable, "EnthusiaExpress-SQLite").apply { isDaemon = true } },
+        ThreadPoolExecutor.AbortPolicy())
     private val logger = plugin?.logger ?: java.util.logging.Logger.getLogger(MailRepository::class.java.name)
     private lateinit var connection: Connection
     private var closed = false
@@ -74,6 +81,8 @@ class MailRepository(
                 st.executeQuery("PRAGMA table_info(mail)").use { rs ->
                     while (rs.next()) columns.add(rs.getString("name"))
                 }
+                if ("claim_generation" !in columns)
+                    st.execute("ALTER TABLE mail ADD COLUMN claim_generation INTEGER NOT NULL DEFAULT 0")
                 if ("delivery_pending" !in columns)
                     st.execute("ALTER TABLE mail ADD COLUMN delivery_pending INTEGER NOT NULL DEFAULT 0")
                 if ("original_recipient_name" !in columns) {
@@ -159,7 +168,7 @@ class MailRepository(
         if (page < 0 || page > 1_000_000) return CompletableFuture.failedFuture(IllegalArgumentException(INVALID_PAGE))
         return supply {
             val out = ArrayList<MailRecord>()
-            val sql = "SELECT * FROM mail WHERE recipient_uuid=? AND type=? AND status IN (?,?) ORDER BY" +
+            val sql = "SELECT $PAGE_COLUMNS FROM mail WHERE recipient_uuid=? AND type=? AND status IN (?,?) ORDER BY" +
                 " created_at DESC, id DESC LIMIT 45 OFFSET ?"
             connection.prepareStatement(sql).use { ps ->
                 ps.setString(1, recipient.toString())
@@ -178,7 +187,7 @@ class MailRepository(
         if (page < 0 || page > 1_000_000) return CompletableFuture.failedFuture(IllegalArgumentException(INVALID_PAGE))
         return supply {
             val out = ArrayList<io.enthusia.express.domain.SentMailRecord>()
-            connection.prepareStatement("SELECT * FROM mail WHERE sender_uuid=? AND type=? ORDER BY created_at DESC, id DESC LIMIT 45 OFFSET ?").use { ps ->
+            connection.prepareStatement("SELECT $PAGE_COLUMNS FROM mail WHERE sender_uuid=? AND type=? ORDER BY created_at DESC, id DESC LIMIT 45 OFFSET ?").use { ps ->
                 ps.setString(1, sender.toString())
                 ps.setString(2, type.name)
                 ps.setInt(3, page * 45)
@@ -213,33 +222,42 @@ class MailRepository(
         if (current == null) false else updateClaim(current)
     }
 
+    /** Reject stale snapshots so compensation always identifies the exact reservation. */
+    override fun claim(record: MailRecord): CompletableFuture<Boolean> = supply {
+        if (record.type != MailType.PACKAGE || record.status !in setOf(MailStatus.UNCLAIMED, MailStatus.RETURNED)) false
+        else updateClaim(record)
+    }
+
     /** Conditionally transition the observed package into its claimed state with a held delivery reservation. */
     private fun updateClaim(current: MailRecord): Boolean {
         val id = current.id
         val recipient = current.recipient
         val next = if (current.status == MailStatus.RETURNED) MailStatus.RETURN_CLAIMED else MailStatus.CLAIMED
         return connection.prepareStatement(
-            "UPDATE mail SET status=?, unread=0, delivery_pending=1, updated_at=? WHERE id=? AND recipient_uuid=? AND status=?"
+            "UPDATE mail SET status=?, unread=0, delivery_pending=1, updated_at=? WHERE id=? AND recipient_uuid=? AND status=? AND type='PACKAGE' AND claim_generation=?"
         ).use { ps ->
             ps.setString(1, next.name)
             ps.setLong(2, System.currentTimeMillis())
             ps.setLong(3, id)
             ps.setString(4, recipient.toString())
             ps.setString(5, current.status.name)
+            ps.setLong(6, current.claimGeneration)
             ps.executeUpdate() == 1
         }
     }
 
     /** Restore an undelivered pending claim to its original status and timestamp. */
     override fun restoreClaim(record: MailRecord): CompletableFuture<Boolean> = supply {
+        require(record.type == MailType.PACKAGE && record.status in setOf(MailStatus.UNCLAIMED, MailStatus.RETURNED))
         connection.prepareStatement(
-            "UPDATE mail SET status=?, unread=1, delivery_pending=0, updated_at=? WHERE id=? AND recipient_uuid=? AND status=? AND delivery_pending=1"
+            "UPDATE mail SET status=?, unread=1, delivery_pending=0, claim_generation=claim_generation+1, updated_at=? WHERE id=? AND recipient_uuid=? AND status=? AND delivery_pending=1 AND type='PACKAGE' AND claim_generation=?"
         ).use { ps ->
             ps.setString(1, record.status.name)
             ps.setLong(2, record.updatedAt)
             ps.setLong(3, record.id)
             ps.setString(4, record.recipient.toString())
             ps.setString(5, if (record.status == MailStatus.RETURNED) "RETURN_CLAIMED" else "CLAIMED")
+            ps.setLong(6, record.claimGeneration)
             ps.executeUpdate() == 1
         }
     }
@@ -469,7 +487,7 @@ class MailRepository(
             UUID.fromString(rs.getString("recipient_uuid")), rs.getString("recipient_name"),
             MailType.valueOf(rs.getString("type")), MailStatus.valueOf(rs.getString("status")),
             rs.getBytes("payload"), rs.getInt("packed_item_count"), rs.getLong("created_at"),
-            rs.getLong("updated_at"), rs.getInt("unread") != 0, rs.getInt("return_delivery") != 0,
+            rs.getLong("updated_at"), rs.getInt("unread") != 0, rs.getInt("return_delivery") != 0, rs.getLong("claim_generation"),
         )
     }
 
@@ -480,18 +498,21 @@ class MailRepository(
     @Synchronized
     private fun <T> supply(task: () -> T): CompletableFuture<T> {
         if (closed) return CompletableFuture.failedFuture(IllegalStateException("Repository is closed"))
-        return CompletableFuture.supplyAsync({ task() }, executor)
+        return try {
+            CompletableFuture.supplyAsync({ task() }, executor)
+        } catch (busy: RejectedExecutionException) {
+            CompletableFuture.failedFuture(busy)
+        }
     }
 
     /** Called after main-thread completion callbacks have drained. */
     override fun close() {
-        val closing: CompletableFuture<Void>
         synchronized(this) {
             if (closed) return
-            closing = run { if (::connection.isInitialized) connection.close() }
             closed = true
             executor.shutdown()
         }
-        closing.join()
+        while (!executor.awaitTermination(1, TimeUnit.SECONDS)) { /* Drain accepted operations. */ }
+        if (::connection.isInitialized) connection.close()
     }
 }

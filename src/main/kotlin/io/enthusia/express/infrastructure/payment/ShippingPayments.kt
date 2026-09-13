@@ -18,7 +18,8 @@ fun interface PaymentReceipt {
 enum class PaymentSource { PHYSICAL, CURRENCY }
 
 data class ChargeResult(val receipt: PaymentReceipt?, val balance: Double = 0.0,
-                        val unavailable: Boolean = false, val source: PaymentSource = PaymentSource.PHYSICAL)
+                        val unavailable: Boolean = false, val source: PaymentSource = PaymentSource.PHYSICAL,
+                        val reconciliationId: String? = null)
 
 class ShippingPayments(private val plugin: JavaPlugin) {
     /** Describe the selected route without withdrawing any balance. */
@@ -42,7 +43,7 @@ class ShippingPayments(private val plugin: JavaPlugin) {
             return ChargeResult(null, unavailable = true)
         }
         // Keep optional Vault types in a separate class, loaded only when Vault is available.
-        return VaultShippingPayments.charge(player, cost, currency, plugin.logger)
+        return VaultShippingPayments.charge(player, cost, currency, plugin.logger, plugin.dataFolder.toPath().resolve("payment-reconciliation"))
     }
 
     /** Check physical Raw Gold, withdraw the fee and retain a receipt for compensation. */

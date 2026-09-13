@@ -85,9 +85,12 @@ class MailboxServiceTest {
     service.openSent(player, MailType.LETTER);
     drain();
     clearInvocations(repository);
+    when(repository.get(sent.id())).thenReturn(CompletableFuture.completedFuture(sent));
     service.click(player, 9);
+    drain();
     verify(player).openBook(book);
-    verifyNoInteractions(repository);
+    verify(repository).get(sent.id());
+    verifyNoMoreInteractions(repository);
   }
 
   /** Sent permission is rechecked before showing a history page. */
@@ -123,6 +126,22 @@ class MailboxServiceTest {
     verify(player, never()).closeInventory();
     verify(player, never()).openInventory(any(Inventory.class));
     verify(top).clear();
+  }
+
+  /** Repeated navigation retains only the latest desired page behind one active lookup. */
+  @Test void pendingNavigationCoalescesToLatestView() {
+    var pending = new CompletableFuture<List<MailRecord>>();
+    when(repository.listInbox(id, MailType.PACKAGE, 0)).thenReturn(pending);
+    when(repository.listInbox(id, MailType.LETTER, 0)).thenReturn(CompletableFuture.completedFuture(List.of()));
+    service.open(player, MailType.PACKAGE);
+    for (int i = 0; i < 200; i++) service.click(player, i % 2 == 0 ? 1 : 4);
+    verify(repository, times(1)).listInbox(any(), any(), anyInt());
+    pending.complete(List.of());
+    drain();
+    service.loadPendingPages();
+    drain();
+    verify(repository).listInbox(id, MailType.LETTER, 0);
+    verify(repository, times(2)).listInbox(any(), any(), anyInt());
   }
 
   @SuppressWarnings("unchecked")
@@ -174,6 +193,47 @@ class MailboxServiceTest {
     while (!callbacks.isEmpty()) callbacks.removeFirst().run();
   }
 
+  /** An interrupted delivery delegates compensation to the durable journal. */
+  @Test void undeliveredClaimIsJournaledBeforeReleasingPlayerGuard() {
+    var journal = mock(DeliveryAcknowledgments.class);
+    service = new MailboxService(plugin, repository, combat, main, sounds, journal);
+    var record = record(MailType.PACKAGE);
+    var stack = mock(ItemStack.class);
+    codec.when(() -> ItemCodec.decode(record.payload())).thenReturn(stack);
+    var claim = new CompletableFuture<Boolean>();
+    when(repository.claim(record)).thenReturn(claim);
+    when(journal.restore(record)).thenReturn(CompletableFuture.completedFuture(false));
+    open(record);
+    service.click(player, 9);
+    drain();
+    when(player.isOnline()).thenReturn(false);
+    claim.complete(true);
+    drain();
+    verify(journal).restore(record);
+    verify(journal, never()).record(anyLong(), any());
+    verify(repository, never()).restoreClaim(any());
+    verify(inventory, never()).addItem(any(ItemStack.class));
+  }
+
+  /** Closing during a pending lookup removes the coalesced request without another query. */
+  @Test void closedPendingNavigationDoesNotLoadAnotherPage() {
+    var pending = new CompletableFuture<List<MailRecord>>();
+    when(repository.listInbox(id, MailType.PACKAGE, 0)).thenReturn(pending);
+    service.open(player, MailType.PACKAGE);
+    service.click(player, 4);
+    service.close(player, top);
+    pending.complete(List.of());
+    drain();
+    service.loadPendingPages();
+    verify(repository, times(1)).listInbox(any(), any(), anyInt());
+  }
+
+  /** Package previews never deserialize retained container data on the server thread. */
+  @Test void packagePreviewNeverDecodesCargo() {
+    open(record(MailType.PACKAGE));
+    codec.verifyNoInteractions();
+  }
+
   MailRecord record(MailType type) {
     return new MailRecord(
         1,
@@ -216,7 +276,7 @@ class MailboxServiceTest {
     ItemStack stack = mock(ItemStack.class);
     when(stack.getItemMeta()).thenReturn(mock(ItemMeta.class));
     codec.when(() -> ItemCodec.decode(record.payload())).thenReturn(stack);
-    when(repository.claim(1, id)).thenReturn(CompletableFuture.completedFuture(true));
+    when(repository.claim(record)).thenReturn(CompletableFuture.completedFuture(true));
     when(inventory.addItem(stack)).thenReturn(new HashMap<>());
     open(record);
     service.click(player, 9);
@@ -240,7 +300,7 @@ class MailboxServiceTest {
     drain();
     verify(player).openBook(book);
     verify(repository).markRead(1, id);
-    verify(repository, never()).claim(anyLong(), any());
+    verify(repository, never()).claim(any(MailRecord.class));
     verify(sounds).play(player, SoundFeedback.Cue.LETTER_OPEN);
   }
   /** Verifies that rejected read does not produce success sound. */
@@ -265,7 +325,7 @@ class MailboxServiceTest {
     ItemStack stack = mock(ItemStack.class);
     when(stack.getItemMeta()).thenReturn(mock(ItemMeta.class));
     codec.when(() -> ItemCodec.decode(record.payload())).thenReturn(stack);
-    when(repository.claim(1, id)).thenReturn(CompletableFuture.completedFuture(true));
+    when(repository.claim(record)).thenReturn(CompletableFuture.completedFuture(true));
     when(inventory.addItem(stack)).thenReturn(new HashMap<>());
     open(record);
     service.click(player, 9);
@@ -281,7 +341,7 @@ class MailboxServiceTest {
     ItemStack stack = mock(ItemStack.class);
     when(stack.getItemMeta()).thenReturn(mock(ItemMeta.class));
     codec.when(() -> ItemCodec.decode(record.payload())).thenReturn(stack);
-    when(repository.claim(1, id)).thenReturn(CompletableFuture.completedFuture(false));
+    when(repository.claim(record)).thenReturn(CompletableFuture.completedFuture(false));
     open(record);
     service.click(player, 9);
     drain();
@@ -310,7 +370,7 @@ class MailboxServiceTest {
     when(stack.getItemMeta()).thenReturn(mock(ItemMeta.class));
     codec.when(() -> ItemCodec.decode(record.payload())).thenReturn(stack);
     CompletableFuture<Boolean> claim = new CompletableFuture<>();
-    when(repository.claim(1, id)).thenReturn(claim);
+    when(repository.claim(record)).thenReturn(claim);
     when(repository.restoreClaim(record)).thenReturn(CompletableFuture.completedFuture(true));
     open(record);
     service.click(player, 9);
