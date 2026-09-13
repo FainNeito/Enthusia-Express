@@ -24,6 +24,7 @@ class EnthusiaExpressPlugin : JavaPlugin() {
     private var mailboxService: MailboxService? = null
     private var expirationService: ExpirationService? = null
     private var acknowledgments: DeliveryAcknowledgments? = null
+    private var mailboxTask: org.bukkit.scheduler.BukkitTask? = null
     private var acknowledgmentTask: org.bukkit.scheduler.BukkitTask? = null
 
     /** Initialize storage, completion dispatch and optional integrations, then register mail commands and listeners. */
@@ -45,6 +46,7 @@ class EnthusiaExpressPlugin : JavaPlugin() {
         val combatHook = CombatLogXHook(this)
         val shipping = ShippingService(this, repository, combatHook, main, sounds).also { shippingService = it }
         val mailbox = MailboxService(this, repository, combatHook, main, sounds, acknowledgments).also { mailboxService = it }
+        mailboxTask = Bukkit.getScheduler().runTaskTimer(this, Runnable { mailbox.loadPendingPages() }, 1L, 1L)
         val expiration = ExpirationService(this, repository).also { expirationService = it }
         val command = MailCommand(this, shipping, mailbox, combatHook, BookMailService(this, repository, combatHook, main, sounds), main,
             io.enthusia.express.infrastructure.mail.MailBlockService(this, repository, main))
@@ -59,6 +61,7 @@ class EnthusiaExpressPlugin : JavaPlugin() {
 
     /** Stop recurring work, return open cargo, drain completions and close the receipt journal before SQLite. */
     override fun onDisable() {
+        mailboxTask?.cancel()
         acknowledgmentTask?.cancel()
         expirationService?.stop()
         shippingService?.shutdown()
