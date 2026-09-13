@@ -18,6 +18,47 @@ import org.bukkit.plugin.*;
 import org.junit.jupiter.api.Test;
 
 class CurrencyShippingTest {
+  @org.junit.jupiter.api.io.TempDir java.nio.file.Path paymentDirectory;
+
+  /** A provider can debit before throwing; retain an intent without minting a refund. */
+  @Test void ambiguousWithdrawalRetainsDurableIntentBeforeReturningCargo() throws Exception {
+    try (var f = new ShippingServiceTest.Fixture(OptionalLong.of(1))) {
+      Economy economy = install(f);
+      var balance = new java.util.concurrent.atomic.AtomicInteger(100);
+      when(economy.withdrawPlayer((OfflinePlayer) f.sender, 2.0)).thenAnswer(call -> {
+        try (var files = java.nio.file.Files.list(paymentDirectory.resolve("payment-reconciliation"))) {
+          assertEquals(1, files.count(), "Intent must exist before external debit");
+        }
+        balance.addAndGet(-2);
+        throw new IllegalStateException("listener failed after debit");
+      });
+      f.confirm();
+      verify(economy).withdrawPlayer((OfflinePlayer) f.sender, 2.0);
+      verify(economy, never()).depositPlayer(any(OfflinePlayer.class), anyDouble());
+      assertEquals(98, balance.get());
+      assertSame(f.packageItem, f.top.getItem(13));
+      verify(f.repository, never()).insertMailLimited(any(), anyString(), any(), anyString(), any(), any(), anyInt(), anyBoolean());
+      try (var files = java.nio.file.Files.list(paymentDirectory.resolve("payment-reconciliation"))) {
+        var receipts = files.toList();
+        assertEquals(1, receipts.size());
+        String text = java.nio.file.Files.readString(receipts.getFirst());
+        assertTrue(text.contains(f.sender.getUniqueId().toString()));
+        assertTrue(text.contains("EnthusiaCurrency"));
+      }
+    }
+  }
+
+  /** An unwritable reconciliation directory must prevent calling the currency provider. */
+  @Test void unavailableReconciliationStoragePreventsDebit() throws Exception {
+    try (var f = new ShippingServiceTest.Fixture(OptionalLong.of(1))) {
+      Economy economy = install(f);
+      java.nio.file.Files.writeString(paymentDirectory.resolve("payment-reconciliation"), "blocked");
+      f.confirm();
+      verify(economy, never()).withdrawPlayer(any(OfflinePlayer.class), anyDouble());
+      assertSame(f.packageItem, f.top.getItem(13));
+    }
+  }
+
   /** A virtual-currency quote is visible before the provider is asked to withdraw. */
   @Test
   void currencyQuotePrecedesWithdrawal() {
@@ -48,10 +89,14 @@ class CurrencyShippingTest {
       verify(f.playerInventory, times(1)).addItem(f.packageItem);
       verify(economy, times(1)).withdrawPlayer((OfflinePlayer) f.sender, 2.0);
       verify(economy, times(1)).depositPlayer((OfflinePlayer) f.sender, 2.0);
+      var order = inOrder(f.top, economy);
+      order.verify(f.top).setItem(eq(13), isNull());
+      order.verify(economy).withdrawPlayer((OfflinePlayer) f.sender, 2.0);
     }
   }
 
   private Economy install(ShippingServiceTest.Fixture f) {
+    when(f.plugin.getDataFolder()).thenReturn(paymentDirectory.toFile());
     f.plugin.getConfig().set("payments.provider", "auto");
     PluginManager manager = mock(PluginManager.class);
     ServicesManager services = mock(ServicesManager.class);

@@ -20,6 +20,32 @@ import org.junit.jupiter.api.io.TempDir;
 class ProductionSafetyTest {
   @TempDir Path directory;
 
+  /** A forced temporary receipt must survive a crash before its atomic rename. */
+  @Test void completeTemporaryReceiptRecoversAfterRestart() throws Exception {
+    var repo = new MailRepository(null, directory.resolve("mail.db").toFile(), 50);
+    repo.initialize().join();
+    UUID recipient = UUID.randomUUID();
+    long id = repo.insertPackage(null, "S", recipient, "R", new byte[]{1}, 1, false).join();
+    var record = repo.get(id).join();
+    assertTrue(repo.claim(record).join());
+    Path receipts = directory.resolve("receipts");
+    Path undelivered = Files.createDirectories(receipts.resolve("undelivered"));
+    Path temporary = undelivered.resolve(id + "-0.tmp");
+    Files.writeString(temporary, id + "\n" + recipient + "\nUNCLAIMED\n" + record.updatedAt() + "\n0\n");
+    long damagedId = repo.insertPackage(null, "S", recipient, "R", new byte[]{2}, 1, false).join();
+    assertTrue(repo.claim(damagedId, recipient).join());
+    Path damaged = undelivered.resolve(damagedId + "-0.tmp");
+    Files.writeString(damaged, damagedId + "\n" + recipient + "\nUNCLAIMED\n1\n0");
+    try (var journal = new DeliveryAcknowledgments(receipts, repo, Logger.getAnonymousLogger())) {
+      journal.retry().join();
+      assertEquals(MailStatus.UNCLAIMED, repo.get(id).join().status());
+      assertFalse(Files.exists(temporary));
+      assertFalse(Files.exists(undelivered.resolve(id + "-0.restore")));
+      assertEquals(MailStatus.CLAIMED, repo.get(damagedId).join().status());
+      assertTrue(Files.exists(damaged), "Incomplete receipt remains for inspection");
+    } finally { repo.close(); }
+  }
+
   /** A write lock leaves a durable non-delivery receipt which recovers after restart. */
   @Test void busyRestoreRecoversAfterRestartWithoutReplayingLaterClaim() throws Exception {
     var file = directory.resolve("mail.db").toFile();

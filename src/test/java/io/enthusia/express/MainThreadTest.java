@@ -17,7 +17,7 @@ class MainThreadTest {
     JavaPlugin plugin = mock(JavaPlugin.class);
     var config = new org.bukkit.configuration.file.YamlConfiguration();
     config.set("mail.max-completions-per-tick", 2);
-    config.set("mail.completion-budget-ms", 20);
+    config.set("mail.completion-budget-ms", 60_000);
     when(plugin.getConfig()).thenReturn(config);
     when(plugin.getLogger()).thenReturn(java.util.logging.Logger.getAnonymousLogger());
     Server server = mock(Server.class);

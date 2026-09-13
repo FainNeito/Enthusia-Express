@@ -41,10 +41,12 @@ class ShadedJarTest {
           Statement st = connection.createStatement()) {
         st.execute("CREATE TABLE smoke(value TEXT)");
         try (ResultSet version = st.executeQuery("SELECT sqlite_version()")) {
+          assertTrue(version.next());
           assertEquals("3.51.3", version.getString(1));
         }
         st.execute("INSERT INTO smoke VALUES ('ok')");
         try (ResultSet rs = st.executeQuery("SELECT value FROM smoke")) {
+          assertTrue(rs.next());
           assertEquals("ok", rs.getString(1));
         }
       }
