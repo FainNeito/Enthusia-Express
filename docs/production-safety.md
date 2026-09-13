@@ -49,12 +49,24 @@ Use a copy of the backup to rehearse reconciliation before touching the stopped 
 
 ## Required staging acceptance
 
+### Payment reconciliation evidence
+
+Nonzero Vault currency withdrawals first force a small, uniquely identified intent into `payment-reconciliation/*.pending`. If that write fails, the provider is not called. A returned provider result removes the intent; an exception leaves it and reports its reference to the player. No automatic refund is issued for an unknown debit. Include this directory in coordinated backups.
+
+An intent is not proof that a debit occurred: a crash can happen before the call, or cleanup can fail after a successful response. Compare the account UUID, amount, timestamp and reference with provider records, mail history and server logs. Record the outcome and any manual correction, then archive the intent. Never refund every pending intent in bulk. Partial intent files also require inspection.
+
+The intent write is synchronous immediately before the synchronous Vault call so currency cannot change before evidence is durable. Measure its latency with the actual staging storage. Graceful shutdown drains accepted database work and callbacks; storage faults can delay stopping. Interrupting this drain can leave cross-store outcomes uncertain and requires reconciliation.
+
+### Test cases
+
 Record the exact Paper/Java, Vault, EnthusiaCurrency, CombatLogX (and its required libraries), Nexo and listener-plugin versions. Use the real Nexo resource pack and configured icons; keep staging balances and inventory disposable.
 
 - Send using bank-only, physical-only and combined currency balances. Verify the quote precedes withdrawal and the successful fee is charged once. Reject insufficient balance without taking cargo.
 - Exercise a currency withdrawal listener that closes/replaces the menu. Confirm no outgoing package is inserted and that cargo and any successful fee are returned once. Repeat with a rejected payment and with combat or disconnect during payment.
+- Make a test provider debit and then throw. Confirm returned cargo, no automatic refund or outgoing package, and a retained payment intent. Make the intent directory unwritable and verify no provider call occurs. Inspect successful-payment cleanup and force-write latency.
 - Claim while disconnecting, losing permission, entering combat or filling inventory. Hold a database write lock longer than the busy timeout, release it, restart, then confirm one claimable package and one final inventory delivery.
 - Verify delivered and undelivered receipts separately. Replay a stale restoration receipt after a newer claim and confirm it does not reopen the package. Test malformed receipts and disk-full/read-only conditions on disposable data.
+- Restart with a complete temporary undelivered receipt and verify it is promoted before recovery. Keep truncated temporary receipts held for administrator inspection.
 - Navigate rapidly through inbox and sent categories during slow storage. Confirm cursor placement, selected-category labels, receipt recovery, and other players' sends remain usable.
 - Test Nexo enabled, disabled, unavailable and not-yet-loaded items. Check title glyphs, fallback icons, click controls, package placement markers, overflow and sounds on a real client.
 - Stop cleanly during pending sends and claims, then restart. Rehearse coordinated backup/restore and explicitly assess abrupt-stop uncertainty. Inventory, third-party currency and SQLite do not share an atomic transaction.

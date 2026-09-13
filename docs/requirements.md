@@ -165,3 +165,11 @@ WHILE a mailbox lookup is pending THE SYSTEM SHALL coalesce navigation to the la
 ## REQ-041
 
 THE SYSTEM SHALL bundle a SQLite JDBC release carrying the WAL-reset corruption fix and pass migration and concurrent-connection regressions.
+
+## REQ-042
+
+WHEN complete temporary claim receipts survive a restart THE SYSTEM SHALL validate and replay them without accepting malformed recovery metadata.
+
+## REQ-043
+
+WHEN a currency withdrawal is about to be invoked THE SYSTEM SHALL persist a reconciliation intent and retain it on ambiguous provider failure without automatically refunding an unknown debit.

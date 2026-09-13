@@ -28,6 +28,8 @@ The migration changes implementation language and package organization. It retai
 
 Inventory/player reads and writes and completion callbacks run on the primary server thread. A cache-miss name-to-UUID resolution uses Paper's profile source on a scheduler worker; its timed completion returns through MainThread and rechecks sender identity, permissions and combat before proceeding. SQLite work runs on one executor, with conditional SQL and transactions handling contention across independent connections. Disable drains completion callbacks before closing the repository. SQL and Minecraft inventory writes are still not one crash-atomic transaction.
 
+Before a nonzero Vault withdrawal, a small payment intent is forced synchronously to disk. This deliberate ordering prevents a provider debit before reconciliation evidence exists; storage failure refuses the debit. Unknown provider outcomes retain this operator-only record and never trigger a blind refund. Measure force-write latency on staging. Delivery and restoration receipt processing remains on its dedicated worker.
+
 ## Verification
 
 Use the original 38 regression tests, Kotlin migration/packaging tests, the upstream SPEAR Konsist template with project package substitution, and a compiled project call-graph cycle audit. SPEAR tests must not pass merely because domain/application layers are empty. API matrix compilations must use Kotlin source, not an empty Java source set.
