@@ -22,7 +22,7 @@ class ShadedJarTest {
           new String(
               archive.getInputStream(archive.getJarEntry("plugin.yml")).readAllBytes(),
               java.nio.charset.StandardCharsets.UTF_8);
-      assertTrue(metadata.contains("version: '1.2.0'"));
+      assertTrue(metadata.contains("version: '1.2.1'"));
       assertTrue(metadata.contains("api-version: '1.21'"));
       assertNotNull(archive.getJarEntry("org/sqlite/native/Windows/x86_64/sqlitejdbc.dll"));
       assertNotNull(archive.getJarEntry("org/sqlite/native/Linux/x86_64/libsqlitejdbc.so"));
@@ -40,6 +40,9 @@ class ShadedJarTest {
               driver.connect("jdbc:sqlite:" + directory.resolve("shaded.db"), new Properties());
           Statement st = connection.createStatement()) {
         st.execute("CREATE TABLE smoke(value TEXT)");
+        try (ResultSet version = st.executeQuery("SELECT sqlite_version()")) {
+          assertEquals("3.51.3", version.getString(1));
+        }
         st.execute("INSERT INTO smoke VALUES ('ok')");
         try (ResultSet rs = st.executeQuery("SELECT value FROM smoke")) {
           assertEquals("ok", rs.getString(1));

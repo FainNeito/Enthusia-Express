@@ -168,6 +168,17 @@ class ShippingServiceTest {
     }
   }
 
+  /** Oversized packages keep both their cargo and postage. */
+  @Test void oversizedPayloadRejectedBeforePayment() {
+    try (var f = new Fixture(OptionalLong.of(1))) {
+      f.codec.when(() -> ItemCodec.encode(f.packageItem)).thenReturn(new byte[8 * 1024 * 1024]);
+      f.confirm();
+      verifyNoInteractions(f.repository);
+      verify(f.playerInventory, never()).setStorageContents(any());
+      verify(f.top, never()).setItem(eq(13), isNull());
+    }
+  }
+
   static final class Fixture implements AutoCloseable {
     final JavaPlugin plugin = mock(JavaPlugin.class, invocation ->
         invocation.getMethod().getName().equals("namespace")
@@ -219,7 +230,9 @@ class ShippingServiceTest {
               });
       service = new ShippingService(plugin, repository, combat, main, sounds);
       service.open(sender, target);
-      when(top.getItem(ShippingService.PACKAGE_SLOT)).thenReturn(packageItem);
+      var cargo = new java.util.concurrent.atomic.AtomicReference<ItemStack>(packageItem);
+      when(top.getItem(ShippingService.PACKAGE_SLOT)).thenAnswer(call -> cargo.get());
+      doAnswer(call -> { cargo.set(call.getArgument(1)); return null; }).when(top).setItem(eq(13), any());
     }
 
     private void configureMocks(CompletableFuture<OptionalLong> result) {
