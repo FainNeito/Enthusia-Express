@@ -15,17 +15,25 @@ internal object VaultShippingPayments {
     /** Use one authoritative EnthusiaCurrency withdrawal for combined bank and item balances. */
     // Vault does not specify provider exception types; any unchecked failure must retain cargo.
     @Suppress("TooGenericExceptionCaught")
-    fun charge(player: Player, cost: Int, currency: Plugin, logger: Logger): ChargeResult {
+    fun charge(player: Player, cost: Int, currency: Plugin, logger: Logger, directory: java.nio.file.Path): ChargeResult {
         val economy = Bukkit.getServicesManager().getRegistrations(Economy::class.java)
             .firstOrNull { it.plugin === currency && it.provider.name == "EnthusiaCurrency" && it.provider.isEnabled }
             ?.provider ?: return ChargeResult(null, unavailable = true)
         val account: OfflinePlayer = player
+        val intent = try {
+            PaymentReconciliation.begin(directory, account.uniqueId, cost)
+        } catch (error: Exception) {
+            logger.log(java.util.logging.Level.SEVERE, "Cannot persist payment intent; currency withdrawal refused", error)
+            return ChargeResult(null, unavailable = true, source = PaymentSource.CURRENCY)
+        }
         val response = try {
             economy.withdrawPlayer(account, cost.toDouble())
         } catch (error: RuntimeException) {
-            logger.severe("Currency withdrawal failed for ${player.uniqueId}: ${error.message}")
-            return ChargeResult(null, unavailable = true)
+            logger.log(java.util.logging.Level.SEVERE, "Currency withdrawal outcome uncertain; retain $intent and reconcile before refunding", error)
+            return ChargeResult(null, unavailable = true, source = PaymentSource.CURRENCY,
+                reconciliationId = intent.fileName.toString())
         }
+        PaymentReconciliation.finish(intent, logger)
         if (!response.transactionSuccess()) return ChargeResult(null, response.balance, source = PaymentSource.CURRENCY)
         return receipt(economy, account, cost, currency, logger)
     }
