@@ -3,7 +3,7 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
     java
-    kotlin("jvm") version "2.3.21"
+    kotlin("jvm") version "2.4.20"
     id("com.gradleup.shadow") version "9.2.2"
 }
 
