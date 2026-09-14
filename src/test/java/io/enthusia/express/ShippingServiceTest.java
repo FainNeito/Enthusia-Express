@@ -7,6 +7,8 @@ import static org.mockito.Mockito.*;
 import io.enthusia.express.infrastructure.db.MailRepository;
 import io.enthusia.express.infrastructure.gui.ShippingService;
 import io.enthusia.express.infrastructure.hook.CombatLogXHook;
+import io.enthusia.express.infrastructure.hook.MovementLease;
+import io.enthusia.express.infrastructure.hook.MovementLocks;
 import io.enthusia.express.domain.MailType;
 import io.enthusia.express.infrastructure.util.*;
 import java.sql.SQLException;
@@ -179,6 +181,31 @@ class ShippingServiceTest {
     }
   }
 
+  /** Another Currency moderation operation blocks cargo reservation and payment. */
+  @Test void movementLockBlocksChargeBeforeCargoReservation() {
+    try (Fixture f = new Fixture(OptionalLong.of(1))) {
+      when(f.movementLocks.acquire(f.senderId)).thenReturn(null);
+      f.confirm();
+      verify(f.top, never()).setItem(eq(ShippingService.PACKAGE_SLOT), isNull());
+      verify(f.playerInventory, never()).setStorageContents(any());
+      verify(f.repository, never()).insertMailLimited(any(), anyString(), any(), anyString(), any(), any(), anyInt(), anyBoolean());
+    }
+  }
+
+  /** The shared movement lease remains held until failed persistence has refunded cargo and postage. */
+  @Test void movementLeaseCoversAsyncCompensation() {
+    var outcome = new CompletableFuture<OptionalLong>();
+    try (Fixture f = new Fixture(outcome)) {
+      f.confirm();
+      verify(f.movementLease, never()).close();
+      outcome.complete(OptionalLong.empty());
+      var order = inOrder(f.movementLease, f.playerInventory);
+      order.verify(f.movementLease).ensureOwned();
+      order.verify(f.playerInventory).addItem(f.packageItem);
+      order.verify(f.movementLease).close();
+    }
+  }
+
   static final class Fixture implements AutoCloseable {
     final JavaPlugin plugin = mock(JavaPlugin.class, invocation ->
         invocation.getMethod().getName().equals("namespace")
@@ -187,6 +214,8 @@ class ShippingServiceTest {
     final CombatLogXHook combat = mock(CombatLogXHook.class);
     final MainThread main = mock(MainThread.class);
     final SoundFeedback sounds = mock(SoundFeedback.class);
+    final MovementLocks movementLocks = mock(MovementLocks.class);
+    final MovementLease movementLease = mock(MovementLease.class);
     final Player sender = mock(Player.class);
     final OfflinePlayer target = mock(OfflinePlayer.class);
     final PlayerInventory playerInventory = mock(PlayerInventory.class);
@@ -228,7 +257,9 @@ class ShippingServiceTest {
                 when(item.getAmount()).thenReturn(context.arguments().size() > 1
                     ? (Integer) context.arguments().get(1) : 1);
               });
-      service = new ShippingService(plugin, repository, combat, main, sounds);
+      when(movementLocks.acquire(senderId)).thenReturn(movementLease);
+      when(movementLease.ensureOwned()).thenReturn(true);
+      service = new ShippingService(plugin, repository, combat, main, sounds, movementLocks);
       service.open(sender, target);
       var cargo = new java.util.concurrent.atomic.AtomicReference<ItemStack>(packageItem);
       when(top.getItem(ShippingService.PACKAGE_SLOT)).thenAnswer(call -> cargo.get());
