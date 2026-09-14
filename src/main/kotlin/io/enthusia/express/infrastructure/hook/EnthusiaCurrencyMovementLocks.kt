@@ -50,7 +50,7 @@ class EnthusiaCurrencyMovementLocks(private val plugin: JavaPlugin) : MovementLo
         }
         val api = resolve(currency) ?: return null
         val lease = ReflectiveLease(api, playerId, UUID.randomUUID())
-        if (!lease.ensureOwned()) return null
+        if (!lease.acquireInitial()) return null
         active.add(lease)
         lease.startRenewal()
         return lease
@@ -72,6 +72,7 @@ class EnthusiaCurrencyMovementLocks(private val plugin: JavaPlugin) : MovementLo
         Api(
             service,
             type.getMethod("acquireMovementLock", UUID::class.java, UUID::class.java, Duration::class.java),
+            type.getMethod("renewMovementLock", UUID::class.java, UUID::class.java, Duration::class.java),
             type.getMethod("releaseMovementLock", UUID::class.java, UUID::class.java),
         )
     } catch (error: Throwable) {
@@ -79,9 +80,9 @@ class EnthusiaCurrencyMovementLocks(private val plugin: JavaPlugin) : MovementLo
         null
     }
 
-    private data class Api(val service: Any, val acquire: Method, val release: Method)
+    private data class Api(val service: Any, val acquire: Method, val renew: Method, val release: Method)
 
-    /** Same operation id may reacquire the Currency lease, which refreshes its expiry. */
+    /** Acquire once, then use the API's renewal contract so expired ownership is never silently reacquired. */
     private inner class ReflectiveLease(
         private val api: Api,
         private val playerId: UUID,
@@ -89,6 +90,8 @@ class EnthusiaCurrencyMovementLocks(private val plugin: JavaPlugin) : MovementLo
     ) : MovementLease {
         private var renewal: BukkitTask? = null
         @Volatile private var leaseClosed = false
+
+        fun acquireInitial(): Boolean = invokeLease(api.acquire, "acquire")
 
         fun startRenewal() {
             renewal = Bukkit.getScheduler().runTaskTimer(plugin, Runnable {
@@ -98,13 +101,15 @@ class EnthusiaCurrencyMovementLocks(private val plugin: JavaPlugin) : MovementLo
             }, RENEW_TICKS, RENEW_TICKS)
         }
 
+        override fun ensureOwned(): Boolean = invokeLease(api.renew, "renew")
+
         @Suppress("TooGenericExceptionCaught")
-        override fun ensureOwned(): Boolean {
+        private fun invokeLease(method: Method, action: String): Boolean {
             if (leaseClosed || closed) return false
             return try {
-                api.acquire.invoke(api.service, playerId, operationId, LEASE_DURATION) == true
+                method.invoke(api.service, playerId, operationId, LEASE_DURATION) == true
             } catch (error: Throwable) {
-                plugin.logger.log(Level.SEVERE, "Cannot refresh EnthusiaCurrency movement lease for $playerId", error)
+                plugin.logger.log(Level.SEVERE, "Cannot $action EnthusiaCurrency movement lease for $playerId", error)
                 false
             }
         }
