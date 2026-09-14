@@ -1,3 +1,6 @@
+// Recovery and integration boundaries retain explicit thread and failure documentation.
+@file:Suppress("CommentOverPrivateFunction")
+
 package io.enthusia.express.infrastructure.hook
 
 import java.lang.reflect.Method
