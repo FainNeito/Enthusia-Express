@@ -7,6 +7,7 @@ import io.enthusia.express.infrastructure.gui.GuiListener
 import io.enthusia.express.infrastructure.gui.MailboxService
 import io.enthusia.express.infrastructure.gui.ShippingService
 import io.enthusia.express.infrastructure.hook.CombatLogXHook
+import io.enthusia.express.infrastructure.hook.EnthusiaCurrencyMovementLocks
 import io.enthusia.express.infrastructure.mail.BookMailService
 import io.enthusia.express.infrastructure.mail.ExpirationService
 import io.enthusia.express.infrastructure.mail.JoinNotificationService
@@ -24,6 +25,7 @@ class EnthusiaExpressPlugin : JavaPlugin() {
     private var mailboxService: MailboxService? = null
     private var expirationService: ExpirationService? = null
     private var acknowledgments: DeliveryAcknowledgments? = null
+    private var movementLocks: EnthusiaCurrencyMovementLocks? = null
     private var mailboxTask: org.bukkit.scheduler.BukkitTask? = null
     private var acknowledgmentTask: org.bukkit.scheduler.BukkitTask? = null
 
@@ -44,8 +46,9 @@ class EnthusiaExpressPlugin : JavaPlugin() {
         acknowledgmentTask = Bukkit.getScheduler().runTaskTimer(this, retryReceipts, 1L, 100L)
         val sounds = SoundFeedback(this).also { it.validate() }
         val combatHook = CombatLogXHook(this)
-        val shipping = ShippingService(this, repository, combatHook, main, sounds).also { shippingService = it }
-        val mailbox = MailboxService(this, repository, combatHook, main, sounds, acknowledgments).also { mailboxService = it }
+        val movementLocks = EnthusiaCurrencyMovementLocks(this).also { this.movementLocks = it }
+        val shipping = ShippingService(this, repository, combatHook, main, sounds, movementLocks).also { shippingService = it }
+        val mailbox = MailboxService(this, repository, combatHook, main, sounds, acknowledgments, movementLocks).also { mailboxService = it }
         mailboxTask = Bukkit.getScheduler().runTaskTimer(this, Runnable { mailbox.loadPendingPages() }, 1L, 1L)
         val expiration = ExpirationService(this, repository).also { expirationService = it }
         val command = MailCommand(this, shipping, mailbox, combatHook, BookMailService(this, repository, combatHook, main, sounds), main,
@@ -67,6 +70,7 @@ class EnthusiaExpressPlugin : JavaPlugin() {
         shippingService?.shutdown()
         mailboxService?.shutdown()
         main?.close()
+        movementLocks?.close()
         acknowledgments?.close()
         repository?.close()
     }
