@@ -24,7 +24,7 @@ The selected category is marked in green with an arrow and a Selected tooltip. T
 
 ## Build
 
-Set `JAVA_HOME` to a Java 21 JDK. The included Gradle 9.1.0 wrapper checks the distribution's SHA-256.
+Set `JAVA_HOME` to a Java 21 JDK. The included Gradle 9.7.1 wrapper checks the distribution's SHA-256.
 
 ```sh
 sh ./gradlew clean build
