@@ -323,8 +323,11 @@ class ShippingService @JvmOverloads constructor(
         val lease = movementLocks.acquire(sender.uniqueId)
         if (lease == null || !lease.ensureOwned()) {
             lease?.close()
-            Bukkit.getScheduler().runTaskLater(plugin,
-                Runnable { refundWhenUnlocked(sender, payloadItem, receipt, message) }, 20L)
+            Bukkit.getScheduler().runTaskLater(plugin, object : Runnable {
+                override fun run() {
+                    refundWhenUnlocked(sender, payloadItem, receipt, message)
+                }
+            }, 20L)
             return
         }
         try {
