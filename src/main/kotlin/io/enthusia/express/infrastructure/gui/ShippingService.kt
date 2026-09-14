@@ -18,6 +18,7 @@ import io.enthusia.express.infrastructure.util.SoundFeedback
 import io.enthusia.express.infrastructure.util.Text
 import java.util.UUID
 import org.bukkit.Bukkit
+import io.enthusia.express.infrastructure.payment.ShippingRecovery
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
 import org.bukkit.OfflinePlayer
@@ -40,6 +41,10 @@ class ShippingService @JvmOverloads constructor(
     private val TARGET_ONLINE = "target-online"
     private val theme = GuiTheme(plugin)
     private val payments = ShippingPayments(plugin)
+    private val recovery by lazy { ShippingRecovery(plugin.dataFolder.toPath().resolve("shipping-recovery"), plugin.logger) }
+    private val refundReceipts = HashMap<UUID, PaymentReceipt>()
+    private data class ReservedPayment(val receipt: PaymentReceipt, val unit: String,
+        val lease: MovementLease, val intent: ShippingRecovery.Record)
     private val placeholderKey = NamespacedKey(plugin, "shipping-placeholder")
     private val inventories = HashMap<UUID, Inventory>()
     private data class Quote(val payload: ByteArray, val count: Int, val cost: Int, val unit: String)
@@ -224,18 +229,24 @@ class ShippingService @JvmOverloads constructor(
         }
         var handedOff = false
         try {
-            quotes.remove(sender.uniqueId)
             val unit = payments.priceUnit()
+            val intent = prepareRecovery(sender, target, shipment, unit) ?: return
+            quotes.remove(sender.uniqueId)
             // Own the shared movement lease before cargo or currency changes.
             pending.add(sender.uniqueId)
             inv.setItem(PACKAGE_SLOT, null)
-            val receipt = takePayment(sender, inv, shipment) ?: return
+            val receipt = takePayment(sender, inv, shipment)
+            if (receipt == null) {
+                finishRecovery(intent)
+                return
+            }
+            val payment = ReservedPayment(receipt, unit, lease, intent)
             if (!currentShippingSession(sender, inv) || target.isOnline || !eligibleSender(sender)) {
-                refundPlayer(sender, shipment.payloadItem, receipt)
+                deferCompensation(sender, payment, "§eShipment cancelled; your cargo and fee will be returned.")
                 pending.remove(sender.uniqueId)
                 return
             }
-            submitReserved(sender, target, shipment, receipt, unit, lease)
+            submitReserved(sender, target, shipment, payment)
             handedOff = true
         } finally {
             if (!handedOff) lease.close()
@@ -276,64 +287,120 @@ class ShippingService @JvmOverloads constructor(
 
     /** Hold the movement lease until storage accepts the shipment or compensation is complete. */
     private fun submitReserved(sender: Player, target: OfflinePlayer, shipment: PreparedShipment,
-                               receipt: PaymentReceipt, unit: String, lease: MovementLease) {
+                               payment: ReservedPayment) {
         sender.closeInventory()
         targets.remove(sender.uniqueId)
         val targetName = target.name ?: target.uniqueId.toString()
         pending.add(sender.uniqueId)
+        val submission = Submission(sender, targetName, shipment, payment)
         main.complete(repository.insertMailLimited(sender.uniqueId, sender.name, target.uniqueId, targetName,
             MailType.PACKAGE, shipment.payload, shipment.count, plugin.config.getBoolean("mail.limits.one-outstanding-package-per-recipient", false))) { result, error ->
-            pending.remove(sender.uniqueId)
-            if (error == null && result?.isPresent == true) {
-                lease.close()
-                sounds.play(sender, SoundFeedback.Cue.PACKAGE_SEND)
-                sender.sendMessage(Text.msg(plugin.config, "package-sent", mapOf("target" to targetName, "currency" to unit, "cost" to shipment.cost.toString(), "items" to shipment.count.toString())))
-                return@complete
-            }
-
-            val message = when {
-                MailBlockedException.causedBy(error) ->
-                    Text.msgOrDefault(plugin.config, "recipient-not-accepting", "&cThat player is not accepting your mail.")
-                error != null -> "§cShipment failed; your package and fee were refunded."
-                else -> Text.msg(plugin.config, "outstanding-package")
-            }
-            if (error != null && !MailBlockedException.causedBy(error))
-                plugin.logger.severe("Package insert failed: " + error.message)
-
-            if (lease.ensureOwned()) {
-                try {
-                    if (refundPlayer(sender, shipment.payloadItem, receipt)) sender.sendMessage(message)
-                } finally {
-                    lease.close()
-                }
-            } else {
-                // Never compensate underneath EnthusiaStaff's snapshot. Retry after its lease is released.
-                lease.close()
-                refundWhenUnlocked(sender, shipment.payloadItem, receipt, message)
-            }
+            completeShipment(submission, result, error)
         }
     }
 
-    /** Retry known compensation until the shared Currency movement lease can be acquired safely. */
-    private fun refundWhenUnlocked(sender: Player, payloadItem: ItemStack, receipt: PaymentReceipt, message: String) {
-        if (!plugin.isEnabled) {
-            plugin.logger.severe("Deferred postage compensation requires administrator action for ${sender.uniqueId}")
+    private data class Submission(val sender: Player, val targetName: String,
+                                  val shipment: PreparedShipment, val payment: ReservedPayment)
+
+    /** Resolve persistence before releasing the lease or scheduling durable compensation. */
+    private fun completeShipment(submission: Submission, result: java.util.OptionalLong?, error: Throwable?) {
+        val (sender, targetName, shipment, payment) = submission
+        pending.remove(sender.uniqueId)
+        if (error == null && result?.isPresent == true) {
+            payment.lease.close()
+            finishRecovery(payment.intent)
+            sounds.play(sender, SoundFeedback.Cue.PACKAGE_SEND)
+            sender.sendMessage(Text.msg(plugin.config, "package-sent", mapOf("target" to targetName,
+                "currency" to payment.unit, "cost" to shipment.cost.toString(), "items" to shipment.count.toString())))
             return
         }
-        val lease = movementLocks.acquire(sender.uniqueId)
-        if (lease == null || !lease.ensureOwned()) {
-            lease?.close()
-            Bukkit.getScheduler().runTaskLater(plugin, object : Runnable {
-                override fun run() {
-                    refundWhenUnlocked(sender, payloadItem, receipt, message)
-                }
-            }, 20L)
-            return
+        val message = when {
+            MailBlockedException.causedBy(error) ->
+                Text.msgOrDefault(plugin.config, "recipient-not-accepting", "&cThat player is not accepting your mail.")
+            error != null -> "§cShipment failed; your package and fee are queued for recovery."
+            else -> Text.msg(plugin.config, "outstanding-package")
         }
+        if (error != null && !MailBlockedException.causedBy(error))
+            plugin.logger.severe("Package insert failed: " + error.message)
+        deferCompensation(sender, payment, message)
+    }
+
+    /** Refuse reservation when the recovery intent cannot be forced to disk. */
+    private fun prepareRecovery(sender: Player, target: OfflinePlayer, shipment: PreparedShipment,
+                                unit: String): ShippingRecovery.Record? = try {
+        recovery.prepare(sender.uniqueId, target.uniqueId, shipment.cost, unit, shipment.payload)
+    } catch (error: java.io.IOException) {
+        plugin.logger.severe("Shipping recovery is unavailable: ${error.message}")
+        sender.sendMessage("§cMail recovery storage is unavailable. Nothing was charged.")
+        null
+    }
+
+    /** Persist a definite failed send before either refunding it or waiting for another lease. */
+    private fun deferCompensation(sender: Player, payment: ReservedPayment, message: String) {
         try {
-            if (refundPlayer(sender, payloadItem, receipt)) sender.sendMessage(message)
+            recovery.transition(payment.intent, ShippingRecovery.Phase.PENDING)
+            refundReceipts[payment.intent.id] = payment.receipt
+            sender.sendMessage(message)
+            if (payment.lease.ensureOwned()) {
+                compensate(payment.intent, payment.receipt)
+            } else {
+                sender.sendMessage("§eYour package and postage are saved for recovery when your account unlocks.")
+            }
+        } catch (error: java.io.IOException) {
+            plugin.logger.severe("Retain shipping recovery ${payment.intent.id}; reconciliation required: ${error.message}")
+            sender.sendMessage("§cShipment recovery requires administrator assistance. Reference: ${payment.intent.id}")
+        } finally {
+            payment.lease.close()
+        }
+    }
+
+    /** Retry a bounded batch on the server thread; offline accounts wait for their next join. */
+    fun retryCompensations() {
+        if (!plugin.isEnabled) return
+        for (record in recovery.pending()) retryCompensation(record)
+    }
+
+    /** Rebuild the original payment route only after acquiring the player's shared movement lease. */
+    private fun retryCompensation(record: ShippingRecovery.Record) {
+        val player = Bukkit.getPlayer(record.sender)?.takeIf { it.isOnline } ?: return
+        val lease = movementLocks.acquire(record.sender) ?: return
+        try {
+            if (!lease.ensureOwned()) return
+            val receipt = refundReceipts[record.id] ?: payments.recoveryReceipt(player, record.cost, record.route) ?: return
+            compensate(record, receipt)
         } finally {
             lease.close()
+        }
+    }
+
+    /** Mark mutation as uncertain before touching assets; never automatically repeat a partial refund. */
+    @Suppress("TooGenericExceptionCaught")
+    private fun compensate(record: ShippingRecovery.Record, receipt: PaymentReceipt) {
+        val current = Bukkit.getPlayer(record.sender)?.takeIf { it.isOnline } ?: return
+        try {
+            val cargo = ItemCodec.decode(record.cargo)
+            // Recovery must not create untracked dropped items when the sender has no room.
+            if (current.inventory.firstEmpty() == -1) return
+            recovery.transition(record, ShippingRecovery.Phase.APPLYING)
+            refundReceipts.remove(record.id)
+            val refunded = refundPlayer(current, cargo, receipt)
+            current.saveData()
+            if (refunded) {
+                recovery.finish(record)
+                current.sendMessage("§eYour failed shipment's package and postage were returned.")
+            }
+        } catch (error: Exception) {
+            plugin.logger.log(java.util.logging.Level.SEVERE,
+                "Shipping recovery ${record.id} failed; inspect its phase before any manual refund", error)
+        }
+    }
+
+    /** A cleanup error must not cause a second refund or turn a successful send into a failure. */
+    private fun finishRecovery(record: ShippingRecovery.Record) {
+        try {
+            recovery.finish(record)
+        } catch (error: java.io.IOException) {
+            plugin.logger.severe("Completed shipment recovery ${record.id} remains for reconciliation: ${error.message}")
         }
     }
 
