@@ -38,6 +38,14 @@ internal object VaultShippingPayments {
         return receipt(economy, account, cost, currency, logger)
     }
 
+    /** Recovery never falls back to another Vault provider or to physical currency. */
+    fun recoveryReceipt(account: OfflinePlayer, cost: Int, currency: Plugin, logger: Logger): PaymentReceipt? {
+        val economy = Bukkit.getServicesManager().getRegistrations(Economy::class.java)
+            .firstOrNull { it.plugin === currency && it.provider.name == "EnthusiaCurrency" && it.provider.isEnabled }
+            ?.provider ?: return null
+        return receipt(economy, account, cost, currency, logger).receipt
+    }
+
     /** Retain the original currency provider and account for an idempotent asynchronous-send refund. */
     // Provider implementations can throw unchecked exceptions while issuing a refund.
     @Suppress("TooGenericExceptionCaught")
