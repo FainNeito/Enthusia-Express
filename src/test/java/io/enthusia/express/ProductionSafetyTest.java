@@ -50,10 +50,11 @@ class ProductionSafetyTest {
   @Test void completeDeliveredTemporaryReceiptRecoversAfterRestart() throws Exception {
     var repo = new MailRepository(null, directory.resolve("delivered.db").toFile(), 50);
     repo.initialize().join();
+    UUID sender = UUID.randomUUID();
     UUID recipient = UUID.randomUUID();
-    long id = repo.insertPackage(null, "S", recipient, "R", new byte[]{1}, 1, false).join();
+    long id = repo.insertPackage(sender, "S", recipient, "R", new byte[]{1}, 1, false).join();
     assertTrue(repo.claim(id, recipient).join());
-    long damagedId = repo.insertPackage(null, "S", recipient, "R", new byte[]{2}, 1, false).join();
+    long damagedId = repo.insertPackage(sender, "S", recipient, "R", new byte[]{2}, 1, false).join();
     assertTrue(repo.claim(damagedId, recipient).join());
     Path receipts = Files.createDirectories(directory.resolve("delivered-receipts"));
     Path temporary = receipts.resolve(id + ".tmp");
@@ -64,13 +65,16 @@ class ProductionSafetyTest {
       journal.retry().join();
       assertFalse(Files.exists(temporary));
       assertFalse(Files.exists(receipts.resolve(id + ".ack")));
-      assertFalse(repo.listSent(UUID.randomUUID(), MailType.PACKAGE, 0).join().stream()
-          .anyMatch(entry -> entry.getMail().id() == id));
       var delivered = repo.get(id).join();
       assertEquals(MailStatus.CLAIMED, delivered.status());
+      var sent = repo.listSent(sender, MailType.PACKAGE, 0).join().stream()
+          .filter(entry -> entry.getMail().id() == id).findFirst().orElseThrow();
+      assertFalse(sent.getDeliveryPending(), "Recovered receipt must release the sender reservation");
       assertFalse(repo.confirmDelivery(id, recipient).join(), "Recovered receipt already released the reservation");
       assertTrue(Files.exists(damaged), "Malformed temporary evidence remains for inspection");
-      assertEquals(MailStatus.CLAIMED, repo.get(damagedId).join().status());
+      var damagedSent = repo.listSent(sender, MailType.PACKAGE, 0).join().stream()
+          .filter(entry -> entry.getMail().id() == damagedId).findFirst().orElseThrow();
+      assertTrue(damagedSent.getDeliveryPending(), "Malformed evidence must not release a reservation");
     } finally { repo.close(); }
   }
 
