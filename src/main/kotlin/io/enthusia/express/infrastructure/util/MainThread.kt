@@ -14,6 +14,8 @@ class MainThread(plugin: JavaPlugin) {
     private val pending = HashSet<CompletableFuture<*>>()
     private val ready = ConcurrentLinkedQueue<Runnable>()
     private val logger = plugin.logger
+    private val maxCallbacks = plugin.config.getInt("mail.max-completions-per-tick", 64)
+    private val budgetNanos = plugin.config.getLong("mail.completion-budget-ms", 2) * 1_000_000L
     private val task = plugin.server.scheduler.runTaskTimer(plugin, Runnable { drain() }, 1, 1)
 
     /** Track asynchronous work and enqueue its completion callback for the server thread. */
@@ -30,7 +32,9 @@ class MainThread(plugin: JavaPlugin) {
     @Suppress("TooGenericExceptionCaught")
     private fun drain() {
         pending.removeIf { it.isDone }
-        while (true) {
+        val deadline = System.nanoTime() + budgetNanos
+        var count = 0
+        while (count++ < maxCallbacks && System.nanoTime() < deadline) {
             val callback = ready.poll() ?: break
             try {
                 callback.run()

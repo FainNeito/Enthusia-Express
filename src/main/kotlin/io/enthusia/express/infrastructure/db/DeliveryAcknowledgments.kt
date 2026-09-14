@@ -28,15 +28,24 @@ class DeliveryAcknowledgments(
     private val executor = Executors.newSingleThreadExecutor { task ->
         Thread(task, "EnthusiaExpress-DeliveryReceipts").apply { isDaemon = true }
     }
+    private val closedMessage = "Delivery journal is closed"
     private val pending = HashMap<Long, UUID>()
+    private val restorations = ClaimRestorations(directory.resolve("undelivered"), repository, logger)
     private var retryFuture: CompletableFuture<Void>? = null
     private var closed = false
+
+    /** Persist and retry a known-undelivered claim independently from delivered receipts. */
+    @Synchronized
+    fun restore(record: io.enthusia.express.domain.MailRecord): CompletableFuture<Boolean> {
+        if (closed) return CompletableFuture.failedFuture(IllegalStateException(closedMessage))
+        return CompletableFuture.supplyAsync({ restorations.record(record) }, executor)
+    }
 
     /** Queue a receipt after item delivery; persist it before attempting to release the database reservation. */
     @Synchronized
     fun record(id: Long, recipient: UUID): CompletableFuture<Void> {
         require(id > 0)
-        if (closed) return CompletableFuture.failedFuture(IllegalStateException("Delivery journal is closed"))
+        if (closed) return CompletableFuture.failedFuture(IllegalStateException(closedMessage))
         return CompletableFuture.runAsync({
             pending[id] = recipient
             deliverReceipt(id, recipient)
@@ -46,7 +55,7 @@ class DeliveryAcknowledgments(
     /** Coalesce overlapping retry requests onto one serialized background pass. */
     @Synchronized
     fun retry(): CompletableFuture<Void> {
-        if (closed) return CompletableFuture.failedFuture(IllegalStateException("Delivery journal is closed"))
+        if (closed) return CompletableFuture.failedFuture(IllegalStateException(closedMessage))
         val current = retryFuture
         if (current != null && !current.isDone) return current
         return CompletableFuture.runAsync({ replay() }, executor).also { retryFuture = it }
@@ -56,32 +65,53 @@ class DeliveryAcknowledgments(
     private fun replay() {
         loadReceipts()
         pending.toMap().forEach { (id, recipient) -> deliverReceipt(id, recipient) }
+        restorations.retry()
     }
 
-    /** Scan persisted receipts off the server thread while isolating damaged entries. */
+    /** Scan persisted and complete temporary receipts off the server thread while isolating damaged entries. */
     // One unreadable receipt must not prevent other delivered packages from being acknowledged.
     @Suppress("TooGenericExceptionCaught")
     private fun loadReceipts() {
         try {
             Files.createDirectories(directory)
             Files.list(directory).use { files ->
-                files.filter { it.fileName.toString().endsWith(".ack") }.forEach { readReceipt(it) }
+                files.filter { it.fileName.toString().endsWith(ACKNOWLEDGED_SUFFIX) || it.fileName.toString().endsWith(TEMPORARY_SUFFIX) }
+                    .forEach { readReceipt(it) }
             }
         } catch (error: Exception) {
             logger.log(Level.WARNING, "Cannot scan delivery receipts; reservations remain held", error)
         }
     }
 
-    /** Validate one receipt and retain malformed data for administrator investigation. */
+    /** Validate one bounded receipt; promote a complete crash-left temporary before replaying it. */
     private fun readReceipt(file: Path) {
         try {
-            val id = file.fileName.toString().removeSuffix(".ack").toLong()
-            require(id > 0)
-            pending.putIfAbsent(id, UUID.fromString(Files.readString(file).trim()))
+            require(Files.size(file) in 1L..64L)
+            val name = file.fileName.toString()
+            val temporary = name.endsWith(TEMPORARY_SUFFIX)
+            val suffix = if (temporary) TEMPORARY_SUFFIX else ACKNOWLEDGED_SUFFIX
+            val id = name.removeSuffix(suffix).toLong()
+            require(id > 0 && name == "$id$suffix")
+            val recipient = UUID.fromString(Files.readString(file).trim())
+            if (temporary) promoteTemporary(id, file)
+            pending.putIfAbsent(id, recipient)
         } catch (error: IllegalArgumentException) {
             logger.log(Level.SEVERE, "Invalid delivery receipt $file; administrator review required", error)
         } catch (error: java.io.IOException) {
-            logger.log(Level.WARNING, "Cannot read delivery receipt $file", error)
+            logger.log(Level.WARNING, "Cannot read or promote delivery receipt $file", error)
+        }
+    }
+
+    /** Publish a complete temporary receipt without overwriting independent existing evidence. */
+    private fun promoteTemporary(id: Long, temporary: Path) {
+        val receipt = directory.resolve(id.toString() + ACKNOWLEDGED_SUFFIX)
+        if (Files.exists(receipt)) {
+            throw java.io.IOException("Both temporary and final delivery receipts exist for #$id; retain both for review")
+        }
+        try {
+            Files.move(temporary, receipt, StandardCopyOption.ATOMIC_MOVE)
+        } catch (unsupported: AtomicMoveNotSupportedException) {
+            Files.move(temporary, receipt)
         }
     }
 
@@ -95,7 +125,7 @@ class DeliveryAcknowledgments(
                 logger.severe("Delivery receipt #$id does not match a delivered package; administrator review required")
                 return
             }
-            Files.deleteIfExists(directory.resolve("$id.ack"))
+            Files.deleteIfExists(directory.resolve(id.toString() + ACKNOWLEDGED_SUFFIX))
             pending.remove(id)
         } catch (error: Exception) {
             logger.log(Level.WARNING, "Delivery acknowledgment #$id will be retried; do not restore its items", error)
@@ -120,7 +150,7 @@ class DeliveryAcknowledgments(
             while (bytes.hasRemaining()) channel.write(bytes)
             channel.force(true)
         }
-        val receipt = directory.resolve("$id.ack")
+        val receipt = directory.resolve(id.toString() + ACKNOWLEDGED_SUFFIX)
         try {
             Files.move(temporary, receipt, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
         } catch (unsupported: AtomicMoveNotSupportedException) {
@@ -138,4 +168,9 @@ class DeliveryAcknowledgments(
         finishing.join()
         if (pending.isNotEmpty()) logger.warning("${pending.size} delivery receipts await recovery; retain the delivery-receipts directory")
     }
+    private companion object {
+        const val TEMPORARY_SUFFIX = ".tmp"
+        const val ACKNOWLEDGED_SUFFIX = ".ack"
+    }
+
 }

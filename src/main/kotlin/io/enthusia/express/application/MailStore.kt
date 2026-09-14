@@ -61,6 +61,8 @@ interface MailQueries {
 interface MailClaims {
     /** Reserve an eligible package once while retaining its sending allowance until delivery. */
     fun claim(id: Long, recipient: UUID): CompletableFuture<Boolean>
+    /** Reserve only the exact eligible generation observed by the caller. */
+    fun claim(record: MailRecord): CompletableFuture<Boolean>
     /** Release a claimed package reservation after inventory delivery; never make it claimable again. */
     fun confirmDelivery(id: Long, recipient: UUID): CompletableFuture<Boolean>
     /** Restore an undelivered pending claim to its original status and timestamp. */

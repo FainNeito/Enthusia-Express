@@ -145,3 +145,39 @@ WHEN a recipient blocks a sender THE SYSTEM SHALL persist the block and reject f
 ## REQ-036
 
 WHEN configured Nexo assets are available THE SYSTEM SHALL use their custom GUI icons and title glyphs while falling back to vanilla controls when the optional integration is unavailable.
+
+## REQ-037
+
+WHEN a shipping payment invokes external callbacks THE SYSTEM SHALL reserve cargo and prevent reentrant sends before invoking the provider and compensate an invalidated session at most once.
+
+## REQ-038
+
+IF a known-undelivered claim cannot be restored THEN THE SYSTEM SHALL durably retry its exact claim generation after restart without restoring delivered or later claims.
+
+## REQ-039
+
+WHEN packages are submitted or mailbox pages are displayed THE SYSTEM SHALL enforce configured payload and traversal budgets and render lightweight package summaries.
+
+## REQ-040
+
+WHILE a mailbox lookup is pending THE SYSTEM SHALL coalesce navigation to the latest requested view and bound database admission and per-tick completion work without silently discarding accepted writes.
+
+## REQ-041
+
+THE SYSTEM SHALL bundle a SQLite JDBC release carrying the WAL-reset corruption fix and pass migration and concurrent-connection regressions.
+
+## REQ-042
+
+WHEN complete temporary claim receipts survive a restart THE SYSTEM SHALL validate and replay them without accepting malformed recovery metadata.
+
+## REQ-043
+
+WHEN a currency withdrawal is about to be invoked THE SYSTEM SHALL persist a reconciliation intent and retain it on ambiguous provider failure without automatically refunding an unknown debit.
+
+## REQ-044
+
+THE SYSTEM SHALL verify its build and regression suite against pinned Paper 26.2 and available 26.3 prerelease APIs on Java 25 while retaining the Java 21 and Paper 1.21 baseline distributable.
+
+## REQ-045
+
+WHEN a failed shipment waits for a currency movement lease THE SYSTEM SHALL retain durable cargo, account and original postage route across restart, retry only definitely unattempted compensation under an owned lease, and hold uncertain asset mutations for operator reconciliation without automatic replay.

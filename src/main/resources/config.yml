@@ -1,5 +1,6 @@
 database:
   busy-timeout-ms: 5000
+  max-queued-operations: 256
 mail:
   return-after-hours: 168
   purge-returned-after-hours: 168
@@ -8,6 +9,10 @@ mail:
   require-combatlogx: true
   raw-gold-per-item: 1
   max-recursive-container-depth: 8
+  # New shipments are rejected before payment above this encoded-byte limit.
+  max-package-payload-bytes: 262144
+  max-completions-per-tick: 64
+  completion-budget-ms: 2
   limits:
     # Scope is per sender + recipient + type. Other senders and recipients are independent.
     # A package stops blocking after delivery acknowledgment, return or purge.

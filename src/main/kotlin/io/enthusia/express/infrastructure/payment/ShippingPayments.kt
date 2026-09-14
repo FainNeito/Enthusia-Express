@@ -18,14 +18,15 @@ fun interface PaymentReceipt {
 enum class PaymentSource { PHYSICAL, CURRENCY }
 
 data class ChargeResult(val receipt: PaymentReceipt?, val balance: Double = 0.0,
-                        val unavailable: Boolean = false, val source: PaymentSource = PaymentSource.PHYSICAL)
+                        val unavailable: Boolean = false, val source: PaymentSource = PaymentSource.PHYSICAL,
+                        val reconciliationId: String? = null)
 
 class ShippingPayments(private val plugin: JavaPlugin) {
     /** Describe the selected route without withdrawing any balance. */
     fun priceUnit(): String {
         val mode = plugin.config.getString("payments.provider", "auto")
         val physical = mode == "physical" ||
-            (mode == "auto" && Bukkit.getPluginManager().getPlugin("EnthusiaCurrency") == null)
+            (mode == "auto" && Bukkit.getPluginManager().getPlugin(CURRENCY_PLUGIN) == null)
         return if (physical) "Raw Gold" else "currency"
     }
 
@@ -36,13 +37,23 @@ class ShippingPayments(private val plugin: JavaPlugin) {
         val mode = plugin.config.getString("payments.provider", "auto")
         if (mode == "physical") return chargePhysical(player, cost)
         val manager = Bukkit.getPluginManager()
-        val currency = manager.getPlugin("EnthusiaCurrency")
+        val currency = manager.getPlugin(CURRENCY_PLUGIN)
         if (currency == null && mode == "auto") return chargePhysical(player, cost)
         if (currency == null || !currency.isEnabled || !manager.isPluginEnabled("Vault")) {
             return ChargeResult(null, unavailable = true)
         }
         // Keep optional Vault types in a separate class, loaded only when Vault is available.
-        return VaultShippingPayments.charge(player, cost, currency, plugin.logger)
+        return VaultShippingPayments.charge(player, cost, currency, plugin.logger, plugin.dataFolder.toPath().resolve("payment-reconciliation"))
+    }
+
+    /** Recreate only the persisted route; current payment configuration must not redirect refunds. */
+    fun recoveryReceipt(player: Player, cost: Int, route: String): PaymentReceipt? {
+        if (cost == 0) return PaymentReceipt { true }
+        if (route == "Raw Gold") return physicalReceipt(player, cost).receipt
+        val manager = Bukkit.getPluginManager()
+        val currency = manager.getPlugin(CURRENCY_PLUGIN) ?: return null
+        if (!currency.isEnabled || !manager.isPluginEnabled("Vault")) return null
+        return VaultShippingPayments.recoveryReceipt(player, cost, currency, plugin.logger)
     }
 
     /** Check physical Raw Gold, withdraw the fee and retain a receipt for compensation. */
@@ -89,4 +100,6 @@ class ShippingPayments(private val plugin: JavaPlugin) {
             true
         })
     }
+    private companion object { const val CURRENCY_PLUGIN = "EnthusiaCurrency" }
+
 }

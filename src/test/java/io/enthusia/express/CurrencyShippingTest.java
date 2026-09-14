@@ -18,6 +18,47 @@ import org.bukkit.plugin.*;
 import org.junit.jupiter.api.Test;
 
 class CurrencyShippingTest {
+  @org.junit.jupiter.api.io.TempDir java.nio.file.Path paymentDirectory;
+
+  /** A provider can debit before throwing; retain an intent without minting a refund. */
+  @Test void ambiguousWithdrawalRetainsDurableIntentBeforeReturningCargo() throws Exception {
+    try (var f = new ShippingServiceTest.Fixture(OptionalLong.of(1))) {
+      Economy economy = install(f);
+      var balance = new java.util.concurrent.atomic.AtomicInteger(100);
+      when(economy.withdrawPlayer((OfflinePlayer) f.sender, 2.0)).thenAnswer(call -> {
+        try (var files = java.nio.file.Files.list(paymentDirectory.resolve("payment-reconciliation"))) {
+          assertEquals(1, files.count(), "Intent must exist before external debit");
+        }
+        balance.addAndGet(-2);
+        throw new IllegalStateException("listener failed after debit");
+      });
+      f.confirm();
+      verify(economy).withdrawPlayer((OfflinePlayer) f.sender, 2.0);
+      verify(economy, never()).depositPlayer(any(OfflinePlayer.class), anyDouble());
+      assertEquals(98, balance.get());
+      assertSame(f.packageItem, f.top.getItem(13));
+      verify(f.repository, never()).insertMailLimited(any(), anyString(), any(), anyString(), any(), any(), anyInt(), anyBoolean());
+      try (var files = java.nio.file.Files.list(paymentDirectory.resolve("payment-reconciliation"))) {
+        var receipts = files.toList();
+        assertEquals(1, receipts.size());
+        String text = java.nio.file.Files.readString(receipts.getFirst());
+        assertTrue(text.contains(f.sender.getUniqueId().toString()));
+        assertTrue(text.contains("EnthusiaCurrency"));
+      }
+    }
+  }
+
+  /** An unwritable reconciliation directory must prevent calling the currency provider. */
+  @Test void unavailableReconciliationStoragePreventsDebit() throws Exception {
+    try (var f = new ShippingServiceTest.Fixture(OptionalLong.of(1))) {
+      Economy economy = install(f);
+      java.nio.file.Files.writeString(paymentDirectory.resolve("payment-reconciliation"), "blocked");
+      f.confirm();
+      verify(economy, never()).withdrawPlayer(any(OfflinePlayer.class), anyDouble());
+      assertSame(f.packageItem, f.top.getItem(13));
+    }
+  }
+
   /** A virtual-currency quote is visible before the provider is asked to withdraw. */
   @Test
   void currencyQuotePrecedesWithdrawal() {
@@ -31,7 +72,53 @@ class CurrencyShippingTest {
     }
   }
 
+  /** External currency callbacks cannot return and send the same cargo. */
+  @Test void callbackClosingMenuCancelsAndRefundsExactlyOnce() {
+    try (var f = new ShippingServiceTest.Fixture(OptionalLong.of(1))) {
+      Economy economy = install(f);
+      var slot = new java.util.concurrent.atomic.AtomicReference<ItemStack>(f.packageItem);
+      when(f.top.getItem(13)).thenAnswer(call -> slot.get());
+      doAnswer(call -> { slot.set(call.getArgument(1)); return null; }).when(f.top).setItem(eq(13), any());
+      when(economy.withdrawPlayer((OfflinePlayer) f.sender, 2.0)).thenAnswer(call -> {
+        f.service.confirm(f.sender, f.top);
+        f.service.returnPackageOnClose(f.sender, f.top);
+        return success(2);
+      });
+      f.confirm();
+      verify(f.repository, never()).insertMailLimited(any(), anyString(), any(), anyString(), any(), any(), anyInt(), anyBoolean());
+      verify(f.playerInventory, times(1)).addItem(f.packageItem);
+      verify(economy, times(1)).withdrawPlayer((OfflinePlayer) f.sender, 2.0);
+      verify(economy, times(1)).depositPlayer((OfflinePlayer) f.sender, 2.0);
+      var order = inOrder(f.top, economy);
+      order.verify(f.top).setItem(eq(13), isNull());
+      order.verify(economy).withdrawPlayer((OfflinePlayer) f.sender, 2.0);
+    }
+  }
+
+  /** A restart must preserve the original currency refund route even if configuration changes. */
+  @Test void restartRefundUsesOriginalCurrencyRoute() throws Exception {
+    var result = new CompletableFuture<OptionalLong>();
+    try (var f = new ShippingServiceTest.Fixture(result)) {
+      var economy = install(f);
+      f.confirm();
+      when(f.movementLease.ensureOwned()).thenReturn(false);
+      result.complete(OptionalLong.empty());
+      verify(economy, never()).depositPlayer(any(OfflinePlayer.class), anyDouble());
+      f.plugin.getConfig().set("payments.provider", "physical");
+      when(f.movementLease.ensureOwned()).thenReturn(true);
+      var restarted = new io.enthusia.express.infrastructure.gui.ShippingService(
+          f.plugin, f.repository, f.combat, f.main, f.sounds, f.movementLocks);
+      restarted.retryCompensations();
+      restarted.retryCompensations();
+      verify(economy, times(1)).depositPlayer((OfflinePlayer) f.sender, 2.0);
+      verify(f.playerInventory, times(1)).addItem(f.packageItem);
+      verify(f.playerInventory, never()).addItem(argThat((ItemStack item) ->
+          item != null && item.getType() == org.bukkit.Material.RAW_GOLD));
+    }
+  }
+
   private Economy install(ShippingServiceTest.Fixture f) {
+    when(f.plugin.getDataFolder()).thenReturn(paymentDirectory.toFile());
     f.plugin.getConfig().set("payments.provider", "auto");
     PluginManager manager = mock(PluginManager.class);
     ServicesManager services = mock(ServicesManager.class);
@@ -51,6 +138,35 @@ class CurrencyShippingTest {
     when(economy.withdrawPlayer((OfflinePlayer) f.sender, 2.0)).thenReturn(success(2));
     when(economy.depositPlayer((OfflinePlayer) f.sender, 2.0)).thenReturn(success(2));
     return economy;
+  }
+
+  /** A rejecting provider may close the menu, but neither cargo nor fees are duplicated. */
+  @Test void rejectedCallbackReturnsCargoWithoutRefundOrSubmission() {
+    try (var f = new ShippingServiceTest.Fixture(OptionalLong.of(1))) {
+      Economy economy = install(f);
+      when(economy.withdrawPlayer((OfflinePlayer) f.sender, 2.0)).thenAnswer(call -> {
+        f.service.returnPackageOnClose(f.sender, f.top);
+        return new EconomyResponse(0, 1, EconomyResponse.ResponseType.FAILURE, "insufficient");
+      });
+      f.confirm();
+      verify(f.playerInventory, times(1)).addItem(f.packageItem);
+      verify(economy, never()).depositPlayer(any(OfflinePlayer.class), anyDouble());
+      verify(f.repository, never()).insertMailLimited(any(), anyString(), any(), anyString(), any(), any(), anyInt(), anyBoolean());
+    }
+  }
+
+  /** Provider failures before withdrawal retain cargo and release the send guard. */
+  @Test void providerResolutionFailureReturnsCargoAndReleasesGuard() {
+    try (var f = new ShippingServiceTest.Fixture(OptionalLong.of(1))) {
+      Economy economy = install(f);
+      when(economy.isEnabled()).thenThrow(new IllegalStateException("provider unloading"));
+      f.confirm();
+      assertSame(f.packageItem, f.top.getItem(13));
+      verify(economy, never()).withdrawPlayer(any(OfflinePlayer.class), anyDouble());
+      doReturn(true).when(economy).isEnabled();
+      f.confirm();
+      verify(economy, times(1)).withdrawPlayer((OfflinePlayer) f.sender, 2.0);
+    }
   }
 
   private static EconomyResponse success(double amount) {
@@ -106,7 +222,7 @@ class CurrencyShippingTest {
       f.confirm();
       verifyNoInteractions(f.sounds);
       verify(f.repository, never()).insertMailLimited(any(), anyString(), any(), anyString(), any(), any(), anyInt(), anyBoolean());
-      verify(f.top, never()).setItem(eq(13), isNull());
+      assertSame(f.packageItem, f.top.getItem(13));
       verify(f.playerInventory, never()).setStorageContents(any());
       verify(economy, never()).depositPlayer(any(OfflinePlayer.class), anyDouble());
     }
@@ -196,15 +312,19 @@ class CurrencyShippingTest {
       verify(replacement, never()).depositPlayer(any(OfflinePlayer.class), anyDouble());
     }
   }
-  /** Verifies that offline refund still credits the original account. */
+  /** Offline cargo waits for join; recovery still credits the original currency account. */
 
-  @Test void offlineRefundStillCreditsTheOriginalAccount() {
+  @Test void offlineRefundWaitsForJoinAndCreditsOriginalAccount() {
     CompletableFuture<OptionalLong> pending = new CompletableFuture<>();
     try (var f = new ShippingServiceTest.Fixture(pending)) {
       Economy economy = install(f);
       f.confirm();
       when(f.sender.isOnline()).thenReturn(false);
       pending.complete(OptionalLong.empty());
+      verify(economy, never()).depositPlayer(any(OfflinePlayer.class), anyDouble());
+      verify(f.sender, never()).saveData();
+      when(f.sender.isOnline()).thenReturn(true);
+      f.service.retryCompensations();
       verify(economy).depositPlayer((OfflinePlayer) f.sender, 2.0);
       verify(f.sender).saveData();
     }

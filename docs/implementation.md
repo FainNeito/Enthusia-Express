@@ -28,6 +28,8 @@ The migration changes implementation language and package organization. It retai
 
 Inventory/player reads and writes and completion callbacks run on the primary server thread. A cache-miss name-to-UUID resolution uses Paper's profile source on a scheduler worker; its timed completion returns through MainThread and rechecks sender identity, permissions and combat before proceeding. SQLite work runs on one executor, with conditional SQL and transactions handling contention across independent connections. Disable drains completion callbacks before closing the repository. SQL and Minecraft inventory writes are still not one crash-atomic transaction.
 
+Before a nonzero Vault withdrawal, a small payment intent is forced synchronously to disk. This deliberate ordering prevents a provider debit before reconciliation evidence exists; storage failure refuses the debit. Unknown provider outcomes retain this operator-only record and never trigger a blind refund. Measure force-write latency on staging. Delivery and restoration receipt processing remains on its dedicated worker.
+
 ## Verification
 
 Use the original 38 regression tests, Kotlin migration/packaging tests, the upstream SPEAR Konsist template with project package substitution, and a compiled project call-graph cycle audit. SPEAR tests must not pass merely because domain/application layers are empty. API matrix compilations must use Kotlin source, not an empty Java source set.
@@ -45,3 +47,11 @@ The additive delivery_pending column reserves package capacity between a conditi
 The delivery receipt worker owns all receipt files and serializes disk I/O outside the server thread. Inventory delivery happens first; the worker then forces receipt content to disk before clearing the SQLite reservation. It retries retained receipts every five seconds and on restart, and recognizes already acknowledged rows idempotently. Shutdown drains main-thread completions, closes the receipt worker and finally closes SQLite. Receipt replay never restores or redelivers items. An abrupt crash before durable recording remains an uncertain delivery requiring administrator reconciliation.
 
 Connection cleanup preserves a successful transaction result after commit; reset/recovery errors are logged rather than triggering shipment compensation for an already stored row. The optional CombatLogX adapter invokes the public API directly, with absent-classpath and non-public-implementation regressions. Payment failures carry the actual provider so combined currency balances retain fractional units in messages.
+
+## Paper 26 verification
+
+The baseline build retains the Paper 1.21 API and Java 21 bytecode. Pinned 26.2 and 26.3-pre-2 verification builds select a Java 25 toolchain and distinct artifact classifiers. The baselineJar test property replaces production class directories on the test runtime classpath with the actual baseline shaded JAR; test compilation still uses the target API. This exercises binary compatibility without shipping an artifact built against a newer API to older servers. GitHub's Java 25 jobs install both required JDKs. Prerelease checks and mocked integration regressions do not replace live staging or final-release verification.
+
+## Shipping compensation
+
+`ShippingRecovery` is an infrastructure-only, main-thread-owned journal. Forced atomic phase changes distinguish definite unattempted compensation from ambiguous asset mutation. `ShippingService` retains live provider receipts, polls a bounded rotating pending batch and participates in EnthusiaCurrency's operation-owned movement lease. Restart recovery recreates only the persisted payment route. `PREPARED` and `APPLYING` are evidence for reconciliation, never automatic refund requests. Claim delivery now carries its callback context in a data class and separates eligibility, inventory mutation and rollback; exception cleanup preserves propagation through `finally`.

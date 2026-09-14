@@ -9,6 +9,8 @@ import static org.mockito.Mockito.*;
 import io.enthusia.express.infrastructure.db.MailRepository;
 import io.enthusia.express.infrastructure.gui.MailboxService;
 import io.enthusia.express.infrastructure.hook.CombatLogXHook;
+import io.enthusia.express.infrastructure.hook.MovementLease;
+import io.enthusia.express.infrastructure.hook.MovementLocks;
 import io.enthusia.express.domain.*;
 import io.enthusia.express.infrastructure.mail.*;
 import io.enthusia.express.infrastructure.util.*;
@@ -29,6 +31,8 @@ class MailboxServiceTest {
   MailRepository repository;
   CombatLogXHook combat;
   MainThread main;
+  MovementLocks movementLocks;
+  MovementLease movementLease;
   Player player;
   PlayerInventory inventory;
   Inventory top;
@@ -85,9 +89,12 @@ class MailboxServiceTest {
     service.openSent(player, MailType.LETTER);
     drain();
     clearInvocations(repository);
+    when(repository.get(sent.id())).thenReturn(CompletableFuture.completedFuture(sent));
     service.click(player, 9);
+    drain();
     verify(player).openBook(book);
-    verifyNoInteractions(repository);
+    verify(repository).get(sent.id());
+    verifyNoMoreInteractions(repository);
   }
 
   /** Sent permission is rechecked before showing a history page. */
@@ -111,8 +118,6 @@ class MailboxServiceTest {
     verify(icons.constructed().get(1).getItemMeta()).setDisplayName("§a▶ Packages");
   }
 
-
-
   /** Navigation must not close or reopen the active inventory. */
   @Test
   void navigationKeepsTheSameInventoryOpen() {
@@ -125,6 +130,22 @@ class MailboxServiceTest {
     verify(top).clear();
   }
 
+  /** Repeated navigation retains only the latest desired page behind one active lookup. */
+  @Test void pendingNavigationCoalescesToLatestView() {
+    var pending = new CompletableFuture<List<MailRecord>>();
+    when(repository.listInbox(id, MailType.PACKAGE, 0)).thenReturn(pending);
+    when(repository.listInbox(id, MailType.LETTER, 0)).thenReturn(CompletableFuture.completedFuture(List.of()));
+    service.open(player, MailType.PACKAGE);
+    for (int i = 0; i < 200; i++) service.click(player, i % 2 == 0 ? 1 : 4);
+    verify(repository, times(1)).listInbox(any(), any(), anyInt());
+    pending.complete(List.of());
+    drain();
+    service.loadPendingPages();
+    drain();
+    verify(repository).listInbox(id, MailType.LETTER, 0);
+    verify(repository, times(2)).listInbox(any(), any(), anyInt());
+  }
+
   @SuppressWarnings("unchecked")
   @BeforeEach
   void setup() {
@@ -132,18 +153,23 @@ class MailboxServiceTest {
     repository = mock(MailRepository.class);
     combat = mock(CombatLogXHook.class);
     main = mock(MainThread.class);
+    movementLocks = mock(MovementLocks.class);
+    movementLease = mock(MovementLease.class);
     when(plugin.getConfig()).thenReturn(new YamlConfiguration());
     when(plugin.getLogger()).thenReturn(java.util.logging.Logger.getAnonymousLogger());
     player = mock(Player.class);
     id = UUID.randomUUID();
     when(player.getUniqueId()).thenReturn(id);
     when(player.isOnline()).thenReturn(true);
+    when(movementLocks.acquire(id)).thenReturn(movementLease);
+    when(movementLease.ensureOwned()).thenReturn(true);
     when(repository.confirmDelivery(anyLong(), any())).thenReturn(CompletableFuture.completedFuture(true));
     when(player.hasPermission(anyString())).thenReturn(true);
     when(combat.mayUseMail(player)).thenReturn(true);
     inventory = mock(PlayerInventory.class);
     when(player.getInventory()).thenReturn(inventory);
     when(inventory.firstEmpty()).thenReturn(0);
+    when(inventory.getStorageContents()).thenReturn(new ItemStack[36]);
     top = mock(Inventory.class);
     view = mock(InventoryView.class);
     when(player.getOpenInventory()).thenReturn(view);
@@ -167,11 +193,52 @@ class MailboxServiceTest {
         .when(main)
         .complete(any(), any());
     sounds = mock(SoundFeedback.class);
-    service = new MailboxService(plugin, repository, combat, main, sounds);
+    service = new MailboxService(plugin, repository, combat, main, sounds, null, movementLocks);
   }
 
   void drain() {
     while (!callbacks.isEmpty()) callbacks.removeFirst().run();
+  }
+
+  /** An interrupted delivery delegates compensation to the durable journal. */
+  @Test void undeliveredClaimIsJournaledBeforeReleasingPlayerGuard() {
+    var journal = mock(DeliveryAcknowledgments.class);
+    service = new MailboxService(plugin, repository, combat, main, sounds, journal, movementLocks);
+    var record = record(MailType.PACKAGE);
+    var stack = mock(ItemStack.class);
+    codec.when(() -> ItemCodec.decode(record.payload())).thenReturn(stack);
+    var claim = new CompletableFuture<Boolean>();
+    when(repository.claim(record)).thenReturn(claim);
+    when(journal.restore(record)).thenReturn(CompletableFuture.completedFuture(false));
+    open(record);
+    service.click(player, 9);
+    drain();
+    when(player.isOnline()).thenReturn(false);
+    claim.complete(true);
+    drain();
+    verify(journal).restore(record);
+    verify(journal, never()).record(anyLong(), any());
+    verify(repository, never()).restoreClaim(any());
+    verify(inventory, never()).addItem(any(ItemStack.class));
+  }
+
+  /** Closing during a pending lookup removes the coalesced request without another query. */
+  @Test void closedPendingNavigationDoesNotLoadAnotherPage() {
+    var pending = new CompletableFuture<List<MailRecord>>();
+    when(repository.listInbox(id, MailType.PACKAGE, 0)).thenReturn(pending);
+    service.open(player, MailType.PACKAGE);
+    service.click(player, 4);
+    service.close(player, top);
+    pending.complete(List.of());
+    drain();
+    service.loadPendingPages();
+    verify(repository, times(1)).listInbox(any(), any(), anyInt());
+  }
+
+  /** Package previews never deserialize retained container data on the server thread. */
+  @Test void packagePreviewNeverDecodesCargo() {
+    open(record(MailType.PACKAGE));
+    codec.verifyNoInteractions();
   }
 
   MailRecord record(MailType type) {
@@ -205,18 +272,18 @@ class MailboxServiceTest {
     codec.close();
     bukkit.close();
   }
-  /** Verifies that delivered package queues receipt after inventory and never restores it. */
 
+  /** Verifies that delivered package queues receipt after inventory and never restores it. */
   @Test
   void deliveredPackageQueuesReceiptAfterInventoryAndNeverRestoresIt() {
     var journal = mock(DeliveryAcknowledgments.class);
     when(journal.record(1, id)).thenReturn(CompletableFuture.completedFuture(null));
-    service = new MailboxService(plugin, repository, combat, main, sounds, journal);
+    service = new MailboxService(plugin, repository, combat, main, sounds, journal, movementLocks);
     MailRecord record = record(MailType.PACKAGE);
     ItemStack stack = mock(ItemStack.class);
     when(stack.getItemMeta()).thenReturn(mock(ItemMeta.class));
     codec.when(() -> ItemCodec.decode(record.payload())).thenReturn(stack);
-    when(repository.claim(1, id)).thenReturn(CompletableFuture.completedFuture(true));
+    when(repository.claim(record)).thenReturn(CompletableFuture.completedFuture(true));
     when(inventory.addItem(stack)).thenReturn(new HashMap<>());
     open(record);
     service.click(player, 9);
@@ -227,8 +294,8 @@ class MailboxServiceTest {
     verify(repository, never()).restoreClaim(any());
     verify(repository, never()).confirmDelivery(anyLong(), any());
   }
-  /** Verifies that letters open as books and persist read without claiming. */
 
+  /** Verifies that letters open as books and persist read without claiming. */
   @Test
   void lettersOpenAsBooksAndPersistReadWithoutClaiming() {
     MailRecord record = record(MailType.LETTER);
@@ -240,11 +307,11 @@ class MailboxServiceTest {
     drain();
     verify(player).openBook(book);
     verify(repository).markRead(1, id);
-    verify(repository, never()).claim(anyLong(), any());
+    verify(repository, never()).claim(any(MailRecord.class));
     verify(sounds).play(player, SoundFeedback.Cue.LETTER_OPEN);
   }
-  /** Verifies that rejected read does not produce success sound. */
 
+  /** Verifies that rejected read does not produce success sound. */
   @Test
   void rejectedReadDoesNotProduceSuccessSound() {
     MailRecord record = record(MailType.LETTER);
@@ -257,15 +324,15 @@ class MailboxServiceTest {
     verify(player).openBook(book);
     verifyNoInteractions(sounds);
   }
-  /** Verifies that successful package delivery produces claim sound. */
 
+  /** Verifies that successful package delivery produces claim sound. */
   @Test
   void successfulPackageDeliveryProducesClaimSound() {
     MailRecord record = record(MailType.PACKAGE);
     ItemStack stack = mock(ItemStack.class);
     when(stack.getItemMeta()).thenReturn(mock(ItemMeta.class));
     codec.when(() -> ItemCodec.decode(record.payload())).thenReturn(stack);
-    when(repository.claim(1, id)).thenReturn(CompletableFuture.completedFuture(true));
+    when(repository.claim(record)).thenReturn(CompletableFuture.completedFuture(true));
     when(inventory.addItem(stack)).thenReturn(new HashMap<>());
     open(record);
     service.click(player, 9);
@@ -273,23 +340,94 @@ class MailboxServiceTest {
     verify(sounds).play(player, SoundFeedback.Cue.PACKAGE_CLAIM);
     verify(repository).confirmDelivery(1, id);
   }
-  /** Verifies that failed claim produces no success sound. */
 
+  /** Verifies that failed claim produces no success sound. */
   @Test
   void failedClaimProducesNoSuccessSound() {
     MailRecord record = record(MailType.PACKAGE);
     ItemStack stack = mock(ItemStack.class);
     when(stack.getItemMeta()).thenReturn(mock(ItemMeta.class));
     codec.when(() -> ItemCodec.decode(record.payload())).thenReturn(stack);
-    when(repository.claim(1, id)).thenReturn(CompletableFuture.completedFuture(false));
+    when(repository.claim(record)).thenReturn(CompletableFuture.completedFuture(false));
     open(record);
     service.click(player, 9);
     drain();
     verifyNoInteractions(sounds);
     verify(inventory, never()).addItem(any(ItemStack.class));
   }
-  /** Verifies that announcements use the same book reader. */
 
+  /** A Staff/Currency movement lease blocks package reservation before SQLite changes state. */
+  @Test
+  void movementLockBlocksClaimBeforeReservation() {
+    MailRecord record = record(MailType.PACKAGE);
+    ItemStack stack = mock(ItemStack.class);
+    codec.when(() -> ItemCodec.decode(record.payload())).thenReturn(stack);
+    when(movementLocks.acquire(id)).thenReturn(null);
+    open(record);
+    service.click(player, 9);
+    drain();
+    verify(repository, never()).claim(any(MailRecord.class));
+    verify(inventory, never()).addItem(any(ItemStack.class));
+  }
+
+  /** A claim owns the Currency movement lease until the package is visible in player inventory. */
+  @Test
+  void movementLeaseCoversAsyncClaimDelivery() {
+    MailRecord record = record(MailType.PACKAGE);
+    ItemStack stack = mock(ItemStack.class);
+    codec.when(() -> ItemCodec.decode(record.payload())).thenReturn(stack);
+    var claim = new CompletableFuture<Boolean>();
+    when(repository.claim(record)).thenReturn(claim);
+    when(inventory.addItem(stack)).thenReturn(new HashMap<>());
+    open(record);
+    service.click(player, 9);
+    drain();
+    verify(movementLease, never()).close();
+    claim.complete(true);
+    drain();
+    var order = inOrder(movementLease, inventory);
+    order.verify(movementLease).ensureOwned();
+    order.verify(inventory).addItem(stack);
+    order.verify(movementLease).close();
+  }
+
+  /** A Bukkit delivery exception rolls inventory back before the database claim is restored. */
+  @Test
+  void inventoryDeliveryFailureRollsBackBeforeRestoringClaim() {
+    MailRecord record = record(MailType.PACKAGE);
+    ItemStack stack = mock(ItemStack.class);
+    codec.when(() -> ItemCodec.decode(record.payload())).thenReturn(stack);
+    when(repository.claim(record)).thenReturn(CompletableFuture.completedFuture(true));
+    when(repository.restoreClaim(record)).thenReturn(CompletableFuture.completedFuture(true));
+    when(inventory.addItem(stack)).thenThrow(new IllegalStateException("delivery failed"));
+    open(record);
+    service.click(player, 9);
+    drain();
+    var order = inOrder(inventory, repository);
+    order.verify(inventory).setStorageContents(any(ItemStack[].class));
+    order.verify(repository).restoreClaim(record);
+    verify(repository, never()).confirmDelivery(anyLong(), any());
+    verifyNoInteractions(sounds);
+  }
+
+  /** If inventory rollback itself fails, the database claim stays held instead of risking duplication. */
+  @Test
+  void inventoryRollbackFailureLeavesClaimHeldForReview() {
+    MailRecord record = record(MailType.PACKAGE);
+    ItemStack stack = mock(ItemStack.class);
+    codec.when(() -> ItemCodec.decode(record.payload())).thenReturn(stack);
+    when(repository.claim(record)).thenReturn(CompletableFuture.completedFuture(true));
+    when(inventory.addItem(stack)).thenThrow(new IllegalStateException("delivery failed"));
+    doThrow(new IllegalStateException("rollback failed")).when(inventory).setStorageContents(any(ItemStack[].class));
+    open(record);
+    service.click(player, 9);
+    drain();
+    verify(repository, never()).restoreClaim(any(MailRecord.class));
+    verify(repository, never()).confirmDelivery(anyLong(), any());
+    verifyNoInteractions(sounds);
+  }
+
+  /** Verifies that announcements use the same book reader. */
   @Test
   void announcementsUseTheSameBookReader() {
     MailRecord record = record(MailType.ANNOUNCEMENT);
@@ -301,8 +439,8 @@ class MailboxServiceTest {
     drain();
     verify(player).openBook(book);
   }
-  /** Verifies that disconnect during claim restores instead of losing package. */
 
+  /** Verifies that disconnect during claim restores instead of losing package. */
   @Test
   void disconnectDuringClaimRestoresInsteadOfLosingPackage() {
     MailRecord record = record(MailType.PACKAGE);
@@ -310,7 +448,7 @@ class MailboxServiceTest {
     when(stack.getItemMeta()).thenReturn(mock(ItemMeta.class));
     codec.when(() -> ItemCodec.decode(record.payload())).thenReturn(stack);
     CompletableFuture<Boolean> claim = new CompletableFuture<>();
-    when(repository.claim(1, id)).thenReturn(claim);
+    when(repository.claim(record)).thenReturn(claim);
     when(repository.restoreClaim(record)).thenReturn(CompletableFuture.completedFuture(true));
     open(record);
     service.click(player, 9);
@@ -321,8 +459,8 @@ class MailboxServiceTest {
     verify(repository).restoreClaim(record);
     verify(inventory, never()).addItem(any(ItemStack.class));
   }
-  /** Verifies that combat starting during read prevents opening book. */
 
+  /** Verifies that combat starting during read prevents opening book. */
   @Test
   void combatStartingDuringReadPreventsOpeningBook() {
     MailRecord record = record(MailType.LETTER);
@@ -333,8 +471,8 @@ class MailboxServiceTest {
     verify(player, never()).openBook(any(ItemStack.class));
     verify(repository, never()).markRead(anyLong(), any());
   }
-  /** Verifies that closing inbox before load prevents stale result rendering. */
 
+  /** Verifies that closing inbox before load prevents stale result rendering. */
   @Test
   void closingInboxBeforeLoadPreventsStaleResultRendering() {
     CompletableFuture<List<MailRecord>> load = new CompletableFuture<>();

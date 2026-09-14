@@ -1,38 +1,40 @@
-# Enthusia Express 1.2.0 verification
+# Enthusia Express 1.2.1 verification
 
-Production: 32 Kotlin files, Java 21, Kotlin 2.2.21, Gradle 8.14.3. The shaded JAR includes Kotlin and SQLite 3.50.3.0. Paper, Vault and CombatLogX remain external.
+Reviewed baseline: merged main `66786088c3988478afe34518d779694b00d882b1`. This safety release contains 34 Kotlin production files and uses Java 21 baseline bytecode, Kotlin 2.3.21, Gradle 9.1.0 and bundled SQLite JDBC 3.51.3.0.
 
-## Executed checks
+See [Paper 26 compatibility](docs/paper-26-compatibility.md) for exact pinned APIs, reproduction commands and prerelease limits. Final 26.3 is not verified.
 
-- Clean baseline `build verifyPaperCompatibility`: passed. The final delivery JAR was rebuilt with a clean Paper 1.21 build after the recipient-block and Nexo changes and copied before later API test runs.
-- Paper API 1.21: 132 tests, 0 failures, 0 errors, 0 skips.
-- Paper API 1.21.11: 132 tests, 0 failures, 0 errors, 0 skips.
-- Paper API 1.21.8: 132 tests, 0 failures, 0 errors, 0 skips.
-- All eleven Kotlin API compilation targets passed: 1.21, 1.21.1, 1.21.3, 1.21.4, 1.21.5, 1.21.6, 1.21.7, 1.21.8, 1.21.9, 1.21.10, 1.21.11.
-- Real SQLite tests cover competing writers and initializers, legacy schema migration, claim compensation reservations, broadcasts, recovery, return-to-sender and purge boundaries.
-- Vault tests cover bank-only and mixed payment, authoritative withdrawal failure, original-provider/offline refunds, disabled provider handling and operation without Vault classes.
-- CombatLogX tests validate typed 11.7 API calls, non-public implementations, missing API classes and fail-closed behavior.
-- Reviewed regressions cover post-commit connection-reset failure, durable acknowledgment retry across restart, malformed receipts, reconnect notifications, fractional currency messages, uncached-recipient lookup and book-serialization failure. The expanded focused Detekt 1.23.8 run (INFRA-010 rules, rerun for TDD-014) using `docs/detekt-focused.yml` reports zero findings; this is not a claim that every optional Detekt rule was enabled.
-- Three Konsist architecture checks and the compiled project call-graph audit passed. No direct project or lambda-call cycles were detected; arbitrary reflection and external dispatch are outside that static analysis.
-- A temporary uncompiled domain fixture with `@jakarta.persistence.Entity` was rejected by the annotation gate, then removed before the clean build.
-- Shaded-JAR tests load the bundled SQLite native driver and check runtime contents and exclusions.
+## Automated results
 
-## Gameplay feedback verification
+- Clean `build verifyPaperCompatibility`: passed; all eleven Paper API compilation targets passed (1.21, 1.21.1 and 1.21.3 through 1.21.11).
+- 149 tests passed with the updated toolchain on Paper 1.21 / Java 21 and against the preserved baseline JAR on Paper 26.2 and 26.3-pre-2 / Java 25. No failures, errors or skips. The earlier safety-review toolchain also passed all 149 tests on 1.21.8 and 1.21.11; CI retains those representative jobs. These are API/mocked integration test environments, not running Minecraft servers.
+- Focused Detekt reports zero findings using `docs/detekt-focused.yml`.
+- Konsist architecture and compiled project/lambda call-graph checks passed. No project call cycles were detected; arbitrary reflection and external dispatch are outside this check.
+- Shaded-JAR tests loaded the bundled native driver and asserted SQLite runtime version 3.51.3. Paper, Vault and CombatLogX are not bundled.
+- Three new regression tests reproduced unsafe callback shipping, oversized submissions and pending navigation before implementation (`safety-red.log`). The original production review independently reproduced the failed-restoration path with real SQLite.
 
-Five behavior regressions failed before implementation. The final suite additionally verifies same-window inbox navigation, offline-name suggestions without per-completion file scans, online-letter wording, two-click postage confirmation, invalidated cargo/fee quotes, virtual-currency quote labels, and nonempty singular/plural join notices. Chat filtering is deferred. The Medal clip informed the compact menu titles; actual mouse behavior and client text fit still require server testing.
+## Review refinements
 
-Sent-history regressions verify sender-only visibility, stable 45-entry pagination, delivery reservation status, original-recipient preservation after return/purge/restart, legacy migration with unknown returned destinations, history permissions, read-only package clicks, sent-book reading without unread mutation, selected category labels and command completion. The clean baseline JAR was copied before the later API override runs.
+Three additional regressions failed before the review fixes (`safety-review-red.log`). Complete temporary restoration receipts now recover after restart; incomplete receipts remain held. Currency withdrawal intents are forced before invoking the provider; unavailable storage prevents a debit, and ambiguous exceptions retain operator evidence without an automatic refund. Ordered payment verification, explicit scanner-budget assertions, callback-count test isolation and JDBC cursor checks were strengthened. The final 149-test results are in the `reviewed-*-results` evidence directories; `safety-reviewed-clean-matrix.log` records the revised clean build.
 
-Block regressions verify persistent UUID preferences, owner-scoped lists, direct and broadcast rejection, cross-connection enforcement, preserved returns, permission/session checks, pre-payment rejection and refund after a concurrent block. Nexo tests cover item cloning, fresh resolution, missing/failed API fallbacks, reflective lookup, configured titles and custom-material placeholder safety. Actual Nexo glyph rendering requires client testing with the installed resource pack.
+## Safety regressions
 
-## SPEAR evidence
+The new tests exercise currency callbacks that reenter confirmation and close shipping menus, rejected withdrawals, failed provider resolution, and original-provider compensation. Cargo is reserved before external calls and never both returned and submitted.
 
-Applied BadgersMC SPEAR at 2c91bae046649035f4abaa3c563f6676399e2eee. EARS requirements, failing behavior regressions, implementation, architecture checks and refinement are recorded in docs/requirements.md and docs/tasks.md. Java tests remain independent JVM clients of the Kotlin production code.
+Real SQLite tests exercise a write lock exceeding the busy timeout, durable restoration across repository/journal restart, preserved expiration timestamps, returned-package recovery, receipt-directory write failures, stale receipt replay after another claim, and stale snapshot rejection. Unknown claims remain held and acknowledged delivery cannot be restored.
 
-## Limits
+Resource tests verify oversized shipment rejection before payment, payload-free history/inbox pages without deleting existing contents, one query per player while navigation is pending, cancellation of queued navigation after close, bounded callback batches, and queue saturation followed by graceful draining of every accepted write.
 
-No live Paper, Nexo, CombatLogX or EnthusiaCurrency server was started. Paper/Vault interactions use mocks; compilation is not live compatibility certification. Legacy Bukkit calls emit deprecation warnings. Test on ordinary Paper using TESTING.md; Folia is not supported.
+Existing currency, CombatLogX, Nexo, GUI, block, notification, sound, migration, SQLite concurrency and return-to-sender regressions remain in the suite.
 
-The migration adds delivery_pending without changing existing payloads/statuses. Abrupt process death can leave uncertain inventory delivery or a pending reservation; inventory files and SQLite are not one atomic store. Back up player data, mail.db and delivery-receipts together. Durable receipts replay acknowledgments after restart; reconcile deliveries without a receipt before clearing uncertain reservations.
+## Evidence and limits
 
-JAR SHA-256: `cc67dfda57b0f66b331ce798dde5997270bcb365c4ef22f1bbcab849ebe17826`
+The testing artifact was copied from the clean Paper 1.21 baseline before API override runs. Local dependency resolution used an untracked Maven directory containing the unmodified official SQLite POM/JAR; their SHA-256 values were verified against Maven Central. The repository's Gradle configuration continues to resolve the pinned release from Maven Central normally. The Java 25 compatibility runs additionally used an untracked loopback dependency bridge with Python-verified upstream HTTPS and unmodified official artifacts. No local dependency override or bridge is committed.
+
+SPEAR requirements REQ-037 through REQ-043 and tasks TDD-015 and TDD-016 record the safety changes, red/green evidence, import evidence and architecture checks. REQ-044 / INFRA-011 record the Paper 26 build verification.
+
+**Live staging has not been performed.** The actual staging server, installed currency/CombatLogX/Nexo configuration and resource pack were not available. Do not interpret automated success as production approval. Follow [the staging and recovery guide](docs/production-safety.md) before deployment.
+
+Inventory, third-party currency and SQLite do not share an atomic transaction. Abrupt process death or a provider that debits and then throws can still require evidence-based administrator reconciliation. Unknown old pending claims cannot safely be reset automatically. Legacy Bukkit API usage still emits deprecation warnings. Folia is not supported. Chat filtering remains excluded.
+
+Testing JAR SHA-256: `20039bc6bfa0aa05c6cd3b3cf882be8c96313386b6d2a1d19c7ee9ed60c687a3`

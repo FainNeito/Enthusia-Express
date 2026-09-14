@@ -17,6 +17,10 @@ object ConfigValidation {
             require(!config.contains(key) || config.isBoolean(key)) { "$key must be true or false" }
         }
         range(config, "database.busy-timeout-ms", 5000, 1, 60000)
+        range(config, "database.max-queued-operations", 256, 8, 4096)
+        range(config, "mail.max-package-payload-bytes", 262144, 1024, 1048576)
+        range(config, "mail.max-completions-per-tick", 64, 1, 1024)
+        range(config, "mail.completion-budget-ms", 2, 1, 20)
         range(config, "mail.raw-gold-per-item", 1, 0, 1000000)
         range(config, "mail.max-recursive-container-depth", 8, 1, 32)
         range(config, "mail.return-after-hours", 168, 1, 876000)

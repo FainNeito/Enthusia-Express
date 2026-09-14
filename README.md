@@ -1,6 +1,8 @@
-# Enthusia Express 1.2.0
+# Enthusia Express 1.2.1
 
-A Kotlin plugin requiring Java 21 for Paper 1.21.x. Packages and letters go to offline players; administrators can publish announcements to online or offline players.
+Version 1.2.1 fixes reentrant shipping duplication and durable claim restoration, adds resource limits, and updates SQLite. Read the [production safety and staging guide](docs/production-safety.md) before upgrading. Live integration acceptance is required before production deployment.
+
+A Kotlin plugin targeting Paper 1.21.x on Java 21, with Paper 26.2 / Java 25 compatibility verification and experimental 26.3 prerelease checks. Packages and letters go to offline players; administrators can publish announcements to online or offline players.
 
 ## Commands
 
@@ -22,14 +24,14 @@ The selected category is marked in green with an arrow and a Selected tooltip. T
 
 ## Build
 
-Set `JAVA_HOME` to a Java 21 JDK. The included Gradle 8.14.3 wrapper checks the distribution's SHA-256.
+Set `JAVA_HOME` to a Java 21 JDK. The included Gradle 9.7.1 wrapper checks the distribution's SHA-256.
 
 ```sh
 sh ./gradlew clean build
 sh ./gradlew verifyPaperCompatibility
 ```
 
-On Windows, use `gradlew.bat`. Install **`build/libs/EnthusiaExpress-1.2.0.jar`**, the shaded JAR. The `-plain.jar` is not the installable artifact. Kotlin standard library, SQLite and its native libraries are included; Paper, Vault and CombatLogX are not bundled.
+On Windows, use `gradlew.bat`. Install **`build/libs/EnthusiaExpress-1.2.1.jar`**, the shaded JAR. The `-plain.jar` is not the installable artifact. Kotlin standard library, SQLite and its native libraries are included; Paper, Vault and CombatLogX are not bundled.
 
 The default compile API is Paper 1.21, with Java bytecode level 21. To run the tests with a later API classpath:
 
@@ -39,10 +41,21 @@ sh ./gradlew clean build -PpaperVersion=1.21.11
 
 Always rebuild with no `paperVersion` override for the release artifact. `verifyPaperCompatibility` compiles against Paper 1.21, 1.21.1, 1.21.3, 1.21.4, 1.21.5, 1.21.6, 1.21.7, 1.21.8, 1.21.9, 1.21.10 and 1.21.11. See `VERIFICATION.md` for executed checks and their limits.
 
+For Java 25 verification, install both JDK 21 and JDK 25. The target automatically selects its required toolchain. Preserve the baseline JAR outside `build/` before cleaning:
+
+```sh
+sh ./gradlew clean build
+cp build/libs/EnthusiaExpress-1.2.1.jar /tmp/enthusia-baseline.jar
+sh ./gradlew clean build -PpaperVersion=26.2 -PbaselineJar=/tmp/enthusia-baseline.jar
+sh ./gradlew clean build -PpaperVersion=26.3-pre-2 -PbaselineJar=/tmp/enthusia-baseline.jar
+```
+
+`26.2` pins API `26.2.build.123-stable`; `26.3-pre-2` pins `26.3-pre-2.build.0-alpha`. There is no final 26.3 verification target yet. Newer-API build outputs carry a `-verify-<target>` classifier and are not the universal distribution. The descriptor remains `api-version: '1.21'`, the minimum supported API. See [version compatibility and staging limits](docs/paper-26-compatibility.md).
+
 ## Installation and configuration
 
 1. Back up `plugins/EnthusiaExpress`, then replace the old plugin JAR with the shaded JAR.
-2. Run Paper 1.21.x with Java 21. Install CombatLogX and its own required dependencies when combat protection is required.
+2. Run Paper 1.21.x with Java 21, or Paper 26.2 with Java 25 after staging acceptance. Install CombatLogX and its own required dependencies when combat protection is required.
 3. Restart the server. Review `plugins/EnthusiaExpress/config.yml` and restart after edits.
 
 Existing `mail.db` rows and package byte payloads remain supported. Startup adds a `delivery_pending` column to preserve sending limits during claim delivery; no destructive schema migration is performed. Existing configuration files are preserved. Missing new keys use the defaults below; add them to your existing file if you want to customize them. Invalid numeric ranges or boolean values fail startup instead of silently weakening protection.
@@ -97,7 +110,7 @@ A claimed package retains its sending allowance until inventory delivery is ackn
 
 ## Pull request checks
 
-GitHub Actions runs Java 21 builds and tests on Paper API classpaths 1.21, 1.21.8 and 1.21.11, plus compilation against all eleven supported APIs. The successful baseline job publishes a testing JAR; every job publishes available test reports. CodeRabbit and Codacy remain separate review services. Local success does not imply their remote checks have finished.
+GitHub Actions runs Java 21 builds and tests on Paper API classpaths 1.21, 1.21.8 and 1.21.11, plus compilation against all eleven 1.21 APIs. Separate Java 25 jobs compile against pinned Paper 26.2 and 26.3-pre-2 APIs and run the tests against the baseline JAR. The prerelease job does not establish support for final 26.3. The successful baseline job publishes a testing JAR; every job publishes available test reports. CodeRabbit and Codacy remain separate review services. Local success does not imply their remote checks have finished.
 
 Player-name suggestions use online players to avoid scanning offline player files during typing. Fully typed names use Paper's cached lookup first, then resolve a missing UUID on a scheduler worker. The result must still belong to a player who has joined this server, and the sender session is rechecked before opening mail.
 
