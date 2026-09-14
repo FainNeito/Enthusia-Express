@@ -20,7 +20,7 @@ import org.junit.jupiter.api.io.TempDir;
 class ProductionSafetyTest {
   @TempDir Path directory;
 
-  /** A forced temporary receipt must survive a crash before its atomic rename. */
+  /** A forced temporary undelivered receipt must survive a crash before its atomic rename. */
   @Test void completeTemporaryReceiptRecoversAfterRestart() throws Exception {
     var repo = new MailRepository(null, directory.resolve("mail.db").toFile(), 50);
     repo.initialize().join();
@@ -43,6 +43,34 @@ class ProductionSafetyTest {
       assertFalse(Files.exists(undelivered.resolve(id + "-0.restore")));
       assertEquals(MailStatus.CLAIMED, repo.get(damagedId).join().status());
       assertTrue(Files.exists(damaged), "Incomplete receipt remains for inspection");
+    } finally { repo.close(); }
+  }
+
+  /** A complete delivered .tmp receipt is promoted and acknowledged; malformed evidence stays held. */
+  @Test void completeDeliveredTemporaryReceiptRecoversAfterRestart() throws Exception {
+    var repo = new MailRepository(null, directory.resolve("delivered.db").toFile(), 50);
+    repo.initialize().join();
+    UUID recipient = UUID.randomUUID();
+    long id = repo.insertPackage(null, "S", recipient, "R", new byte[]{1}, 1, false).join();
+    assertTrue(repo.claim(id, recipient).join());
+    long damagedId = repo.insertPackage(null, "S", recipient, "R", new byte[]{2}, 1, false).join();
+    assertTrue(repo.claim(damagedId, recipient).join());
+    Path receipts = Files.createDirectories(directory.resolve("delivered-receipts"));
+    Path temporary = receipts.resolve(id + ".tmp");
+    Files.writeString(temporary, recipient.toString());
+    Path damaged = receipts.resolve(damagedId + ".tmp");
+    Files.writeString(damaged, "not-a-uuid");
+    try (var journal = new DeliveryAcknowledgments(receipts, repo, Logger.getAnonymousLogger())) {
+      journal.retry().join();
+      assertFalse(Files.exists(temporary));
+      assertFalse(Files.exists(receipts.resolve(id + ".ack")));
+      assertFalse(repo.listSent(UUID.randomUUID(), MailType.PACKAGE, 0).join().stream()
+          .anyMatch(entry -> entry.getMail().id() == id));
+      var delivered = repo.get(id).join();
+      assertEquals(MailStatus.CLAIMED, delivered.status());
+      assertFalse(repo.confirmDelivery(id, recipient).join(), "Recovered receipt already released the reservation");
+      assertTrue(Files.exists(damaged), "Malformed temporary evidence remains for inspection");
+      assertEquals(MailStatus.CLAIMED, repo.get(damagedId).join().status());
     } finally { repo.close(); }
   }
 
