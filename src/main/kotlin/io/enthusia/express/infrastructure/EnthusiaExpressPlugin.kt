@@ -1,3 +1,6 @@
+// Recovery and integration boundaries retain explicit thread and failure documentation.
+@file:Suppress("CommentOverPrivateFunction")
+
 package io.enthusia.express.infrastructure
 
 import io.enthusia.express.infrastructure.command.MailCommand
@@ -26,6 +29,7 @@ class EnthusiaExpressPlugin : JavaPlugin() {
     private var expirationService: ExpirationService? = null
     private var acknowledgments: DeliveryAcknowledgments? = null
     private var movementLocks: EnthusiaCurrencyMovementLocks? = null
+    private var compensationTask: org.bukkit.scheduler.BukkitTask? = null
     private var mailboxTask: org.bukkit.scheduler.BukkitTask? = null
     private var acknowledgmentTask: org.bukkit.scheduler.BukkitTask? = null
 
@@ -38,16 +42,12 @@ class EnthusiaExpressPlugin : JavaPlugin() {
         repository.initialize().join()
         val acknowledgments = DeliveryAcknowledgments(dataFolder.toPath().resolve("delivery-receipts"), repository, logger)
             .also { this.acknowledgments = it }
-        val retryReceipts = Runnable {
-            main.complete(acknowledgments.retry()) { _, failure ->
-                if (failure != null) logger.severe("Cannot retry delivery acknowledgments: $failure")
-            }
-        }
-        acknowledgmentTask = Bukkit.getScheduler().runTaskTimer(this, retryReceipts, 1L, 100L)
+        startReceiptRetries(main, acknowledgments)
         val sounds = SoundFeedback(this).also { it.validate() }
         val combatHook = CombatLogXHook(this)
         val movementLocks = EnthusiaCurrencyMovementLocks(this).also { this.movementLocks = it }
         val shipping = ShippingService(this, repository, combatHook, main, sounds, movementLocks).also { shippingService = it }
+        compensationTask = Bukkit.getScheduler().runTaskTimer(this, Runnable { shipping.retryCompensations() }, 1L, 100L)
         val mailbox = MailboxService(this, repository, combatHook, main, sounds, acknowledgments, movementLocks).also { mailboxService = it }
         mailboxTask = Bukkit.getScheduler().runTaskTimer(this, Runnable { mailbox.loadPendingPages() }, 1L, 1L)
         val expiration = ExpirationService(this, repository).also { expirationService = it }
@@ -62,8 +62,19 @@ class EnthusiaExpressPlugin : JavaPlugin() {
         logger.info("Enthusia Express enabled.")
     }
 
+    /** Keep receipt retry scheduling separate from service construction. */
+    private fun startReceiptRetries(main: MainThread, acknowledgments: DeliveryAcknowledgments) {
+        val retryReceipts = Runnable {
+            main.complete(acknowledgments.retry()) { _, failure ->
+                if (failure != null) logger.severe("Cannot retry delivery acknowledgments: $failure")
+            }
+        }
+        acknowledgmentTask = Bukkit.getScheduler().runTaskTimer(this, retryReceipts, 1L, 100L)
+    }
+
     /** Stop recurring work, return open cargo, drain completions and close the receipt journal before SQLite. */
     override fun onDisable() {
+        compensationTask?.cancel()
         mailboxTask?.cancel()
         acknowledgmentTask?.cancel()
         expirationService?.stop()
