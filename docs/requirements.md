@@ -177,3 +177,7 @@ WHEN a currency withdrawal is about to be invoked THE SYSTEM SHALL persist a rec
 ## REQ-044
 
 THE SYSTEM SHALL verify its build and regression suite against pinned Paper 26.2 and available 26.3 prerelease APIs on Java 25 while retaining the Java 21 and Paper 1.21 baseline distributable.
+
+## REQ-045
+
+WHEN a failed shipment waits for a currency movement lease THE SYSTEM SHALL retain durable cargo, account and original postage route across restart, retry only definitely unattempted compensation under an owned lease, and hold uncertain asset mutations for operator reconciliation without automatic replay.
