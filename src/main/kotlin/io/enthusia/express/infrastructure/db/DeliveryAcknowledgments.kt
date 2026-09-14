@@ -68,30 +68,50 @@ class DeliveryAcknowledgments(
         restorations.retry()
     }
 
-    /** Scan persisted receipts off the server thread while isolating damaged entries. */
+    /** Scan persisted and complete temporary receipts off the server thread while isolating damaged entries. */
     // One unreadable receipt must not prevent other delivered packages from being acknowledged.
     @Suppress("TooGenericExceptionCaught")
     private fun loadReceipts() {
         try {
             Files.createDirectories(directory)
             Files.list(directory).use { files ->
-                files.filter { it.fileName.toString().endsWith(".ack") }.forEach { readReceipt(it) }
+                files.filter { it.fileName.toString().endsWith(".ack") || it.fileName.toString().endsWith(".tmp") }
+                    .forEach { readReceipt(it) }
             }
         } catch (error: Exception) {
             logger.log(Level.WARNING, "Cannot scan delivery receipts; reservations remain held", error)
         }
     }
 
-    /** Validate one receipt and retain malformed data for administrator investigation. */
+    /** Validate one bounded receipt; promote a complete crash-left temporary before replaying it. */
     private fun readReceipt(file: Path) {
         try {
-            val id = file.fileName.toString().removeSuffix(".ack").toLong()
-            require(id > 0)
-            pending.putIfAbsent(id, UUID.fromString(Files.readString(file).trim()))
+            require(Files.size(file) in 1..64)
+            val name = file.fileName.toString()
+            val temporary = name.endsWith(".tmp")
+            val suffix = if (temporary) ".tmp" else ".ack"
+            val id = name.removeSuffix(suffix).toLong()
+            require(id > 0 && name == "$id$suffix")
+            val recipient = UUID.fromString(Files.readString(file).trim())
+            if (temporary) promoteTemporary(id, file)
+            pending.putIfAbsent(id, recipient)
         } catch (error: IllegalArgumentException) {
             logger.log(Level.SEVERE, "Invalid delivery receipt $file; administrator review required", error)
         } catch (error: java.io.IOException) {
-            logger.log(Level.WARNING, "Cannot read delivery receipt $file", error)
+            logger.log(Level.WARNING, "Cannot read or promote delivery receipt $file", error)
+        }
+    }
+
+    /** Publish a complete temporary receipt without overwriting independent existing evidence. */
+    private fun promoteTemporary(id: Long, temporary: Path) {
+        val receipt = directory.resolve("$id.ack")
+        if (Files.exists(receipt)) {
+            throw java.io.IOException("Both temporary and final delivery receipts exist for #$id; retain both for review")
+        }
+        try {
+            Files.move(temporary, receipt, StandardCopyOption.ATOMIC_MOVE)
+        } catch (unsupported: AtomicMoveNotSupportedException) {
+            Files.move(temporary, receipt)
         }
     }
 
