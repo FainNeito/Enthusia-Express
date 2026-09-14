@@ -9,6 +9,8 @@ import static org.mockito.Mockito.*;
 import io.enthusia.express.infrastructure.db.MailRepository;
 import io.enthusia.express.infrastructure.gui.MailboxService;
 import io.enthusia.express.infrastructure.hook.CombatLogXHook;
+import io.enthusia.express.infrastructure.hook.MovementLease;
+import io.enthusia.express.infrastructure.hook.MovementLocks;
 import io.enthusia.express.domain.*;
 import io.enthusia.express.infrastructure.mail.*;
 import io.enthusia.express.infrastructure.util.*;
@@ -29,6 +31,8 @@ class MailboxServiceTest {
   MailRepository repository;
   CombatLogXHook combat;
   MainThread main;
+  MovementLocks movementLocks;
+  MovementLease movementLease;
   Player player;
   PlayerInventory inventory;
   Inventory top;
@@ -151,12 +155,16 @@ class MailboxServiceTest {
     repository = mock(MailRepository.class);
     combat = mock(CombatLogXHook.class);
     main = mock(MainThread.class);
+    movementLocks = mock(MovementLocks.class);
+    movementLease = mock(MovementLease.class);
     when(plugin.getConfig()).thenReturn(new YamlConfiguration());
     when(plugin.getLogger()).thenReturn(java.util.logging.Logger.getAnonymousLogger());
     player = mock(Player.class);
     id = UUID.randomUUID();
     when(player.getUniqueId()).thenReturn(id);
     when(player.isOnline()).thenReturn(true);
+    when(movementLocks.acquire(id)).thenReturn(movementLease);
+    when(movementLease.ensureOwned()).thenReturn(true);
     when(repository.confirmDelivery(anyLong(), any())).thenReturn(CompletableFuture.completedFuture(true));
     when(player.hasPermission(anyString())).thenReturn(true);
     when(combat.mayUseMail(player)).thenReturn(true);
@@ -186,7 +194,7 @@ class MailboxServiceTest {
         .when(main)
         .complete(any(), any());
     sounds = mock(SoundFeedback.class);
-    service = new MailboxService(plugin, repository, combat, main, sounds);
+    service = new MailboxService(plugin, repository, combat, main, sounds, null, movementLocks);
   }
 
   void drain() {
@@ -196,7 +204,7 @@ class MailboxServiceTest {
   /** An interrupted delivery delegates compensation to the durable journal. */
   @Test void undeliveredClaimIsJournaledBeforeReleasingPlayerGuard() {
     var journal = mock(DeliveryAcknowledgments.class);
-    service = new MailboxService(plugin, repository, combat, main, sounds, journal);
+    service = new MailboxService(plugin, repository, combat, main, sounds, journal, movementLocks);
     var record = record(MailType.PACKAGE);
     var stack = mock(ItemStack.class);
     codec.when(() -> ItemCodec.decode(record.payload())).thenReturn(stack);
@@ -271,7 +279,7 @@ class MailboxServiceTest {
   void deliveredPackageQueuesReceiptAfterInventoryAndNeverRestoresIt() {
     var journal = mock(DeliveryAcknowledgments.class);
     when(journal.record(1, id)).thenReturn(CompletableFuture.completedFuture(null));
-    service = new MailboxService(plugin, repository, combat, main, sounds, journal);
+    service = new MailboxService(plugin, repository, combat, main, sounds, journal, movementLocks);
     MailRecord record = record(MailType.PACKAGE);
     ItemStack stack = mock(ItemStack.class);
     when(stack.getItemMeta()).thenReturn(mock(ItemMeta.class));
@@ -348,6 +356,42 @@ class MailboxServiceTest {
     verifyNoInteractions(sounds);
     verify(inventory, never()).addItem(any(ItemStack.class));
   }
+
+  /** A Staff/Currency movement lease blocks package reservation before SQLite changes state. */
+  @Test
+  void movementLockBlocksClaimBeforeReservation() {
+    MailRecord record = record(MailType.PACKAGE);
+    ItemStack stack = mock(ItemStack.class);
+    codec.when(() -> ItemCodec.decode(record.payload())).thenReturn(stack);
+    when(movementLocks.acquire(id)).thenReturn(null);
+    open(record);
+    service.click(player, 9);
+    drain();
+    verify(repository, never()).claim(any(MailRecord.class));
+    verify(inventory, never()).addItem(any(ItemStack.class));
+  }
+
+  /** A claim owns the Currency movement lease until the package is visible in player inventory. */
+  @Test
+  void movementLeaseCoversAsyncClaimDelivery() {
+    MailRecord record = record(MailType.PACKAGE);
+    ItemStack stack = mock(ItemStack.class);
+    codec.when(() -> ItemCodec.decode(record.payload())).thenReturn(stack);
+    var claim = new CompletableFuture<Boolean>();
+    when(repository.claim(record)).thenReturn(claim);
+    when(inventory.addItem(stack)).thenReturn(new HashMap<>());
+    open(record);
+    service.click(player, 9);
+    drain();
+    verify(movementLease, never()).close();
+    claim.complete(true);
+    drain();
+    var order = inOrder(movementLease, inventory);
+    order.verify(movementLease).ensureOwned();
+    order.verify(inventory).addItem(stack);
+    order.verify(movementLease).close();
+  }
+
   /** Verifies that announcements use the same book reader. */
 
   @Test
