@@ -95,6 +95,28 @@ class CurrencyShippingTest {
     }
   }
 
+  /** A restart must preserve the original currency refund route even if configuration changes. */
+  @Test void restartRefundUsesOriginalCurrencyRoute() throws Exception {
+    var result = new CompletableFuture<OptionalLong>();
+    try (var f = new ShippingServiceTest.Fixture(result)) {
+      var economy = install(f);
+      f.confirm();
+      when(f.movementLease.ensureOwned()).thenReturn(false);
+      result.complete(OptionalLong.empty());
+      verify(economy, never()).depositPlayer(any(OfflinePlayer.class), anyDouble());
+      f.plugin.getConfig().set("payments.provider", "physical");
+      when(f.movementLease.ensureOwned()).thenReturn(true);
+      var restarted = new io.enthusia.express.infrastructure.gui.ShippingService(
+          f.plugin, f.repository, f.combat, f.main, f.sounds, f.movementLocks);
+      restarted.retryCompensations();
+      restarted.retryCompensations();
+      verify(economy, times(1)).depositPlayer((OfflinePlayer) f.sender, 2.0);
+      verify(f.playerInventory, times(1)).addItem(f.packageItem);
+      verify(f.playerInventory, never()).addItem(argThat((ItemStack item) ->
+          item != null && item.getType() == org.bukkit.Material.RAW_GOLD));
+    }
+  }
+
   private Economy install(ShippingServiceTest.Fixture f) {
     when(f.plugin.getDataFolder()).thenReturn(paymentDirectory.toFile());
     f.plugin.getConfig().set("payments.provider", "auto");
@@ -290,15 +312,19 @@ class CurrencyShippingTest {
       verify(replacement, never()).depositPlayer(any(OfflinePlayer.class), anyDouble());
     }
   }
-  /** Verifies that offline refund still credits the original account. */
+  /** Offline cargo waits for join; recovery still credits the original currency account. */
 
-  @Test void offlineRefundStillCreditsTheOriginalAccount() {
+  @Test void offlineRefundWaitsForJoinAndCreditsOriginalAccount() {
     CompletableFuture<OptionalLong> pending = new CompletableFuture<>();
     try (var f = new ShippingServiceTest.Fixture(pending)) {
       Economy economy = install(f);
       f.confirm();
       when(f.sender.isOnline()).thenReturn(false);
       pending.complete(OptionalLong.empty());
+      verify(economy, never()).depositPlayer(any(OfflinePlayer.class), anyDouble());
+      verify(f.sender, never()).saveData();
+      when(f.sender.isOnline()).thenReturn(true);
+      f.service.retryCompensations();
       verify(economy).depositPlayer((OfflinePlayer) f.sender, 2.0);
       verify(f.sender).saveData();
     }
