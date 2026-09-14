@@ -7,6 +7,8 @@ import io.enthusia.express.domain.MailBlockedException
 import io.enthusia.express.application.MailStore
 import io.enthusia.express.domain.MailType
 import io.enthusia.express.infrastructure.hook.CombatLogXHook
+import io.enthusia.express.infrastructure.hook.MovementLease
+import io.enthusia.express.infrastructure.hook.MovementLocks
 import io.enthusia.express.infrastructure.payment.PaymentReceipt
 import io.enthusia.express.infrastructure.payment.ShippingPayments
 import io.enthusia.express.infrastructure.util.ContainerScanner
@@ -33,6 +35,7 @@ class ShippingService @JvmOverloads constructor(
     private val combatHook: CombatLogXHook,
     private val main: MainThread,
     private val sounds: SoundFeedback = SoundFeedback(plugin),
+    private val movementLocks: MovementLocks = MovementLocks.NOOP,
 ) {
     private val TARGET_ONLINE = "target-online"
     private val theme = GuiTheme(plugin)
@@ -212,20 +215,31 @@ class ShippingService @JvmOverloads constructor(
         if (confirmQuote(sender, inv, current)) chargeAndSubmit(sender, inv, target, current)
     }
 
-    /** Charge one payment route, reserve cargo and compensate rejected or failed persistence. */
+    /** Charge one payment route while holding the same asset lease used by EnthusiaStaff. */
     private fun chargeAndSubmit(sender: Player, inv: Inventory, target: OfflinePlayer, shipment: PreparedShipment) {
-        quotes.remove(sender.uniqueId)
-        val unit = payments.priceUnit()
-        // Transfer ownership before any provider callback can close or reenter this menu.
-        pending.add(sender.uniqueId)
-        inv.setItem(PACKAGE_SLOT, null)
-        val receipt = takePayment(sender, inv, shipment) ?: return
-        if (!currentShippingSession(sender, inv) || target.isOnline || !eligibleSender(sender)) {
-            refundPlayer(sender, shipment.payloadItem, receipt)
-            pending.remove(sender.uniqueId)
+        val lease = movementLocks.acquire(sender.uniqueId)
+        if (lease == null) {
+            sender.sendMessage("§eYour inventory is being used by another server operation. Try again shortly.")
             return
         }
-        submitReserved(sender, target, shipment, receipt, unit)
+        var handedOff = false
+        try {
+            quotes.remove(sender.uniqueId)
+            val unit = payments.priceUnit()
+            // Own the shared movement lease before cargo or currency changes.
+            pending.add(sender.uniqueId)
+            inv.setItem(PACKAGE_SLOT, null)
+            val receipt = takePayment(sender, inv, shipment) ?: return
+            if (!currentShippingSession(sender, inv) || target.isOnline || !eligibleSender(sender)) {
+                refundPlayer(sender, shipment.payloadItem, receipt)
+                pending.remove(sender.uniqueId)
+                return
+            }
+            submitReserved(sender, target, shipment, receipt, unit, lease)
+            handedOff = true
+        } finally {
+            if (!handedOff) lease.close()
+        }
     }
 
     /** Reserve payment while preserving cargo on rejection and ambiguous provider failures. */
@@ -260,8 +274,9 @@ class ShippingService @JvmOverloads constructor(
     private fun eligibleSender(sender: Player): Boolean = combatHook.mayUseMail(sender) &&
         sender.hasPermission("enthusiaexpress.use") && sender.hasPermission("enthusiaexpress.packages.send")
 
-    /** Submit reserved cargo once; repository rejection completes through the original refund route. */
-    private fun submitReserved(sender: Player, target: OfflinePlayer, shipment: PreparedShipment, receipt: PaymentReceipt, unit: String) {
+    /** Hold the movement lease until storage accepts the shipment or compensation is complete. */
+    private fun submitReserved(sender: Player, target: OfflinePlayer, shipment: PreparedShipment,
+                               receipt: PaymentReceipt, unit: String, lease: MovementLease) {
         sender.closeInventory()
         targets.remove(sender.uniqueId)
         val targetName = target.name ?: target.uniqueId.toString()
@@ -269,20 +284,53 @@ class ShippingService @JvmOverloads constructor(
         main.complete(repository.insertMailLimited(sender.uniqueId, sender.name, target.uniqueId, targetName,
             MailType.PACKAGE, shipment.payload, shipment.count, plugin.config.getBoolean("mail.limits.one-outstanding-package-per-recipient", false))) { result, error ->
             pending.remove(sender.uniqueId)
-            if (MailBlockedException.causedBy(error)) {
-                if (refundPlayer(sender, shipment.payloadItem, receipt))
-                    sender.sendMessage(Text.msgOrDefault(plugin.config, "recipient-not-accepting", "&cThat player is not accepting your mail."))
-            } else if (error != null) {
-                if (refundPlayer(sender, shipment.payloadItem, receipt))
-                    sender.sendMessage("§cShipment failed; your package and fee were refunded.")
-                plugin.logger.severe("Package insert failed: " + error.message)
-            } else if (result!!.isEmpty) {
-                if (refundPlayer(sender, shipment.payloadItem, receipt))
-                    sender.sendMessage(Text.msg(plugin.config, "outstanding-package"))
-            } else {
+            if (error == null && result?.isPresent == true) {
+                lease.close()
                 sounds.play(sender, SoundFeedback.Cue.PACKAGE_SEND)
                 sender.sendMessage(Text.msg(plugin.config, "package-sent", mapOf("target" to targetName, "currency" to unit, "cost" to shipment.cost.toString(), "items" to shipment.count.toString())))
+                return@complete
             }
+
+            val message = when {
+                MailBlockedException.causedBy(error) ->
+                    Text.msgOrDefault(plugin.config, "recipient-not-accepting", "&cThat player is not accepting your mail.")
+                error != null -> "§cShipment failed; your package and fee were refunded."
+                else -> Text.msg(plugin.config, "outstanding-package")
+            }
+            if (error != null && !MailBlockedException.causedBy(error))
+                plugin.logger.severe("Package insert failed: " + error.message)
+
+            if (lease.ensureOwned()) {
+                try {
+                    if (refundPlayer(sender, shipment.payloadItem, receipt)) sender.sendMessage(message)
+                } finally {
+                    lease.close()
+                }
+            } else {
+                // Never compensate underneath EnthusiaStaff's snapshot. Retry after its lease is released.
+                lease.close()
+                refundWhenUnlocked(sender, shipment.payloadItem, receipt, message)
+            }
+        }
+    }
+
+    /** Retry known compensation until the shared Currency movement lease can be acquired safely. */
+    private fun refundWhenUnlocked(sender: Player, payloadItem: ItemStack, receipt: PaymentReceipt, message: String) {
+        if (!plugin.isEnabled) {
+            plugin.logger.severe("Deferred postage compensation requires administrator action for ${sender.uniqueId}")
+            return
+        }
+        val lease = movementLocks.acquire(sender.uniqueId)
+        if (lease == null || !lease.ensureOwned()) {
+            lease?.close()
+            Bukkit.getScheduler().runTaskLater(plugin,
+                Runnable { refundWhenUnlocked(sender, payloadItem, receipt, message) }, 20L)
+            return
+        }
+        try {
+            if (refundPlayer(sender, payloadItem, receipt)) sender.sendMessage(message)
+        } finally {
+            lease.close()
         }
     }
 
