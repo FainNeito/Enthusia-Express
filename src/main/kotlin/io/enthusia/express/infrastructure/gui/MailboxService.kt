@@ -26,7 +26,8 @@ import org.bukkit.plugin.java.JavaPlugin
 
 // Session ownership and claim state must remain in the same lifecycle owner.
 @Suppress("TooManyFunctions")
-class MailboxService @JvmOverloads constructor(
+// Keep explicit injectable dependencies and the existing Java constructor overloads.
+class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
     private val plugin: JavaPlugin,
     private val repository: MailStore,
     private val combatHook: CombatLogXHook,
@@ -303,42 +304,37 @@ class MailboxService @JvmOverloads constructor(
             player.sendMessage("§eYour inventory is being used by another server operation. Try again shortly.")
             return
         }
+        var submitted = false
         try {
-            main.complete(repository.claim(record)) { claimed, error ->
-                completeClaim(player, record, stack, claimed, error, lease)
+            val delivery = ClaimDelivery(player, record, stack, lease)
+            main.complete(repository.claim(record)) { claimed, error -> completeClaim(delivery, claimed, error) }
+            submitted = true
+        } finally {
+            if (!submitted) {
+                lease.close()
+                claiming.remove(player.uniqueId)
             }
-        } catch (error: RuntimeException) {
-            lease.close()
-            claiming.remove(player.uniqueId)
-            throw error
         }
     }
 
+    private data class ClaimDelivery(val player: Player, val record: MailRecord,
+                                     val stack: ItemStack, val lease: MovementLease)
+
     /** Recheck lease ownership and delivery eligibility before exposing claimed cargo to the player. */
-    private fun completeClaim(player: Player, record: MailRecord, stack: ItemStack, claimed: Boolean?, error: Throwable?, lease: MovementLease) {
+    private fun completeClaim(delivery: ClaimDelivery, claimed: Boolean?, error: Throwable?) {
+        val (player, record, _, lease) = delivery
         if (error != null || claimed != true) {
             lease.close()
             claiming.remove(player.uniqueId)
             player.sendMessage("§cThat package could not be claimed.")
             return
         }
-        if (!lease.ensureOwned() || !allowed(player) || !player.hasPermission("enthusiaexpress.packages.claim") || player.inventory.firstEmpty() == -1) {
+        if (!lease.ensureOwned() || !eligibleForDelivery(player)) {
             lease.close()
             restoreUndelivered(player, record)
             return
         }
-        val before = snapshotInventory(player, record, lease) ?: return
-        val delivered = try {
-            player.inventory.addItem(stack).isEmpty()
-        } catch (error: RuntimeException) {
-            recoverFailedInventoryDelivery(player, record, lease, before, error)
-            return
-        }
-        if (!delivered) {
-            recoverFailedInventoryDelivery(player, record, lease, before,
-                IllegalStateException("Claimed package did not fit after an empty-slot recheck"))
-            return
-        }
+        if (!deliverInventory(delivery)) return
         // Once released, a Staff snapshot necessarily sees the delivered package in inventory.
         lease.close()
         acknowledgeDelivery(player, record)
@@ -346,6 +342,26 @@ class MailboxService @JvmOverloads constructor(
         sounds.play(player, SoundFeedback.Cue.PACKAGE_CLAIM)
         player.sendMessage("§aPackage claimed.")
         if (owns(player)) open(player, MailType.PACKAGE)
+    }
+
+    /** Check player state separately from operation-owned movement locking. */
+    private fun eligibleForDelivery(player: Player): Boolean = allowed(player) &&
+        player.hasPermission("enthusiaexpress.packages.claim") && player.inventory.firstEmpty() != -1
+
+    /** Bukkit inventory implementations can fail after partial mutation; rollback covers all runtime failures. */
+    @Suppress("TooGenericExceptionCaught")
+    private fun deliverInventory(delivery: ClaimDelivery): Boolean {
+        val (player, record, stack, lease) = delivery
+        val before = snapshotInventory(player, record, lease) ?: return false
+        val delivered = try {
+            player.inventory.addItem(stack).isEmpty()
+        } catch (error: RuntimeException) {
+            recoverFailedInventoryDelivery(player, record, lease, before, error)
+            return false
+        }
+        if (!delivered) recoverFailedInventoryDelivery(player, record, lease, before,
+            IllegalStateException("Claimed package did not fit after an empty-slot recheck"))
+        return delivered
     }
 
     /** Capture rollback state before the only player-inventory mutation in package delivery. */
