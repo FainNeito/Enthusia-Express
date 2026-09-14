@@ -16,6 +16,7 @@ import io.enthusia.express.infrastructure.util.MainThread
 import io.enthusia.express.infrastructure.util.SoundFeedback
 import io.enthusia.express.infrastructure.util.Text
 import java.util.UUID
+import java.util.logging.Level
 import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.entity.Player
@@ -326,17 +327,61 @@ class MailboxService @JvmOverloads constructor(
             restoreUndelivered(player, record)
             return
         }
-        try {
-            player.inventory.addItem(stack).values.forEach { player.world.dropItemNaturally(player.location, it) }
-        } finally {
-            // Once released, a Staff snapshot necessarily sees the delivered package in inventory.
-            lease.close()
+        val before = snapshotInventory(player, record, lease) ?: return
+        val delivered = try {
+            player.inventory.addItem(stack).isEmpty()
+        } catch (error: RuntimeException) {
+            recoverFailedInventoryDelivery(player, record, lease, before, error)
+            return
         }
+        if (!delivered) {
+            recoverFailedInventoryDelivery(player, record, lease, before,
+                IllegalStateException("Claimed package did not fit after an empty-slot recheck"))
+            return
+        }
+        // Once released, a Staff snapshot necessarily sees the delivered package in inventory.
+        lease.close()
         acknowledgeDelivery(player, record)
         claiming.remove(player.uniqueId)
         sounds.play(player, SoundFeedback.Cue.PACKAGE_CLAIM)
         player.sendMessage("§aPackage claimed.")
         if (owns(player)) open(player, MailType.PACKAGE)
+    }
+
+    /** Capture rollback state before the only player-inventory mutation in package delivery. */
+    @Suppress("TooGenericExceptionCaught")
+    private fun snapshotInventory(player: Player, record: MailRecord, lease: MovementLease): Array<ItemStack?>? = try {
+        player.inventory.storageContents.map { it?.clone() }.toTypedArray()
+    } catch (error: RuntimeException) {
+        lease.close()
+        plugin.logger.log(Level.SEVERE, "Cannot snapshot inventory before package #${record.id} delivery; restoring claim", error)
+        restoreUndelivered(player, record)
+        null
+    }
+
+    /** Roll back a failed delivery before making the database row claimable again. */
+    @Suppress("TooGenericExceptionCaught")
+    private fun recoverFailedInventoryDelivery(player: Player, record: MailRecord, lease: MovementLease,
+                                               before: Array<ItemStack?>, deliveryError: RuntimeException) {
+        val rolledBack = try {
+            player.inventory.storageContents = before
+            true
+        } catch (rollbackError: RuntimeException) {
+            deliveryError.addSuppressed(rollbackError)
+            false
+        } finally {
+            lease.close()
+        }
+        if (rolledBack) {
+            plugin.logger.log(Level.WARNING, "Package #${record.id} inventory delivery failed and was rolled back", deliveryError)
+            player.sendMessage("§ePackage delivery was interrupted. Its claim was restored; try again.")
+            restoreUndelivered(player, record)
+        } else {
+            claiming.remove(player.uniqueId)
+            plugin.logger.log(Level.SEVERE,
+                "Package #${record.id} delivery and inventory rollback both failed; claim remains held for administrator review", deliveryError)
+            player.sendMessage("§cPackage delivery is in an uncertain state. Do not retry; contact an administrator.")
+        }
     }
 
     /** Record completed inventory delivery for durable retry without restoring or redelivering its items. */
