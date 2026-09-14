@@ -9,6 +9,8 @@ import io.enthusia.express.domain.MailStatus
 import io.enthusia.express.domain.MailType
 import io.enthusia.express.infrastructure.db.DeliveryAcknowledgments
 import io.enthusia.express.infrastructure.hook.CombatLogXHook
+import io.enthusia.express.infrastructure.hook.MovementLease
+import io.enthusia.express.infrastructure.hook.MovementLocks
 import io.enthusia.express.infrastructure.util.ItemCodec
 import io.enthusia.express.infrastructure.util.MainThread
 import io.enthusia.express.infrastructure.util.SoundFeedback
@@ -30,6 +32,7 @@ class MailboxService @JvmOverloads constructor(
     private val main: MainThread,
     private val sounds: SoundFeedback = SoundFeedback(plugin),
     private val acknowledgments: DeliveryAcknowledgments? = null,
+    private val movementLocks: MovementLocks = MovementLocks.NOOP,
 ) {
     private val theme = GuiTheme(plugin)
     private val sessions = HashMap<UUID, Session>()
@@ -286,30 +289,49 @@ class MailboxService @JvmOverloads constructor(
         }
     }
 
-    /** Require inventory capacity and claim permission before reserving the package in storage. */
+    /** Require inventory capacity, claim permission and the shared asset lease before reserving the package. */
     private fun claimPackage(player: Player, record: MailRecord, stack: ItemStack) {
         if (!player.hasPermission("enthusiaexpress.packages.claim") || player.inventory.firstEmpty() == -1) {
             claiming.remove(player.uniqueId)
             player.sendMessage("§cYou need claim permission and an empty inventory slot.")
             return
         }
-        main.complete(repository.claim(record)) { claimed, error ->
-            completeClaim(player, record, stack, claimed, error)
+        val lease = movementLocks.acquire(player.uniqueId)
+        if (lease == null) {
+            claiming.remove(player.uniqueId)
+            player.sendMessage("§eYour inventory is being used by another server operation. Try again shortly.")
+            return
+        }
+        try {
+            main.complete(repository.claim(record)) { claimed, error ->
+                completeClaim(player, record, stack, claimed, error, lease)
+            }
+        } catch (error: RuntimeException) {
+            lease.close()
+            claiming.remove(player.uniqueId)
+            throw error
         }
     }
 
-    /** Recheck delivery eligibility, restore undelivered claims, and queue acknowledgments only after giving items. */
-    private fun completeClaim(player: Player, record: MailRecord, stack: ItemStack, claimed: Boolean?, error: Throwable?) {
+    /** Recheck lease ownership and delivery eligibility before exposing claimed cargo to the player. */
+    private fun completeClaim(player: Player, record: MailRecord, stack: ItemStack, claimed: Boolean?, error: Throwable?, lease: MovementLease) {
         if (error != null || claimed != true) {
+            lease.close()
             claiming.remove(player.uniqueId)
             player.sendMessage("§cThat package could not be claimed.")
             return
         }
-        if (!allowed(player) || !player.hasPermission("enthusiaexpress.packages.claim") || player.inventory.firstEmpty() == -1) {
+        if (!lease.ensureOwned() || !allowed(player) || !player.hasPermission("enthusiaexpress.packages.claim") || player.inventory.firstEmpty() == -1) {
+            lease.close()
             restoreUndelivered(player, record)
             return
         }
-        player.inventory.addItem(stack).values.forEach { player.world.dropItemNaturally(player.location, it) }
+        try {
+            player.inventory.addItem(stack).values.forEach { player.world.dropItemNaturally(player.location, it) }
+        } finally {
+            // Once released, a Staff snapshot necessarily sees the delivered package in inventory.
+            lease.close()
+        }
         acknowledgeDelivery(player, record)
         claiming.remove(player.uniqueId)
         sounds.play(player, SoundFeedback.Cue.PACKAGE_CLAIM)
