@@ -75,7 +75,7 @@ class DeliveryAcknowledgments(
         try {
             Files.createDirectories(directory)
             Files.list(directory).use { files ->
-                files.filter { it.fileName.toString().endsWith(".ack") || it.fileName.toString().endsWith(".tmp") }
+                files.filter { it.fileName.toString().endsWith(ACKNOWLEDGED_SUFFIX) || it.fileName.toString().endsWith(TEMPORARY_SUFFIX) }
                     .forEach { readReceipt(it) }
             }
         } catch (error: Exception) {
@@ -88,8 +88,8 @@ class DeliveryAcknowledgments(
         try {
             require(Files.size(file) in 1L..64L)
             val name = file.fileName.toString()
-            val temporary = name.endsWith(".tmp")
-            val suffix = if (temporary) ".tmp" else ".ack"
+            val temporary = name.endsWith(TEMPORARY_SUFFIX)
+            val suffix = if (temporary) TEMPORARY_SUFFIX else ACKNOWLEDGED_SUFFIX
             val id = name.removeSuffix(suffix).toLong()
             require(id > 0 && name == "$id$suffix")
             val recipient = UUID.fromString(Files.readString(file).trim())
@@ -104,7 +104,7 @@ class DeliveryAcknowledgments(
 
     /** Publish a complete temporary receipt without overwriting independent existing evidence. */
     private fun promoteTemporary(id: Long, temporary: Path) {
-        val receipt = directory.resolve("$id.ack")
+        val receipt = directory.resolve(id.toString() + ACKNOWLEDGED_SUFFIX)
         if (Files.exists(receipt)) {
             throw java.io.IOException("Both temporary and final delivery receipts exist for #$id; retain both for review")
         }
@@ -125,7 +125,7 @@ class DeliveryAcknowledgments(
                 logger.severe("Delivery receipt #$id does not match a delivered package; administrator review required")
                 return
             }
-            Files.deleteIfExists(directory.resolve("$id.ack"))
+            Files.deleteIfExists(directory.resolve(id.toString() + ACKNOWLEDGED_SUFFIX))
             pending.remove(id)
         } catch (error: Exception) {
             logger.log(Level.WARNING, "Delivery acknowledgment #$id will be retried; do not restore its items", error)
@@ -150,7 +150,7 @@ class DeliveryAcknowledgments(
             while (bytes.hasRemaining()) channel.write(bytes)
             channel.force(true)
         }
-        val receipt = directory.resolve("$id.ack")
+        val receipt = directory.resolve(id.toString() + ACKNOWLEDGED_SUFFIX)
         try {
             Files.move(temporary, receipt, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
         } catch (unsupported: AtomicMoveNotSupportedException) {
@@ -168,4 +168,9 @@ class DeliveryAcknowledgments(
         finishing.join()
         if (pending.isNotEmpty()) logger.warning("${pending.size} delivery receipts await recovery; retain the delivery-receipts directory")
     }
+    private companion object {
+        const val TEMPORARY_SUFFIX = ".tmp"
+        const val ACKNOWLEDGED_SUFFIX = ".ack"
+    }
+
 }
