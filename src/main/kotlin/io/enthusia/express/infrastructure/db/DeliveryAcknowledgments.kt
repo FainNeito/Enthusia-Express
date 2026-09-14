@@ -86,7 +86,7 @@ class DeliveryAcknowledgments(
     /** Validate one bounded receipt; promote a complete crash-left temporary before replaying it. */
     private fun readReceipt(file: Path) {
         try {
-            require(Files.size(file) in 1..64)
+            require(Files.size(file) in 1L..64L)
             val name = file.fileName.toString()
             val temporary = name.endsWith(".tmp")
             val suffix = if (temporary) ".tmp" else ".ack"
