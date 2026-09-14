@@ -11,9 +11,12 @@ import org.bukkit.plugin.java.JavaPlugin
 import org.bukkit.scheduler.BukkitTask
 
 /** A lease serializes Express asset mutations with EnthusiaCurrency moderation operations. */
-interface MovementLease : AutoCloseable {
+interface MovementLease {
     /** Refresh ownership immediately before a player inventory or currency mutation. */
     fun ensureOwned(): Boolean
+
+    /** Release the operation-owned movement lease without exposing checked exceptions to callers. */
+    fun close()
 }
 
 /** Optional asset-movement guard. Absence of EnthusiaCurrency is intentionally a no-op. */
