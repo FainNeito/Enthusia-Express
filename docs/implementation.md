@@ -51,3 +51,7 @@ Connection cleanup preserves a successful transaction result after commit; reset
 ## Paper 26 verification
 
 The baseline build retains the Paper 1.21 API and Java 21 bytecode. Pinned 26.2 and 26.3-pre-2 verification builds select a Java 25 toolchain and distinct artifact classifiers. The baselineJar test property replaces production class directories on the test runtime classpath with the actual baseline shaded JAR; test compilation still uses the target API. This exercises binary compatibility without shipping an artifact built against a newer API to older servers. GitHub's Java 25 jobs install both required JDKs. Prerelease checks and mocked integration regressions do not replace live staging or final-release verification.
+
+## Shipping compensation
+
+`ShippingRecovery` is an infrastructure-only, main-thread-owned journal. Forced atomic phase changes distinguish definite unattempted compensation from ambiguous asset mutation. `ShippingService` retains live provider receipts, polls a bounded rotating pending batch and participates in EnthusiaCurrency's operation-owned movement lease. Restart recovery recreates only the persisted payment route. `PREPARED` and `APPLYING` are evidence for reconciliation, never automatic refund requests. Claim delivery now carries its callback context in a data class and separates eligibility, inventory mutation and rollback; exception cleanup preserves propagation through `finally`.
