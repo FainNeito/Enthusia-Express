@@ -53,6 +53,18 @@ class MailboxServiceTest {
     verify(repository).listMapart(0, false);
   }
 
+  @Test
+  void switchingFromMapartIntakeOpensPersonalInboxInventory() {
+    when(repository.listMapart(0, false)).thenReturn(CompletableFuture.completedFuture(List.of()));
+    when(repository.listInbox(id, MailType.PACKAGE, 0))
+        .thenReturn(CompletableFuture.completedFuture(List.of()));
+    service.openMapart(player, false);
+    service.open(player, MailType.PACKAGE);
+    bukkit.verify(() -> Bukkit.createInventory(isNull(), eq(54), eq("§6Mapart • Intake")));
+    bukkit.verify(() -> Bukkit.createInventory(isNull(), eq(54), eq("§6Enthusia Express §8• §fInbox")));
+    verify(player, times(2)).openInventory(any(Inventory.class));
+  }
+
   /** Claimed and acknowledged maps can be marked processed once from the separate manager inbox. */
   @Test
   void mapartManagerMarksDeliveredSubmissionProcessed() {

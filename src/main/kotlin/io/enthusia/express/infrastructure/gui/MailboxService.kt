@@ -104,7 +104,9 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
         }
         if (page < 0 || page > 1_000_000) return
         val current = sessions[player.uniqueId]
-        val existing = current?.inventory?.takeIf { current.sent == sent && player.openInventory.topInventory === it }
+        val existing = current?.inventory?.takeIf {
+            !current.mapart && current.sent == sent && player.openInventory.topInventory === it
+        }
         val inv = existing ?: Bukkit.createInventory(null, 54, mailboxTitle(sent))
         if (existing != null) inv.clear()
         val session = Session(inv, type, page, sent)
