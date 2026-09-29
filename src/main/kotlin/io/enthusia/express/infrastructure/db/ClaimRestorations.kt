@@ -79,7 +79,10 @@ internal class ClaimRestorations(private val directory: Path, private val reposi
             if (!repository.restoreClaim(record).join()) {
                 val current = repository.get(record.id).join()
                 // A higher generation proves this attempt was restored already. Never undo its successor.
-                if (current == null || current.recipient != record.recipient || current.claimGeneration <= record.claimGeneration) {
+                val mapartRequeued = current != null && current.claimGeneration > record.claimGeneration &&
+                    repository.getMapart(record.id).join() != null
+                if (current == null || current.claimGeneration <= record.claimGeneration ||
+                    (current.recipient != record.recipient && !mapartRequeued)) {
                     logger.severe("Undelivered claim $key is uncertain; retain its receipt for administrator review")
                     return false
                 }

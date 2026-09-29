@@ -45,6 +45,46 @@ class MailboxServiceTest {
   MockedConstruction<ItemStack> icons;
   List<Runnable> callbacks;
 
+  /** The shared queue is accessible to anyone holding the manager permission. */
+  @Test
+  void mapartInboxUsesPermissionNotConfiguredUuid() {
+    when(repository.listMapart(0, false)).thenReturn(CompletableFuture.completedFuture(List.of()));
+    service.openMapart(player, false);
+    verify(repository).listMapart(0, false);
+  }
+
+  /** Claimed and acknowledged maps can be marked processed once from the separate manager inbox. */
+  @Test
+  void mapartManagerMarksDeliveredSubmissionProcessed() {
+    var mail = new MailRecord(71, UUID.randomUUID(), "Artist", id, "Manager", MailType.PACKAGE,
+        MailStatus.CLAIMED, new byte[] {1}, 1, 1, 1, false, false);
+    var entry = new MapartSubmission(mail, 17, "Village", 1, null, false, null);
+    when(repository.listMapart(0, false)).thenReturn(CompletableFuture.completedFuture(List.of(entry)));
+    when(repository.getMapart(71)).thenReturn(CompletableFuture.completedFuture(entry));
+    when(repository.markMapartProcessed(71, id)).thenReturn(CompletableFuture.completedFuture(true));
+    service.openMapart(player, false);
+    drain();
+    service.click(player, 18);
+    drain();
+    verify(repository).markMapartProcessed(71, id);
+    verify(inventory, never()).addItem(any(ItemStack.class));
+  }
+
+  /** Losing manager permission after the page loads blocks a stale click from reaching a claim. */
+  @Test
+  void mapartPermissionRevocationBlocksClaim() {
+    var mail = record(MailType.PACKAGE);
+    var entry = new MapartSubmission(mail, 12, "Village", 1, null, false, null);
+    when(repository.listMapart(0, false)).thenReturn(CompletableFuture.completedFuture(List.of(entry)));
+    service.openMapart(player, false);
+    drain();
+    when(player.hasPermission("enthusiaexpress.mapart.manage")).thenReturn(false);
+    service.click(player, 18);
+    verify(repository, never()).getMapart(anyLong());
+    verify(repository, never()).claim(any(MailRecord.class));
+    verify(repository, never()).claimMapart(any(MailRecord.class), any(), anyString());
+  }
+
   /** Optional Nexo title glyphs can replace the plain mailbox title. */
   @Test
   void configuredNexoTitleIsUsedWhenAvailable() {
@@ -57,7 +97,7 @@ class MailboxServiceTest {
     bukkit.when(Bukkit::getPluginManager).thenReturn(manager);
     when(repository.listInbox(any(), any(), anyInt())).thenReturn(CompletableFuture.completedFuture(List.of()));
     service.open(player, MailType.PACKAGE);
-    bukkit.verify(() -> Bukkit.createInventory(isNull(), eq(54), eq("<glyph:mail_menu>")));
+    bukkit.verify(() -> Bukkit.createInventory(isNull(), eq(54), eq("<glyph:mail_menu> §8• §fInbox")));
   }
 
   /** History cannot claim packages, even though the viewer owns the sender record. */
@@ -70,7 +110,7 @@ class MailboxServiceTest {
     service.openSent(player, MailType.PACKAGE);
     drain();
     clearInvocations(repository, player);
-    service.click(player, 9);
+    service.click(player, 18);
     verifyNoInteractions(repository);
     verify(inventory, never()).addItem(any(ItemStack.class));
     service.click(player, 4);
@@ -90,7 +130,7 @@ class MailboxServiceTest {
     drain();
     clearInvocations(repository);
     when(repository.get(sent.id())).thenReturn(CompletableFuture.completedFuture(sent));
-    service.click(player, 9);
+    service.click(player, 18);
     drain();
     verify(player).openBook(book);
     verify(repository).get(sent.id());
@@ -115,7 +155,30 @@ class MailboxServiceTest {
   void selectedCategoryHasAnExplicitLabel() {
     when(repository.listInbox(any(), any(), anyInt())).thenReturn(CompletableFuture.completedFuture(List.of()));
     service.open(player, MailType.PACKAGE);
-    verify(icons.constructed().get(1).getItemMeta()).setDisplayName("§a▶ Packages");
+    var selected = ArgumentCaptor.forClass(ItemStack.class);
+    verify(top, times(2)).setItem(eq(1), selected.capture());
+    verify(selected.getAllValues().getLast().getItemMeta()).setDisplayName("§a▶ Packages");
+  }
+
+  /** Empty pages use a centered in-menu state instead of adding a chat error. */
+  @Test
+  void emptyPageUsesCenteredMailboxState() {
+    when(repository.listInbox(id, MailType.LETTER, 0)).thenReturn(CompletableFuture.completedFuture(List.of()));
+    service.open(player, MailType.LETTER);
+    drain();
+    verify(top, atLeastOnce()).setItem(eq(31), any(ItemStack.class));
+    verify(player, never()).sendMessage(contains("No mail on this page"));
+  }
+
+  /** Inbox and sent history use distinct titles while category changes keep the same window. */
+  @Test
+  void directionSwitchUpdatesMailboxTitle() {
+    when(repository.listInbox(id, MailType.PACKAGE, 0)).thenReturn(CompletableFuture.completedFuture(List.of()));
+    when(repository.listSent(id, MailType.PACKAGE, 0)).thenReturn(CompletableFuture.completedFuture(List.of()));
+    service.open(player, MailType.PACKAGE);
+    service.click(player, 47);
+    bukkit.verify(() -> Bukkit.createInventory(isNull(), eq(54), eq("§6Enthusia Express §8• §fInbox")));
+    bukkit.verify(() -> Bukkit.createInventory(isNull(), eq(54), eq("§6Enthusia Express §8• §fSent Mail")));
   }
 
   /** Navigation must not close or reopen the active inventory. */
@@ -211,7 +274,7 @@ class MailboxServiceTest {
     when(repository.claim(record)).thenReturn(claim);
     when(journal.restore(record)).thenReturn(CompletableFuture.completedFuture(false));
     open(record);
-    service.click(player, 9);
+    service.click(player, 18);
     drain();
     when(player.isOnline()).thenReturn(false);
     claim.complete(true);
@@ -286,7 +349,7 @@ class MailboxServiceTest {
     when(repository.claim(record)).thenReturn(CompletableFuture.completedFuture(true));
     when(inventory.addItem(stack)).thenReturn(new HashMap<>());
     open(record);
-    service.click(player, 9);
+    service.click(player, 18);
     drain();
     var order = inOrder(inventory, journal);
     order.verify(inventory).addItem(stack);
@@ -303,7 +366,7 @@ class MailboxServiceTest {
     codec.when(() -> ItemCodec.decode(record.payload())).thenReturn(book);
     when(repository.markRead(1, id)).thenReturn(CompletableFuture.completedFuture(true));
     open(record);
-    service.click(player, 9);
+    service.click(player, 18);
     drain();
     verify(player).openBook(book);
     verify(repository).markRead(1, id);
@@ -319,7 +382,7 @@ class MailboxServiceTest {
     codec.when(() -> ItemCodec.decode(record.payload())).thenReturn(book);
     when(repository.markRead(1, id)).thenReturn(CompletableFuture.completedFuture(false));
     open(record);
-    service.click(player, 9);
+    service.click(player, 18);
     drain();
     verify(player).openBook(book);
     verifyNoInteractions(sounds);
@@ -335,7 +398,7 @@ class MailboxServiceTest {
     when(repository.claim(record)).thenReturn(CompletableFuture.completedFuture(true));
     when(inventory.addItem(stack)).thenReturn(new HashMap<>());
     open(record);
-    service.click(player, 9);
+    service.click(player, 18);
     drain();
     verify(sounds).play(player, SoundFeedback.Cue.PACKAGE_CLAIM);
     verify(repository).confirmDelivery(1, id);
@@ -350,7 +413,7 @@ class MailboxServiceTest {
     codec.when(() -> ItemCodec.decode(record.payload())).thenReturn(stack);
     when(repository.claim(record)).thenReturn(CompletableFuture.completedFuture(false));
     open(record);
-    service.click(player, 9);
+    service.click(player, 18);
     drain();
     verifyNoInteractions(sounds);
     verify(inventory, never()).addItem(any(ItemStack.class));
@@ -364,7 +427,7 @@ class MailboxServiceTest {
     codec.when(() -> ItemCodec.decode(record.payload())).thenReturn(stack);
     when(movementLocks.acquire(id)).thenReturn(null);
     open(record);
-    service.click(player, 9);
+    service.click(player, 18);
     drain();
     verify(repository, never()).claim(any(MailRecord.class));
     verify(inventory, never()).addItem(any(ItemStack.class));
@@ -380,7 +443,7 @@ class MailboxServiceTest {
     when(repository.claim(record)).thenReturn(claim);
     when(inventory.addItem(stack)).thenReturn(new HashMap<>());
     open(record);
-    service.click(player, 9);
+    service.click(player, 18);
     drain();
     verify(movementLease, never()).close();
     claim.complete(true);
@@ -401,7 +464,7 @@ class MailboxServiceTest {
     when(repository.restoreClaim(record)).thenReturn(CompletableFuture.completedFuture(true));
     when(inventory.addItem(stack)).thenThrow(new IllegalStateException("delivery failed"));
     open(record);
-    service.click(player, 9);
+    service.click(player, 18);
     drain();
     var order = inOrder(inventory, repository);
     order.verify(inventory).setStorageContents(any(ItemStack[].class));
@@ -411,6 +474,21 @@ class MailboxServiceTest {
   }
 
   /** If inventory rollback itself fails, the database claim stays held instead of risking duplication. */
+  @Test void failedDeliveryAndRollbackSaveNeverReopensTheClaim() {
+    var record = record(MailType.PACKAGE);
+    var stack = mock(ItemStack.class);
+    codec.when(() -> ItemCodec.decode(record.payload())).thenReturn(stack);
+    when(repository.claim(record)).thenReturn(CompletableFuture.completedFuture(true));
+    when(inventory.addItem(stack)).thenReturn(new java.util.HashMap<>());
+    doThrow(new IllegalStateException("save failed")).when(player).saveData();
+    open(record);
+    service.click(player, 18);
+    drain();
+    verify(player, times(2)).saveData();
+    verify(repository, never()).restoreClaim(any(MailRecord.class));
+    verify(repository, never()).confirmDelivery(anyLong(), any());
+  }
+
   @Test
   void inventoryRollbackFailureLeavesClaimHeldForReview() {
     MailRecord record = record(MailType.PACKAGE);
@@ -420,7 +498,7 @@ class MailboxServiceTest {
     when(inventory.addItem(stack)).thenThrow(new IllegalStateException("delivery failed"));
     doThrow(new IllegalStateException("rollback failed")).when(inventory).setStorageContents(any(ItemStack[].class));
     open(record);
-    service.click(player, 9);
+    service.click(player, 18);
     drain();
     verify(repository, never()).restoreClaim(any(MailRecord.class));
     verify(repository, never()).confirmDelivery(anyLong(), any());
@@ -435,7 +513,7 @@ class MailboxServiceTest {
     codec.when(() -> ItemCodec.decode(record.payload())).thenReturn(book);
     when(repository.markRead(1, id)).thenReturn(CompletableFuture.completedFuture(true));
     open(record);
-    service.click(player, 9);
+    service.click(player, 18);
     drain();
     verify(player).openBook(book);
   }
@@ -451,7 +529,7 @@ class MailboxServiceTest {
     when(repository.claim(record)).thenReturn(claim);
     when(repository.restoreClaim(record)).thenReturn(CompletableFuture.completedFuture(true));
     open(record);
-    service.click(player, 9);
+    service.click(player, 18);
     drain();
     when(player.isOnline()).thenReturn(false);
     claim.complete(true);
@@ -465,7 +543,7 @@ class MailboxServiceTest {
   void combatStartingDuringReadPreventsOpeningBook() {
     MailRecord record = record(MailType.LETTER);
     open(record);
-    service.click(player, 9);
+    service.click(player, 18);
     when(combat.mayUseMail(player)).thenReturn(false);
     drain();
     verify(player, never()).openBook(any(ItemStack.class));
@@ -481,6 +559,6 @@ class MailboxServiceTest {
     service.close(player, top);
     load.complete(List.of(record(MailType.LETTER)));
     drain();
-    verify(top, never()).setItem(eq(9), any());
+    verify(top, never()).setItem(eq(18), any());
   }
 }

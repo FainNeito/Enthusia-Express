@@ -51,8 +51,10 @@ internal object VaultShippingPayments {
     @Suppress("TooGenericExceptionCaught")
     private fun receipt(economy: Economy, account: OfflinePlayer, cost: Int, currency: Plugin, logger: Logger): ChargeResult {
         var refunded = false
+        var attempted = false
         return ChargeResult(PaymentReceipt {
-            if (refunded) true else {
+            if (attempted) refunded else {
+                attempted = true
                 val successful = try {
                     currency.isEnabled && economy.isEnabled &&
                         economy.depositPlayer(account, cost.toDouble()).transactionSuccess()

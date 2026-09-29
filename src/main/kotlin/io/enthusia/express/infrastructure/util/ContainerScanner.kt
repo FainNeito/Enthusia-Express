@@ -10,6 +10,33 @@ import org.bukkit.inventory.meta.BlockStateMeta
 import org.bukkit.inventory.meta.BundleMeta
 
 object ContainerScanner {
+    /** Validate museum cargo without unpacking or rewriting the original payload. */
+    @JvmStatic
+    fun countMapartItems(stack: ItemStack?, maxDepth: Int): Int {
+        if (stack == null || stack.type.isAir) return 0
+        val pending = ArrayDeque<Pair<ItemStack, Int>>()
+        pending.add(stack to 0)
+        var visited = 0
+        var count = 0
+        while (pending.isNotEmpty()) {
+            require(++visited <= 8192) { "Mapart traversal exceeds safe work budget" }
+            val (item, depth) = pending.removeLast()
+            if (item.type.isAir) continue
+            if (item.type.name == "FILLED_MAP") {
+                require(item.amount in 1..64) { "Invalid map stack quantity" }
+                count = Math.addExact(count, item.amount)
+            } else {
+                require(isAllowedShippingContainer(item) && item.amount == 1) { "Only filled maps and single containers may be submitted" }
+                val children = contents(item, depth, maxOf(1, maxDepth))
+                while (children.hasNext()) {
+                    val child = children.next() ?: continue
+                    require(pending.size + visited < 8192) { "Mapart traversal exceeds safe work budget" }
+                    pending.add(child to depth + 1)
+                }
+            }
+        }
+        return count
+    }
     /** Accept nonempty shulker-box or bundle item types as shipment containers. */
     @JvmStatic
     fun isAllowedShippingContainer(stack: ItemStack?): Boolean {

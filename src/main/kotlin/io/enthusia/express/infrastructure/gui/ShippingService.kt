@@ -6,6 +6,7 @@ package io.enthusia.express.infrastructure.gui
 import io.enthusia.express.domain.MailBlockedException
 import io.enthusia.express.application.MailStore
 import io.enthusia.express.domain.MailType
+import io.enthusia.express.domain.MapartQueue
 import io.enthusia.express.infrastructure.hook.CombatLogXHook
 import io.enthusia.express.infrastructure.hook.MovementLease
 import io.enthusia.express.infrastructure.hook.MovementLocks
@@ -51,10 +52,12 @@ class ShippingService @JvmOverloads constructor(
     private val quotes = HashMap<UUID, Quote>()
     private val pending = HashSet<UUID>()
     private val targets = HashMap<UUID, UUID>()
+    private val mapartSessions = HashSet<UUID>()
 
     /** Centralize permission, in-flight-send and combat checks before accepting shipping actions. */
     private fun validateShippingAccess(sender: Player, closeBlocked: Boolean): Boolean {
-        if (!sender.hasPermission("enthusiaexpress.use") || !sender.hasPermission("enthusiaexpress.packages.send")) {
+        val permission = if (sender.uniqueId in mapartSessions) "enthusiaexpress.mapart.submit" else "enthusiaexpress.packages.send"
+        if (!sender.hasPermission("enthusiaexpress.use") || !sender.hasPermission(permission)) {
             sender.sendMessage(Text.msg(plugin.config, "no-permission"))
             return false
         }
@@ -79,6 +82,7 @@ class ShippingService @JvmOverloads constructor(
             return
         }
         sender.closeInventory()
+        mapartSessions.remove(sender.uniqueId)
         targets[sender.uniqueId] = target.uniqueId
         val inv = Bukkit.createInventory(null, 27, theme.title("shipping", TITLE_PREFIX))
         inv.setItem(CANCEL_SLOT, button("shipping.cancel", Material.BARRIER, "§cCancel"))
@@ -87,6 +91,29 @@ class ShippingService @JvmOverloads constructor(
         inv.setItem(CONFIRM_SLOT, button("shipping.quote", Material.LIME_CONCRETE, "§eView postage"))
         refreshPlaceholder(inv)
         inventories[sender.uniqueId] = inv
+        sender.openInventory(inv)
+    }
+
+    /** Reuse the recoverable cargo/payment lifecycle for museum maps and packed mapart. */
+    fun openMapart(sender: Player) {
+        if (!sender.hasPermission("enthusiaexpress.mapart.submit")) {
+            sender.sendMessage(Text.msg(plugin.config, "no-permission"))
+            return
+        }
+        sender.closeInventory()
+        mapartSessions.add(sender.uniqueId)
+        if (!validateShippingAccess(sender, false)) {
+            mapartSessions.remove(sender.uniqueId)
+            return
+        }
+        targets[sender.uniqueId] = MapartQueue.ID
+        val inv = Bukkit.createInventory(null, 27, theme.title("shipping", "Mapart Museum submission"))
+        inv.setItem(CANCEL_SLOT, button("shipping.cancel", Material.BARRIER, "§cCancel"))
+        inv.setItem(4, button("shipping.recipient", Material.MAP, "§7To: Mapart Museum"))
+        inv.setItem(CONFIRM_SLOT, button("shipping.quote", Material.LIME_CONCRETE, "§eView submission fee"))
+        quotes.remove(sender.uniqueId)
+        inventories[sender.uniqueId] = inv
+        refreshPlaceholder(inv)
         sender.openInventory(inv)
     }
 
@@ -111,7 +138,12 @@ class ShippingService @JvmOverloads constructor(
         if (!owns(sender, inv)) return
         val targetId = targets[sender.uniqueId] ?: return
         val target = Bukkit.getOfflinePlayer(targetId)
-        if (target.isOnline) {
+        if (!mapartStillEnabled(sender)) {
+            sender.sendMessage("§cMapart Museum submissions were paused. Reopen the submission menu later.")
+            sender.closeInventory()
+            return
+        }
+        if (target.isOnline && sender.uniqueId !in mapartSessions) {
             sender.sendMessage(Text.msg(plugin.config, TARGET_ONLINE))
             sender.closeInventory()
             return
@@ -119,9 +151,10 @@ class ShippingService @JvmOverloads constructor(
         val shipment = prepareShipment(sender, inv) ?: return
         if (confirmQuote(sender, inv, shipment)) {
             pending.add(sender.uniqueId)
-            main.complete(repository.isBlocked(target.uniqueId, sender.uniqueId)) { blocked, error ->
-                checkedSend(sender, inv, target, blocked, error)
-            }
+            if (sender.uniqueId in mapartSessions) checkedSend(sender, inv, target, false, null)
+            else main.complete(repository.isBlocked(target.uniqueId, sender.uniqueId)) { blocked, error ->
+                    checkedSend(sender, inv, target, blocked, error)
+                }
         }
     }
 
@@ -135,7 +168,8 @@ class ShippingService @JvmOverloads constructor(
             return true
         }
         quotes[sender.uniqueId] = Quote(shipment.payload.copyOf(), shipment.count, shipment.cost, unit)
-        val control = button("shipping.confirm", Material.LIME_CONCRETE, "§aSend package")
+        val mapart = sender.uniqueId in mapartSessions
+        val control = button("shipping.confirm", Material.LIME_CONCRETE, if (mapart) "§aSubmit mapart" else "§aSend package")
         val meta = control.itemMeta!!
         meta.lore = listOf("§eCost: ${shipment.cost} $unit", "§7${shipment.count} packed items", "§aClick again to send")
         control.itemMeta = meta
@@ -153,22 +187,28 @@ class ShippingService @JvmOverloads constructor(
     @Suppress("TooGenericExceptionCaught")
     private fun prepareShipment(sender: Player, inv: Inventory): PreparedShipment? {
         val packageItem = inv.getItem(PACKAGE_SLOT)
-        if (isPlaceholder(packageItem) || !ContainerScanner.isAllowedShippingContainer(packageItem)) {
-            sender.sendMessage(Text.msg(plugin.config, "invalid-container"))
+        val mapart = sender.uniqueId in mapartSessions
+        if (isPlaceholder(packageItem) || packageItem == null ||
+            (!mapart && !ContainerScanner.isAllowedShippingContainer(packageItem))) {
+            sender.sendMessage(if (mapart) "§cPlace filled maps, or a shulker box or bundle containing only filled maps."
+                else Text.msg(plugin.config, "invalid-container"))
             return null
         }
         checkNotNull(packageItem)
-        if (packageItem.amount != 1) {
+        if (!mapart && packageItem.amount != 1) {
             sender.sendMessage("§cSend one container at a time.")
             return null
         }
         val count: Int
         val cost: Int
         try {
-            count = ContainerScanner.countPackedItems(packageItem, plugin.config.getInt("mail.max-recursive-container-depth", 8))
-            cost = Math.multiplyExact(count, plugin.config.getInt("mail.raw-gold-per-item", 1))
+            count = if (mapart) ContainerScanner.countMapartItems(packageItem, plugin.config.getInt("mail.max-recursive-container-depth", 8))
+                else ContainerScanner.countPackedItems(packageItem, plugin.config.getInt("mail.max-recursive-container-depth", 8))
+            cost = if (mapart) plugin.config.getInt("mapart.raw-gold-postage", 1)
+                else Math.multiplyExact(count, plugin.config.getInt("mail.raw-gold-per-item", 1))
         } catch (e: IllegalArgumentException) {
-            sender.sendMessage("§cContainer nesting or shipment cost exceeds the configured limits.")
+            sender.sendMessage(if (mapart) "§cSubmit only filled maps in valid shulker boxes or bundles within the nesting limits."
+                else "§cContainer nesting or shipment cost exceeds the configured limits.")
             return null
         } catch (e: ArithmeticException) {
             sender.sendMessage("§cContainer nesting or shipment cost exceeds the configured limits.")
@@ -199,11 +239,19 @@ class ShippingService @JvmOverloads constructor(
     private fun currentShippingSession(sender: Player, inv: Inventory) =
         plugin.isEnabled && sender.isOnline && Bukkit.getPlayer(sender.uniqueId) === sender && owns(sender, inv)
 
+    private fun mapartStillEnabled(sender: Player): Boolean = sender.uniqueId !in mapartSessions ||
+        plugin.config.getBoolean("mapart.enabled", true)
+
     /** Recheck the live inventory and quote after the asynchronous block lookup, before charging. */
     private fun checkedSend(sender: Player, inv: Inventory, target: OfflinePlayer, blocked: Boolean?, error: Throwable?) {
         pending.remove(sender.uniqueId)
         if (!currentShippingSession(sender, inv)) return
         if (!validateShippingAccess(sender, true)) return
+        if (!mapartStillEnabled(sender)) {
+            sender.sendMessage("§cMapart Museum submissions were paused. Reopen the submission menu later.")
+            sender.closeInventory()
+            return
+        }
         if (error != null) {
             sender.sendMessage(Text.msg(plugin.config, "database-error"))
             return
@@ -212,7 +260,7 @@ class ShippingService @JvmOverloads constructor(
             sender.sendMessage(Text.msgOrDefault(plugin.config, "recipient-not-accepting", "&cThat player is not accepting your mail."))
             return
         }
-        if (target.isOnline) {
+        if (target.isOnline && sender.uniqueId !in mapartSessions) {
             sender.sendMessage(Text.msg(plugin.config, TARGET_ONLINE))
             return
         }
@@ -241,9 +289,20 @@ class ShippingService @JvmOverloads constructor(
                 return
             }
             val payment = ReservedPayment(receipt, unit, lease, intent)
-            if (!currentShippingSession(sender, inv) || target.isOnline || !eligibleSender(sender)) {
+            if (!currentShippingSession(sender, inv) || !mapartStillEnabled(sender) ||
+                (target.isOnline && sender.uniqueId !in mapartSessions) || !eligibleSender(sender)) {
                 deferCompensation(sender, payment, "§eShipment cancelled; your cargo and fee will be returned.")
                 pending.remove(sender.uniqueId)
+                return
+            }
+            // Persist removal before a durable mail row can expose the cargo to a recipient.
+            try {
+                sender.saveData()
+            } catch (error: RuntimeException) {
+                pending.remove(sender.uniqueId)
+                plugin.logger.log(java.util.logging.Level.SEVERE,
+                    "Inventory save failed; retain shipping recovery ${intent.id} for reconciliation", error)
+                sender.sendMessage("§cShipment held for administrator review. Reference: ${intent.id}")
                 return
             }
             submitReserved(sender, target, shipment, payment)
@@ -283,34 +342,50 @@ class ShippingService @JvmOverloads constructor(
 
     /** Recheck permission and combat changes caused by payment listeners. */
     private fun eligibleSender(sender: Player): Boolean = combatHook.mayUseMail(sender) &&
-        sender.hasPermission("enthusiaexpress.use") && sender.hasPermission("enthusiaexpress.packages.send")
+        sender.hasPermission("enthusiaexpress.use") && sender.hasPermission(
+            if (sender.uniqueId in mapartSessions) "enthusiaexpress.mapart.submit" else "enthusiaexpress.packages.send")
 
     /** Hold the movement lease until storage accepts the shipment or compensation is complete. */
     private fun submitReserved(sender: Player, target: OfflinePlayer, shipment: PreparedShipment,
                                payment: ReservedPayment) {
+        val mapart = sender.uniqueId in mapartSessions
+        val mapMeta = shipment.payloadItem.itemMeta as? org.bukkit.inventory.meta.MapMeta
+        val mapName = (if (mapart) mapMeta?.displayName?.takeIf { it.isNotBlank() } else null)
+            ?.take(128) ?: if (mapart && mapMeta == null) "Mapart package (${shipment.count} maps)" else "Untitled map"
+        val mapId = if (mapart) mapMeta?.mapView?.id else null
         sender.closeInventory()
         targets.remove(sender.uniqueId)
-        val targetName = target.name ?: target.uniqueId.toString()
+        val targetName = if (mapart) MapartQueue.NAME else target.name ?: target.uniqueId.toString()
         pending.add(sender.uniqueId)
-        val submission = Submission(sender, targetName, shipment, payment)
-        main.complete(repository.insertMailLimited(sender.uniqueId, sender.name, target.uniqueId, targetName,
-            MailType.PACKAGE, shipment.payload, shipment.count, plugin.config.getBoolean("mail.limits.one-outstanding-package-per-recipient", false))) { result, error ->
+        val submission = Submission(sender, targetName, shipment, payment, mapart)
+        val write = if (mapart) repository.insertMapart(sender.uniqueId, sender.name,
+            shipment.payload, mapId, mapName, payment.intent.id).thenApply { java.util.OptionalLong.of(it) }
+        else repository.insertMailLimited(sender.uniqueId, sender.name, target.uniqueId, targetName,
+            MailType.PACKAGE, shipment.payload, shipment.count, plugin.config.getBoolean("mail.limits.one-outstanding-package-per-recipient", false))
+        main.complete(write) { result, error ->
             completeShipment(submission, result, error)
         }
     }
 
     private data class Submission(val sender: Player, val targetName: String,
-                                  val shipment: PreparedShipment, val payment: ReservedPayment)
+                                  val shipment: PreparedShipment, val payment: ReservedPayment, val mapart: Boolean)
 
     /** Resolve persistence before releasing the lease or scheduling durable compensation. */
     private fun completeShipment(submission: Submission, result: java.util.OptionalLong?, error: Throwable?) {
-        val (sender, targetName, shipment, payment) = submission
+        val (sender, targetName, shipment, payment, mapart) = submission
         pending.remove(sender.uniqueId)
+        if (io.enthusia.express.domain.UncertainMailCommitException.causedBy(error)) {
+            payment.lease.close()
+            plugin.logger.severe("Mail commit uncertain; retain shipping recovery ${payment.intent.id}: ${error?.message}")
+            sender.sendMessage("§cShipment outcome requires administrator review. Reference: ${payment.intent.id}")
+            return
+        }
         if (error == null && result?.isPresent == true) {
             payment.lease.close()
             finishRecovery(payment.intent)
             sounds.play(sender, SoundFeedback.Cue.PACKAGE_SEND)
-            sender.sendMessage(Text.msg(plugin.config, "package-sent", mapOf("target" to targetName,
+            if (mapart) sender.sendMessage("§aMapart Museum submission #${result.asLong} delivered to the management inbox.")
+            else sender.sendMessage(Text.msg(plugin.config, "package-sent", mapOf("target" to targetName,
                 "currency" to payment.unit, "cost" to shipment.cost.toString(), "items" to shipment.count.toString())))
             return
         }
@@ -435,6 +510,7 @@ class ShippingService @JvmOverloads constructor(
             player.inventory.addItem(stack).values.forEach { player.world.dropItemNaturally(player.location, it) }
         }
         targets.remove(player.uniqueId)
+        mapartSessions.remove(player.uniqueId)
         inventories.remove(player.uniqueId)
         quotes.remove(player.uniqueId)
     }
@@ -448,7 +524,9 @@ class ShippingService @JvmOverloads constructor(
         if (current != null && !current.type.isAir) return
         val marker = button("shipping.placeholder", Material.GRAY_STAINED_GLASS_PANE, "§7Place package here")
         val meta = marker.itemMeta!!
-        meta.lore = listOf("§7Shulker boxes or bundles", "§7Click View postage for cost")
+        meta.lore = if (inventories.entries.any { it.value === inventory && it.key in mapartSessions })
+            listOf("§7Filled maps, or maps in a", "§7shulker box or bundle", "§7Click to view the submission fee")
+        else listOf("§7Shulker boxes or bundles", "§7Click View postage for cost")
         meta.persistentDataContainer.set(placeholderKey, PersistentDataType.BYTE, 1.toByte())
         marker.itemMeta = meta
         inventory.setItem(PACKAGE_SLOT, marker)

@@ -32,6 +32,9 @@ class EnthusiaExpressPlugin : JavaPlugin() {
     private var compensationTask: org.bukkit.scheduler.BukkitTask? = null
     private var mailboxTask: org.bukkit.scheduler.BukkitTask? = null
     private var acknowledgmentTask: org.bukkit.scheduler.BukkitTask? = null
+    private var toastTask: org.bukkit.scheduler.BukkitTask? = null
+    private var toastService: io.enthusia.express.infrastructure.mail.MailToastService? = null
+    private var toastRenderer: io.enthusia.express.infrastructure.hook.NativeMailToast? = null
 
     /** Initialize storage, completion dispatch and optional integrations, then register mail commands and listeners. */
     override fun onEnable() {
@@ -45,7 +48,10 @@ class EnthusiaExpressPlugin : JavaPlugin() {
         startReceiptRetries(main, acknowledgments)
         val sounds = SoundFeedback(this).also { it.validate() }
         val combatHook = CombatLogXHook(this)
-        val movementLocks = EnthusiaCurrencyMovementLocks(this).also { this.movementLocks = it }
+        val movementLocks = EnthusiaCurrencyMovementLocks(this).also {
+            this.movementLocks = it
+            it.bindIfPresent()
+        }
         val shipping = ShippingService(this, repository, combatHook, main, sounds, movementLocks).also { shippingService = it }
         compensationTask = Bukkit.getScheduler().runTaskTimer(this, Runnable { shipping.retryCompensations() }, 1L, 100L)
         val mailbox = MailboxService(this, repository, combatHook, main, sounds, acknowledgments, movementLocks).also { mailboxService = it }
@@ -58,8 +64,19 @@ class EnthusiaExpressPlugin : JavaPlugin() {
         Bukkit.getPluginManager().registerEvents(command.recipientNames, this)
         Bukkit.getPluginManager().registerEvents(GuiListener(shipping, mailbox), this)
         Bukkit.getPluginManager().registerEvents(JoinNotificationService(this, repository, main), this)
+        startToasts(repository, main)
         expiration.start()
         logger.info("Enthusia Express enabled.")
+    }
+
+    /** Wire the cosmetic arrival observer independently from mail mutations. */
+    private fun startToasts(repository: MailRepository, main: MainThread) {
+        if (!config.getBoolean("notifications.toast.enabled", true)) return
+        val renderer = io.enthusia.express.infrastructure.hook.NativeMailToast(this).also { toastRenderer = it }
+        val service = io.enthusia.express.infrastructure.mail.MailToastService(this, repository, main, renderer)
+            .also { toastService = it }
+        Bukkit.getPluginManager().registerEvents(service, this)
+        toastTask = Bukkit.getScheduler().runTaskTimer(this, Runnable { service.poll() }, 20L, 20L)
     }
 
     /** Keep receipt retry scheduling separate from service construction. */
@@ -74,6 +91,9 @@ class EnthusiaExpressPlugin : JavaPlugin() {
 
     /** Stop recurring work, return open cargo, drain completions and close the receipt journal before SQLite. */
     override fun onDisable() {
+        toastTask?.cancel()
+        toastService?.close()
+        toastRenderer?.close()
         compensationTask?.cancel()
         mailboxTask?.cancel()
         acknowledgmentTask?.cancel()

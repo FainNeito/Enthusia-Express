@@ -4,11 +4,14 @@
 package io.enthusia.express.infrastructure.db
 
 import io.enthusia.express.domain.MailBlockedException
+import io.enthusia.express.application.MAIL_PAGE_SIZE
 import io.enthusia.express.application.MailStore
 import io.enthusia.express.domain.MailRecord
 import io.enthusia.express.domain.MailStatus
 import io.enthusia.express.domain.MailSummary
 import io.enthusia.express.domain.MailType
+import io.enthusia.express.domain.MapartSubmission
+import io.enthusia.express.domain.MapartQueue
 import java.io.File
 import java.nio.file.Files
 import java.sql.Connection
@@ -76,7 +79,18 @@ class MailRepository(
                 st.execute("CREATE INDEX IF NOT EXISTS idx_mail_recipient_status ON mail(recipient_uuid, status, type)")
                 st.execute("CREATE INDEX IF NOT EXISTS idx_mail_expiration ON mail(status, updated_at)")
                 st.execute("CREATE INDEX IF NOT EXISTS idx_mail_sent ON mail(sender_uuid, type, created_at DESC, id DESC)")
+                st.execute("CREATE INDEX IF NOT EXISTS idx_mail_notifications ON mail(recipient_uuid, id)")
                 st.execute("CREATE TABLE IF NOT EXISTS mail_blocks (owner_uuid TEXT NOT NULL, sender_uuid TEXT NOT NULL, sender_name TEXT NOT NULL, PRIMARY KEY(owner_uuid,sender_uuid))")
+                st.execute("""CREATE TABLE IF NOT EXISTS mapart_submissions (
+                    mail_id INTEGER PRIMARY KEY REFERENCES mail(id),
+                    token TEXT NOT NULL UNIQUE,
+                    map_id INTEGER,
+                    map_name TEXT NOT NULL,
+                    submitted_at INTEGER NOT NULL,
+                    processed_at INTEGER,
+                    processed_by TEXT
+                )""")
+                st.execute("CREATE INDEX IF NOT EXISTS idx_mapart_status ON mapart_submissions(processed_at,mail_id)")
                 val columns = HashSet<String>()
                 st.executeQuery("PRAGMA table_info(mail)").use { rs ->
                     while (rs.next()) columns.add(rs.getString("name"))
@@ -89,6 +103,15 @@ class MailRepository(
                     st.execute("ALTER TABLE mail ADD COLUMN original_recipient_name TEXT")
                     st.execute("UPDATE mail SET original_recipient_name=recipient_name WHERE return_delivery=0")
                 }
+                val mapartColumns = HashSet<String>()
+                st.executeQuery("PRAGMA table_info(mapart_submissions)").use { rs ->
+                    while (rs.next()) mapartColumns.add(rs.getString("name"))
+                }
+                if ("processed_by" !in mapartColumns) st.execute("ALTER TABLE mapart_submissions ADD COLUMN processed_by TEXT")
+                // A prior test build addressed pending maps to one person. Rehome only unclaimed rows.
+                st.execute("UPDATE mail SET recipient_uuid='${MapartQueue.ID}',recipient_name='${MapartQueue.NAME}'," +
+                    "original_recipient_name='${MapartQueue.NAME}' WHERE status='UNCLAIMED' AND delivery_pending=0" +
+                    " AND id IN (SELECT mail_id FROM mapart_submissions)")
             }
         }
     }
@@ -105,6 +128,93 @@ class MailRepository(
         return supply { inTransaction { insert(InsertData(sender, senderName, recipient, recipientName, type, copy, packedCount, returned)) } }
     }
 
+    /** Persist a map and its identifying metadata atomically; duplicate recovery tokens return the first row. */
+    override fun insertMapart(sender: UUID, senderName: String, payload: ByteArray,
+                              mapId: Int?, mapName: String, token: UUID): CompletableFuture<Long> {
+        require(mapName.isNotBlank() && mapName.length <= 128)
+        require(payload.isNotEmpty())
+        val copy = payload.clone()
+        return supply {
+            inTransaction {
+                val existing = connection.prepareStatement("SELECT mail_id FROM mapart_submissions WHERE token=?").use { ps ->
+                    ps.setString(1, token.toString())
+                    ps.executeQuery().use { rs -> if (rs.next()) rs.getLong(1) else null }
+                }
+                if (existing != null) existing else {
+                    val id = insert(InsertData(sender, senderName, MapartQueue.ID, MapartQueue.NAME,
+                        MailType.PACKAGE, copy, 1, false), false)
+                    connection.prepareStatement("INSERT INTO mapart_submissions(mail_id,token,map_id,map_name,submitted_at) VALUES(?,?,?,?,?)").use { ps ->
+                        ps.setLong(1, id)
+                        ps.setString(2, token.toString())
+                        if (mapId == null) ps.setNull(3, java.sql.Types.INTEGER) else ps.setInt(3, mapId)
+                        ps.setString(4, mapName)
+                        ps.setLong(5, System.currentTimeMillis())
+                        ps.executeUpdate()
+                    }
+                    id
+                }
+            }
+        }
+    }
+
+    /** Keep manager intake separate from normal player mail, including processed history. */
+    override fun listMapart(page: Int, processed: Boolean): CompletableFuture<List<MapartSubmission>> {
+        if (page < 0 || page > 1_000_000) return CompletableFuture.failedFuture(IllegalArgumentException(INVALID_PAGE))
+        return supply {
+            val rows = ArrayList<MapartSubmission>()
+            val sql = "SELECT $PAGE_COLUMNS,s.map_id,s.map_name,s.submitted_at,s.processed_at,s.processed_by FROM mapart_submissions s JOIN mail m ON m.id=s.mail_id" +
+                " WHERE s.processed_at IS ${if (processed) "NOT NULL" else "NULL"}" +
+                " ORDER BY s.submitted_at DESC,s.mail_id DESC LIMIT $MAIL_PAGE_SIZE OFFSET ?"
+            connection.prepareStatement(sql).use { ps ->
+                ps.setInt(1, page * MAIL_PAGE_SIZE)
+                ps.executeQuery().use { rs -> while (rs.next()) rows.add(readMapart(rs)) }
+            }
+            rows
+        }
+    }
+
+    /** Resolve a selected intake row without exposing unrelated package records. */
+    override fun getMapart(id: Long): CompletableFuture<MapartSubmission?> = supply {
+        connection.prepareStatement("SELECT m.*,s.map_id,s.map_name,s.submitted_at,s.processed_at,s.processed_by FROM mapart_submissions s JOIN mail m ON m.id=s.mail_id WHERE m.id=?").use { ps ->
+            ps.setLong(1, id)
+            ps.executeQuery().use { rs -> if (rs.next()) readMapart(rs) else null }
+        }
+    }
+
+    /** Require a confirmed inventory delivery before the manager can mark a map processed. */
+    override fun markMapartProcessed(id: Long, manager: UUID): CompletableFuture<Boolean> = supply {
+        connection.prepareStatement("UPDATE mapart_submissions SET processed_at=?,processed_by=? WHERE mail_id=?" +
+            " AND processed_at IS NULL AND EXISTS" +
+            " (SELECT 1 FROM mail WHERE id=? AND status='CLAIMED' AND delivery_pending=0)").use { ps ->
+            ps.setLong(1, System.currentTimeMillis())
+            ps.setString(2, manager.toString())
+            ps.setLong(3, id)
+            ps.setLong(4, id)
+            ps.executeUpdate() == 1
+        }
+    }
+
+    /** Reserve one shared-queue map for one manager, preventing a second manager from claiming it. */
+    override fun claimMapart(record: MailRecord, manager: UUID, managerName: String): CompletableFuture<Boolean> = supply {
+        if (record.type != MailType.PACKAGE || record.status != MailStatus.UNCLAIMED || record.recipient != MapartQueue.ID) false
+        else connection.prepareStatement("UPDATE mail SET recipient_uuid=?,recipient_name=?,status='CLAIMED'," +
+            "unread=0,delivery_pending=1,updated_at=? WHERE id=? AND recipient_uuid=? AND status='UNCLAIMED'" +
+            " AND claim_generation=? AND id IN (SELECT mail_id FROM mapart_submissions WHERE processed_at IS NULL)").use { ps ->
+            ps.setString(1, manager.toString())
+            ps.setString(2, managerName)
+            ps.setLong(3, System.currentTimeMillis())
+            ps.setLong(4, record.id)
+            ps.setString(5, MapartQueue.ID.toString())
+            ps.setLong(6, record.claimGeneration)
+            ps.executeUpdate() == 1
+        }
+    }
+
+    private fun readMapart(rs: ResultSet): MapartSubmission = MapartSubmission(
+        read(rs), rs.getInt("map_id").let { if (rs.wasNull()) null else it }, rs.getString("map_name"),
+        rs.getLong("submitted_at"), rs.getLong("processed_at").let { if (rs.wasNull()) null else it },
+        rs.getInt("delivery_pending") != 0, rs.getString("processed_by")?.let(UUID::fromString))
+
     private data class InsertData(
         val sender: UUID?, val senderName: String, val recipient: UUID, val recipientName: String,
         val type: MailType, val payload: ByteArray, val packedCount: Int, val returned: Boolean,
@@ -114,8 +224,8 @@ class MailRepository(
     private fun rejectBlocked(data: InsertData) = !data.returned && data.sender != null && blocked(data.recipient, data.sender)
 
     /** Bind a prepared mail record to the shared connection and return its generated identifier. */
-    private fun insert(data: InsertData): Long {
-        if (rejectBlocked(data))
+    private fun insert(data: InsertData, respectPersonalBlocks: Boolean = true): Long {
+        if (respectPersonalBlocks && rejectBlocked(data))
             throw MailBlockedException()
         val now = System.currentTimeMillis()
         val sql = "INSERT INTO" +
@@ -168,14 +278,15 @@ class MailRepository(
         if (page < 0 || page > 1_000_000) return CompletableFuture.failedFuture(IllegalArgumentException(INVALID_PAGE))
         return supply {
             val out = ArrayList<MailRecord>()
-            val sql = "SELECT $PAGE_COLUMNS FROM mail WHERE recipient_uuid=? AND type=? AND status IN (?,?) ORDER BY" +
-                " created_at DESC, id DESC LIMIT 45 OFFSET ?"
+            val sql = "SELECT $PAGE_COLUMNS FROM mail WHERE recipient_uuid=? AND type=? AND status IN (?,?)" +
+                " AND id NOT IN (SELECT mail_id FROM mapart_submissions) ORDER BY" +
+                " created_at DESC, id DESC LIMIT $MAIL_PAGE_SIZE OFFSET ?"
             connection.prepareStatement(sql).use { ps ->
                 ps.setString(1, recipient.toString())
                 ps.setString(2, type.name)
                 ps.setString(3, MailStatus.UNCLAIMED.name)
                 ps.setString(4, MailStatus.RETURNED.name)
-                ps.setInt(5, page * 45)
+                ps.setInt(5, page * MAIL_PAGE_SIZE)
                 ps.executeQuery().use { rs -> while (rs.next()) out.add(read(rs)) }
             }
             out
@@ -187,10 +298,11 @@ class MailRepository(
         if (page < 0 || page > 1_000_000) return CompletableFuture.failedFuture(IllegalArgumentException(INVALID_PAGE))
         return supply {
             val out = ArrayList<io.enthusia.express.domain.SentMailRecord>()
-            connection.prepareStatement("SELECT $PAGE_COLUMNS FROM mail WHERE sender_uuid=? AND type=? ORDER BY created_at DESC, id DESC LIMIT 45 OFFSET ?").use { ps ->
+            connection.prepareStatement("SELECT $PAGE_COLUMNS FROM mail WHERE sender_uuid=? AND type=?" +
+                " AND id NOT IN (SELECT mail_id FROM mapart_submissions) ORDER BY created_at DESC, id DESC LIMIT $MAIL_PAGE_SIZE OFFSET ?").use { ps ->
                 ps.setString(1, sender.toString())
                 ps.setString(2, type.name)
-                ps.setInt(3, page * 45)
+                ps.setInt(3, page * MAIL_PAGE_SIZE)
                 ps.executeQuery().use { rs ->
                     while (rs.next()) out.add(io.enthusia.express.domain.SentMailRecord(
                         read(rs), rs.getString("original_recipient_name"), rs.getInt("delivery_pending") != 0))
@@ -249,7 +361,24 @@ class MailRepository(
     /** Restore an undelivered pending claim to its original status and timestamp. */
     override fun restoreClaim(record: MailRecord): CompletableFuture<Boolean> = supply {
         require(record.type == MailType.PACKAGE && record.status in setOf(MailStatus.UNCLAIMED, MailStatus.RETURNED))
-        connection.prepareStatement(
+        val mapart = connection.prepareStatement("SELECT 1 FROM mapart_submissions WHERE mail_id=?").use { ps ->
+            ps.setLong(1, record.id)
+            ps.executeQuery().use { it.next() }
+        }
+        if (mapart) connection.prepareStatement(
+            "UPDATE mail SET recipient_uuid=?,recipient_name=?,status='UNCLAIMED',unread=1," +
+                "delivery_pending=0,claim_generation=claim_generation+1,updated_at=?" +
+                " WHERE id=? AND recipient_uuid=? AND status='CLAIMED' AND delivery_pending=1" +
+                " AND claim_generation=? AND id IN (SELECT mail_id FROM mapart_submissions WHERE processed_at IS NULL)"
+        ).use { ps ->
+            ps.setString(1, MapartQueue.ID.toString())
+            ps.setString(2, MapartQueue.NAME)
+            ps.setLong(3, record.updatedAt)
+            ps.setLong(4, record.id)
+            ps.setString(5, record.recipient.toString())
+            ps.setLong(6, record.claimGeneration)
+            ps.executeUpdate() == 1
+        } else connection.prepareStatement(
             "UPDATE mail SET status=?, unread=1, delivery_pending=0, claim_generation=claim_generation+1, updated_at=? WHERE id=? AND recipient_uuid=? AND status=? AND delivery_pending=1 AND type='PACKAGE' AND claim_generation=?"
         ).use { ps ->
             ps.setString(1, record.status.name)
@@ -291,7 +420,8 @@ class MailRepository(
             var changed = connection.prepareStatement(
                 "UPDATE mail SET status='PURGED', payload=X'', updated_at=? WHERE" +
                     " (type='PACKAGE' AND status='RETURNED' AND updated_at<?) OR (type IN" +
-                    " ('LETTER','ANNOUNCEMENT') AND status='UNCLAIMED' AND created_at<?)"
+                    " ('LETTER','ANNOUNCEMENT') AND status='UNCLAIMED' AND created_at<?)" +
+                    " AND id NOT IN (SELECT mail_id FROM mapart_submissions)"
             ).use { ps ->
                 ps.setLong(1, now)
                 ps.setLong(2, purgeCutoff)
@@ -304,7 +434,8 @@ class MailRepository(
                     " sender_name END, status=CASE WHEN sender_uuid IS NULL THEN 'PURGED'" +
                     " ELSE 'RETURNED' END, payload=CASE WHEN sender_uuid IS NULL THEN X''" +
                     " ELSE payload END, unread=1, return_delivery=1, updated_at=? WHERE" +
-                    " type='PACKAGE' AND status='UNCLAIMED' AND updated_at<?"
+                " type='PACKAGE' AND status='UNCLAIMED' AND updated_at<?" +
+                    " AND id NOT IN (SELECT mail_id FROM mapart_submissions)"
             ).use { ps ->
                 ps.setLong(1, now)
                 ps.setLong(2, returnCutoff)
@@ -390,11 +521,30 @@ class MailRepository(
             " SUM(CASE WHEN type='PACKAGE' AND status IN ('UNCLAIMED','RETURNED') THEN 1 ELSE 0 END)," +
             " SUM(CASE WHEN type='LETTER' AND status='UNCLAIMED' AND unread=1 THEN 1 ELSE 0 END)," +
             " SUM(CASE WHEN type='ANNOUNCEMENT' AND status='UNCLAIMED' AND unread=1 THEN 1 ELSE 0 END)" +
-            " FROM mail WHERE recipient_uuid=?"
+            " FROM mail WHERE recipient_uuid=? AND id NOT IN (SELECT mail_id FROM mapart_submissions)"
         connection.prepareStatement(sql).use { ps ->
             ps.setString(1, recipient.toString())
             ps.executeQuery().use { rs ->
                 if (rs.next()) MailSummary(rs.getInt(1), rs.getInt(2), rs.getInt(3)) else MailSummary(0, 0, 0)
+            }
+        }
+    }
+
+    /** Count new pending rows and advance past all history in one consistent SQLite statement. */
+    override fun mailNotification(recipient: UUID, afterId: Long): CompletableFuture<io.enthusia.express.domain.MailNotification> = supply {
+        val sql = "SELECT MAX(id), SUM(CASE WHEN pending THEN 1 ELSE 0 END)," +
+            " MIN(CASE WHEN pending THEN sender_name END), MIN(CASE WHEN pending THEN type END)" +
+            " FROM (SELECT id, sender_name, type, ((type='PACKAGE' AND status IN ('UNCLAIMED','RETURNED'))" +
+            " OR (type IN ('LETTER','ANNOUNCEMENT') AND status='UNCLAIMED' AND unread=1)) AS pending" +
+            " FROM mail WHERE id > ? AND recipient_uuid=? AND id NOT IN (SELECT mail_id FROM mapart_submissions))"
+        connection.prepareStatement(sql).use { statement ->
+            statement.setLong(1, afterId)
+            statement.setString(2, recipient.toString())
+            statement.executeQuery().use { rows ->
+                rows.next()
+                val count = rows.getInt(2)
+                io.enthusia.express.domain.MailNotification(count, if (count == 1) rows.getString(3) else null,
+                    if (count == 1) MailType.valueOf(rows.getString(4)) else null, maxOf(afterId, rows.getLong(1)))
             }
         }
     }
@@ -431,7 +581,11 @@ class MailRepository(
         try {
             connection.autoCommit = false
             val result = task()
-            connection.commit()
+            try {
+                connection.commit()
+            } catch (commitError: Exception) {
+                throw io.enthusia.express.domain.UncertainMailCommitException(commitError)
+            }
             return result
         } catch (error: Exception) {
             failure = error

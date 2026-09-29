@@ -117,7 +117,7 @@ class CurrencyShippingTest {
     }
   }
 
-  private Economy install(ShippingServiceTest.Fixture f) {
+  Economy install(ShippingServiceTest.Fixture f) {
     when(f.plugin.getDataFolder()).thenReturn(paymentDirectory.toFile());
     f.plugin.getConfig().set("payments.provider", "auto");
     PluginManager manager = mock(PluginManager.class);
@@ -322,11 +322,11 @@ class CurrencyShippingTest {
       when(f.sender.isOnline()).thenReturn(false);
       pending.complete(OptionalLong.empty());
       verify(economy, never()).depositPlayer(any(OfflinePlayer.class), anyDouble());
-      verify(f.sender, never()).saveData();
+      verify(f.sender, times(1)).saveData(); // Sender reservation was saved before insertion.
       when(f.sender.isOnline()).thenReturn(true);
       f.service.retryCompensations();
       verify(economy).depositPlayer((OfflinePlayer) f.sender, 2.0);
-      verify(f.sender).saveData();
+      verify(f.sender, times(2)).saveData();
     }
   }
   /** Verifies that physical mode loads without vault classes. */

@@ -3,10 +3,13 @@
 
 package io.enthusia.express.infrastructure.gui
 
+import io.enthusia.express.application.MAIL_PAGE_SIZE
 import io.enthusia.express.application.MailStore
 import io.enthusia.express.domain.MailRecord
 import io.enthusia.express.domain.MailStatus
 import io.enthusia.express.domain.MailType
+import io.enthusia.express.domain.MapartSubmission
+import io.enthusia.express.domain.MapartQueue
 import io.enthusia.express.infrastructure.db.DeliveryAcknowledgments
 import io.enthusia.express.infrastructure.hook.CombatLogXHook
 import io.enthusia.express.infrastructure.hook.MovementLease
@@ -15,6 +18,10 @@ import io.enthusia.express.infrastructure.util.ItemCodec
 import io.enthusia.express.infrastructure.util.MainThread
 import io.enthusia.express.infrastructure.util.SoundFeedback
 import io.enthusia.express.infrastructure.util.Text
+import java.time.Instant
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import java.util.UUID
 import java.util.logging.Level
 import org.bukkit.Bukkit
@@ -43,7 +50,8 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
     private val requested = HashMap<UUID, Pair<Player, Session>>()
     private var stopping = false
 
-    private class Session(val inventory: Inventory, val type: MailType, val page: Int, val sent: Boolean) {
+    private class Session(val inventory: Inventory, val type: MailType, val page: Int, val sent: Boolean,
+                          val mapart: Boolean = false, val processed: Boolean = false) {
         val records = HashMap<Int, MailRecord>()
         var loaded = false
     }
@@ -59,6 +67,35 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
     /** Open the sender-owned history without giving access to recipient claims. */
     fun openSent(player: Player, type: MailType) { openPage(player, type, 0, true) }
 
+    /** Any permission holder can access the shared intake and processed-history views. */
+    fun openMapart(player: Player, processed: Boolean = false) { openMapartPage(player, 0, processed) }
+
+    private fun managerAccess(player: Player): Boolean {
+        return player.hasPermission("enthusiaexpress.mapart.manage") &&
+            !stopping && player.isOnline && !player.isDead && player.hasPermission("enthusiaexpress.use") &&
+            combatHook.mayUseMail(player)
+    }
+
+    private fun openMapartPage(player: Player, page: Int, processed: Boolean) {
+        if (!managerAccess(player)) {
+            player.sendMessage("§cMapart Manager access is unavailable. Check your permission and combat status.")
+            return
+        }
+        if (page !in 0..1_000_000) return
+        val inv = Bukkit.createInventory(null, 54, if (processed) "§6Mapart • Processed" else "§6Mapart • Intake")
+        val session = Session(inv, MailType.PACKAGE, page, false, true, processed)
+        sessions[player.uniqueId] = session
+        player.openInventory(inv)
+        requested[player.uniqueId] = player to session
+        loadPendingPages()
+    }
+
+    /** Keep the current mailbox location visible even when no control is hovered. */
+    private fun mailboxTitle(sent: Boolean): String {
+        val base = theme.title("mailbox", "§6Enthusia Express")
+        return base + " §8• §f" + if (sent) "Sent Mail" else "Inbox"
+    }
+
     /** Create a bounded inbox session and request its rows asynchronously. */
     private fun openPage(player: Player, type: MailType, page: Int, sent: Boolean = false) {
         if (!allowed(player, sent)) {
@@ -66,8 +103,9 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
             return
         }
         if (page < 0 || page > 1_000_000) return
-        val existing = sessions[player.uniqueId]?.inventory?.takeIf { player.openInventory.topInventory === it }
-        val inv = existing ?: Bukkit.createInventory(null, 54, theme.title("mailbox", TITLE_PREFIX))
+        val current = sessions[player.uniqueId]
+        val existing = current?.inventory?.takeIf { current.sent == sent && player.openInventory.topInventory === it }
+        val inv = existing ?: Bukkit.createInventory(null, 54, mailboxTitle(sent))
         if (existing != null) inv.clear()
         val session = Session(inv, type, page, sent)
         sessions[player.uniqueId] = session
@@ -91,6 +129,13 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
 
     /** Dispatch a single bounded page; the scheduler starts the next desired view after completion. */
     private fun loadPage(player: Player, session: Session) {
+        if (session.mapart) {
+            main.complete(repository.listMapart(session.page, session.processed)) { rows, error ->
+                loading.remove(player.uniqueId)
+                renderMapart(player, session, rows, error)
+            }
+            return
+        }
         val type = session.type
         val page = session.page
         if (session.sent) {
@@ -106,6 +151,40 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
         }
     }
 
+    private fun renderMapart(player: Player, session: Session, rows: List<MapartSubmission>?, error: Throwable?) {
+        if (!active(player, session)) return
+        if (error != null) {
+            player.sendMessage(Text.msg(plugin.config, "database-error"))
+            return
+        }
+        val entries = checkNotNull(rows)
+        for ((index, entry) in entries.withIndex()) {
+            val slot = MailboxControls.CONTENT_START + index
+            val icon = ItemStack(Material.FILLED_MAP)
+            val meta = icon.itemMeta!!
+            meta.setDisplayName("§e${entry.mapName.take(48)}")
+            meta.lore = listOf("§7Submission #${entry.mail.id}", "§7Artist: §f${entry.mail.senderName}",
+                "§7Map ID: §f${entry.mapId ?: "unknown"}",
+                "§7Submitted: §f${dateFormat.format(Instant.ofEpochMilli(entry.submittedAt))}",
+                if (entry.mail.status == MailStatus.CLAIMED) "§7Claimed by: §f${entry.mail.recipientName}" else "§7Shared manager queue",
+                if (entry.processedBy != null) "§7Processed by: §f${entry.processedBy}" else "§7Not processed",
+                if (session.processed) "§aProcessed" else if (entry.mail.status == MailStatus.UNCLAIMED) "§eClick to claim map"
+                    else if (entry.deliveryPending) "§eDelivery acknowledgment pending" else "§aClick to mark processed")
+            icon.itemMeta = meta
+            session.inventory.setItem(slot, icon)
+            session.records[slot] = entry.mail
+        }
+        session.loaded = true
+        session.inventory.setItem(MailboxControls.PAGE_SLOT, icon(Material.PAPER, "§fPage ${session.page + 1}"))
+        session.inventory.setItem(MailboxControls.MODE_SLOT, icon(Material.BOOK,
+            if (session.processed) "§eOpen intake" else "§eView processed"))
+        session.inventory.setItem(MailboxControls.REFRESH_SLOT, icon(Material.CLOCK, "§eRefresh"))
+        session.inventory.setItem(MailboxControls.CLOSE_SLOT, icon(Material.BARRIER, "§cClose"))
+        if (session.page > 0) session.inventory.setItem(MailboxControls.PREVIOUS_SLOT, icon(Material.ARROW, "§ePrevious"))
+        if (entries.size == MAIL_PAGE_SIZE) session.inventory.setItem(MailboxControls.NEXT_SLOT, icon(Material.ARROW, "§eNext"))
+        if (entries.isEmpty()) session.inventory.setItem(31, icon(Material.MAP, "§7No mapart submissions here"))
+    }
+
     /** Populate only the still-active session after a database lookup completes. */
     private fun renderInbox(player: Player, session: Session, records: List<MailRecord>?, error: Throwable?) {
         val inv = session.inventory
@@ -116,14 +195,16 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
             return
         }
         val inboxRecords = checkNotNull(records)
-        var slot = 9
+        var slot = MailboxControls.CONTENT_START
         for (record in inboxRecords) {
             val item = mailIcon(record)
             inv.setItem(slot, item)
             session.records[slot++] = record
         }
         session.loaded = true
-        if (inboxRecords.isEmpty()) player.sendMessage(Text.msg(plugin.config, "mailbox-empty"))
+        MailboxControls.renderLoaded(inv, session.type, session.page, sent = false,
+            inboxRecords.size, inboxRecords.count { it.unread }, theme)
+        if (inboxRecords.isEmpty()) MailboxControls.emptyState(inv, session.type, session.page, sent = false)
     }
 
     /** Render only sender-owned history in the still-current session. */
@@ -135,32 +216,71 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
         }
         val entries = checkNotNull(records).filter { it.mail.sender == player.uniqueId }
         entries.forEachIndexed { index, entry ->
-            session.inventory.setItem(index + 9, SentMailDisplay.icon(entry))
-            session.records[index + 9] = entry.mail
+            val slot = MailboxControls.CONTENT_START + index
+            session.inventory.setItem(slot, SentMailDisplay.icon(entry))
+            session.records[slot] = entry.mail
         }
         session.loaded = true
-        if (entries.isEmpty()) player.sendMessage(Text.msgOrDefault(plugin.config, "sent-empty", "&7No sent mail on this page."))
+        MailboxControls.renderLoaded(session.inventory, session.type, session.page, sent = true,
+            entries.size, 0, theme)
+        if (entries.isEmpty()) MailboxControls.emptyState(session.inventory, session.type, session.page, sent = true)
     }
 
-    /** Create a display copy of mail metadata, using a barrier for unreadable persisted payloads. */
-    // Persisted ItemStack data can fail in version-specific serializers; show a barrier for that row.
+    /** Create a readable mail card without decoding persisted payloads on the main thread. */
     @Suppress("TooGenericExceptionCaught")
     private fun mailIcon(record: MailRecord): ItemStack = try {
-        val decoded = if (record.type == MailType.PACKAGE) icon(Material.CHEST, "§ePackage #${record.id}") else
-            icon(Material.WRITTEN_BOOK, (if (record.unread) "§e[Unread] " else "§7[Read] ") + record.senderName)
-        val meta = decoded.itemMeta!!
-        meta.lore = listOf("§7From: " + record.senderName, "§7Mail #" + record.id,
-            if (record.type == MailType.PACKAGE) "§aClick to claim" else "§aClick to read")
-        decoded.itemMeta = meta
-        decoded
+        val material = when (record.type) {
+            MailType.PACKAGE -> Material.CHEST
+            MailType.LETTER -> Material.WRITTEN_BOOK
+            MailType.ANNOUNCEMENT -> Material.BELL
+        }
+        val item = theme.item("mailbox.entry." + record.type.name.lowercase(Locale.ROOT), material)
+        val meta = item.itemMeta!!
+        val label = when (record.type) {
+            MailType.PACKAGE -> "Package from ${record.senderName}"
+            MailType.LETTER -> "Letter from ${record.senderName}"
+            MailType.ANNOUNCEMENT -> "Announcement from ${record.senderName}"
+        }
+        val prefix = if (record.unread) "§a● §r" else "§7"
+        val color = when (record.type) {
+            MailType.PACKAGE -> "§e"
+            MailType.LETTER -> "§f"
+            MailType.ANNOUNCEMENT -> "§6"
+        }
+        meta.setDisplayName(prefix + color + label)
+        meta.lore = inboxLore(record)
+        if (record.unread) meta.setEnchantmentGlintOverride(true)
+        item.itemMeta = meta
+        item
     } catch (e: RuntimeException) {
         val unreadable = icon(Material.BARRIER, "§cUnreadable mail #" + record.id)
         plugin.logger.warning("Unreadable mail #${record.id}: $e")
         unreadable
     }
 
+    /** Describe sender, age, status and action while leaving persisted payloads untouched. */
+    private fun inboxLore(record: MailRecord): List<String> {
+        val status = when (record.type) {
+            MailType.PACKAGE -> "§aReady to claim"
+            else -> if (record.unread) "§aUnread" else "§7Read"
+        }
+        val action = if (record.type == MailType.PACKAGE) "§eLeft-click to claim" else "§eLeft-click to read"
+        val lines = mutableListOf(
+            "§8Mail #${record.id}",
+            "",
+            "§7From: §f${record.senderName}",
+            "§7Received: §f${dateFormat.format(Instant.ofEpochMilli(record.createdAt))}",
+            "§7Status: $status",
+        )
+        if (record.type == MailType.PACKAGE) lines.add("§7Contents: §f${record.packedItemCount} packed items")
+        lines.add("")
+        lines.add(action)
+        return lines
+    }
+
     /** Check permissions, player state and exact inventory-session identity before asynchronous completion. */
-    private fun active(player: Player, session: Session): Boolean = allowed(player, session.sent) &&
+    private fun active(player: Player, session: Session): Boolean =
+        (if (session.mapart) managerAccess(player) else allowed(player, session.sent)) &&
         sessions[player.uniqueId] === session && player.openInventory.topInventory === session.inventory
 
     /** Identify the exact open inventory associated with this player session. */
@@ -184,7 +304,7 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
 
     /** Request the next page only after a full current page has loaded. */
     private fun nextPage(player: Player, session: Session) {
-        if (session.loaded && session.records.size == 45) openPage(player, session.type, session.page + 1, session.sent)
+        if (session.loaded && session.records.size == MAIL_PAGE_SIZE) openPage(player, session.type, session.page + 1, session.sent)
     }
 
     /** Handle navigation or reserve one in-flight lookup for a visible mail entry. */
@@ -196,6 +316,13 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
         }
         if (navigate(player, session, slot)) return
         val visible = session.records[slot] ?: return
+        if (session.mapart) {
+            if (session.processed || !claiming.add(player.uniqueId)) return
+            main.complete(repository.getMapart(visible.id)) { entry, error ->
+                completeMapartLookup(player, session, entry, error)
+            }
+            return
+        }
         if (session.sent) {
             readSent(player, session, visible)
             return
@@ -204,6 +331,28 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
         main.complete(repository.get(visible.id)) { record, error ->
             completeLookup(player, session, record, error)
         }
+    }
+
+    private fun completeMapartLookup(player: Player, session: Session, entry: MapartSubmission?, error: Throwable?) {
+        if (error != null || entry == null || !active(player, session) || entry.processedAt != null) {
+            claiming.remove(player.uniqueId)
+            return
+        }
+        if (entry.mail.status == MailStatus.CLAIMED && !entry.deliveryPending) {
+            main.complete(repository.markMapartProcessed(entry.mail.id, player.uniqueId)) { changed, failure ->
+                claiming.remove(player.uniqueId)
+                if (active(player, session)) {
+                    if (failure == null && changed == true) openMapartPage(player, session.page, false)
+                    else player.sendMessage("§cCannot mark that map processed; check delivery status.")
+                }
+            }
+            return
+        }
+        if (entry.mail.status != MailStatus.UNCLAIMED || entry.mail.recipient != MapartQueue.ID) {
+            claiming.remove(player.uniqueId)
+            return
+        }
+        completeLookup(player, session, entry.mail, null)
     }
 
     /** Load only the selected sent book, keeping page queries free of payloads. */
@@ -228,13 +377,27 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
 
     /** Handle category and page buttons, returning whether the slot was a navigation control. */
     private fun navigate(player: Player, session: Session, slot: Int): Boolean {
+        if (session.mapart) {
+            when (slot) {
+                MailboxControls.MODE_SLOT -> openMapartPage(player, 0, !session.processed)
+                MailboxControls.PREVIOUS_SLOT -> if (session.page > 0) openMapartPage(player, session.page - 1, session.processed)
+                MailboxControls.NEXT_SLOT -> if (session.loaded && session.records.size == MAIL_PAGE_SIZE)
+                    openMapartPage(player, session.page + 1, session.processed)
+                MailboxControls.REFRESH_SLOT -> openMapartPage(player, session.page, session.processed)
+                MailboxControls.CLOSE_SLOT -> player.closeInventory()
+                else -> return false
+            }
+            return true
+        }
         when (slot) {
             1 -> { openPage(player, MailType.PACKAGE, 0, session.sent) }
             4 -> { openPage(player, MailType.LETTER, 0, session.sent) }
             7 -> { openPage(player, MailType.ANNOUNCEMENT, 0, session.sent) }
-            3 -> { openPage(player, session.type, 0, !session.sent) }
-            0 -> { previousPage(player, session) }
-            8 -> { nextPage(player, session) }
+            MailboxControls.MODE_SLOT -> { openPage(player, session.type, 0, !session.sent) }
+            MailboxControls.PREVIOUS_SLOT -> { previousPage(player, session) }
+            MailboxControls.NEXT_SLOT -> { nextPage(player, session) }
+            MailboxControls.REFRESH_SLOT -> { openPage(player, session.type, session.page, session.sent) }
+            MailboxControls.CLOSE_SLOT -> { player.closeInventory() }
             else -> return false
         }
         return true
@@ -242,7 +405,7 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
 
     /** Revalidate session ownership and eligible row state after the asynchronous lookup. */
     private fun validRecord(player: Player, session: Session, record: MailRecord) =
-        active(player, session) && record.recipient == player.uniqueId &&
+        active(player, session) && record.recipient == (if (session.mapart) MapartQueue.ID else player.uniqueId) &&
             record.status in setOf(MailStatus.UNCLAIMED, MailStatus.RETURNED)
 
     /** Decode an eligible row and route it to package claiming or book viewing. */
@@ -268,7 +431,7 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
             player.sendMessage("§cThis mail cannot be decoded; contact an administrator.")
             return
         }
-        if (record.type == MailType.PACKAGE) claimPackage(player, record, item) else {
+        if (record.type == MailType.PACKAGE) claimPackage(player, record, item, session.mapart) else {
             openBook(player, record, item)
         }
     }
@@ -292,8 +455,9 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
     }
 
     /** Require inventory capacity, claim permission and the shared asset lease before reserving the package. */
-    private fun claimPackage(player: Player, record: MailRecord, stack: ItemStack) {
-        if (!player.hasPermission("enthusiaexpress.packages.claim") || player.inventory.firstEmpty() == -1) {
+    private fun claimPackage(player: Player, record: MailRecord, stack: ItemStack, mapart: Boolean) {
+        if (!(if (mapart) managerAccess(player) else player.hasPermission("enthusiaexpress.packages.claim")) ||
+            player.inventory.firstEmpty() == -1) {
             claiming.remove(player.uniqueId)
             player.sendMessage("§cYou need claim permission and an empty inventory slot.")
             return
@@ -306,8 +470,11 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
         }
         var submitted = false
         try {
-            val delivery = ClaimDelivery(player, record, stack, lease)
-            main.complete(repository.claim(record)) { claimed, error -> completeClaim(delivery, claimed, error) }
+            val bound = if (mapart) record.copy(recipient = player.uniqueId, recipientName = player.name) else record
+            val delivery = ClaimDelivery(player, bound, stack, lease, mapart)
+            val reservation = if (mapart) repository.claimMapart(record, player.uniqueId, player.name)
+                else repository.claim(record)
+            main.complete(reservation) { claimed, error -> completeClaim(delivery, claimed, error) }
             submitted = true
         } finally {
             if (!submitted) {
@@ -318,7 +485,7 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
     }
 
     private data class ClaimDelivery(val player: Player, val record: MailRecord,
-                                     val stack: ItemStack, val lease: MovementLease)
+                                     val stack: ItemStack, val lease: MovementLease, val mapart: Boolean)
 
     /** Recheck lease ownership and delivery eligibility before exposing claimed cargo to the player. */
     private fun completeClaim(delivery: ClaimDelivery, claimed: Boolean?, error: Throwable?) {
@@ -329,7 +496,7 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
             player.sendMessage("§cThat package could not be claimed.")
             return
         }
-        if (!lease.ensureOwned() || !eligibleForDelivery(player)) {
+        if (!lease.ensureOwned() || !eligibleForDelivery(player, delivery.mapart)) {
             lease.close()
             restoreUndelivered(player, record)
             return
@@ -341,12 +508,16 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
         claiming.remove(player.uniqueId)
         sounds.play(player, SoundFeedback.Cue.PACKAGE_CLAIM)
         player.sendMessage("§aPackage claimed.")
-        if (owns(player)) open(player, MailType.PACKAGE)
+        if (owns(player)) {
+            val session = sessions[player.uniqueId]
+            if (session?.mapart == true) openMapart(player) else open(player, MailType.PACKAGE)
+        }
     }
 
     /** Check player state separately from operation-owned movement locking. */
-    private fun eligibleForDelivery(player: Player): Boolean = allowed(player) &&
-        player.hasPermission("enthusiaexpress.packages.claim") && player.inventory.firstEmpty() != -1
+    private fun eligibleForDelivery(player: Player, mapart: Boolean): Boolean =
+        (if (mapart) managerAccess(player) else allowed(player) && player.hasPermission("enthusiaexpress.packages.claim")) &&
+        player.inventory.firstEmpty() != -1
 
     /** Bukkit inventory implementations can fail after partial mutation; rollback covers all runtime failures. */
     @Suppress("TooGenericExceptionCaught")
@@ -354,7 +525,7 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
         val (player, record, stack, lease) = delivery
         val before = snapshotInventory(player, record, lease) ?: return false
         val delivered = try {
-            player.inventory.addItem(stack).isEmpty()
+            player.inventory.addItem(stack).isEmpty().also { if (it) player.saveData() }
         } catch (error: RuntimeException) {
             recoverFailedInventoryDelivery(player, record, lease, before, error)
             return false
@@ -381,6 +552,7 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
                                                before: Array<ItemStack?>, deliveryError: RuntimeException) {
         val rolledBack = try {
             player.inventory.storageContents = before
+            player.saveData()
             true
         } catch (rollbackError: RuntimeException) {
             deliveryError.addSuppressed(rollbackError)
@@ -443,6 +615,7 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
 
     companion object {
         const val TITLE_PREFIX = "Mailbox"
+        private val dateFormat = DateTimeFormatter.ofPattern("MMM d, yyyy HH:mm 'UTC'", Locale.US).withZone(ZoneOffset.UTC)
 
         /** Create a menu decoration with a display name and no persisted-mail mutation. */
         private fun icon(material: Material, name: String): ItemStack {

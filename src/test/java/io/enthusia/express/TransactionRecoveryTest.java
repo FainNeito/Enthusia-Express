@@ -16,6 +16,29 @@ import org.junit.jupiter.api.io.TempDir;
 
 class TransactionRecoveryTest {
   @TempDir Path directory;
+  @Test void committedWriteWithLostResponseIsReportedAsUncertain() throws Exception {
+    var repository = new MailRepository(null, directory.resolve("uncertain.db").toFile(), 1000);
+    repository.initialize().join();
+    var field = MailRepository.class.getDeclaredField("connection");
+    field.setAccessible(true);
+    Connection real = (Connection) field.get(repository);
+    Connection wrapped = (Connection) java.lang.reflect.Proxy.newProxyInstance(
+        Connection.class.getClassLoader(), new Class<?>[]{Connection.class}, (proxy, method, args) -> {
+          try {
+            Object result = method.invoke(real, args);
+            if (method.getName().equals("commit")) throw new java.sql.SQLException("response lost after commit");
+            return result;
+          } catch (java.lang.reflect.InvocationTargetException error) { throw error.getCause(); }
+        });
+    field.set(repository, wrapped);
+    UUID recipient = UUID.randomUUID();
+    try {
+      var error = assertThrows(CompletionException.class, () -> repository.insertMailLimited(
+          UUID.randomUUID(), "S", recipient, "R", MailType.PACKAGE, new byte[]{1}, 1, false).join());
+      assertTrue(io.enthusia.express.domain.UncertainMailCommitException.causedBy(error));
+      assertEquals(1, repository.listInbox(recipient, MailType.PACKAGE).join().size());
+    } finally { repository.close(); }
+  }
   /** Verifies that announcement rollback preserves failure and recovers. */
 
   @Test
