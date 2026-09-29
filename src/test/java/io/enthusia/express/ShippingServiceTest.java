@@ -52,13 +52,19 @@ class ShippingServiceTest {
     }
   }
 
-  @Test void failedSenderSaveHoldsReservationWithoutPublishingOrRefunding() {
+  @Test void failedSenderSaveHoldsReservationWithoutPublishingOrRefunding() throws Exception {
     try (var f = new Fixture(OptionalLong.of(1))) {
       doThrow(new IllegalStateException("disk failure")).when(f.sender).saveData();
       f.confirm();
       f.service.retryCompensations();
       verify(f.repository, never()).insertMailLimited(any(), anyString(), any(), anyString(), any(), any(), anyInt(), anyBoolean());
       verify(f.playerInventory, never()).addItem(any(ItemStack.class));
+      try (var files = java.nio.file.Files.list(f.plugin.getDataFolder().toPath().resolve("shipping-recovery"))) {
+        var path = files.filter(file -> file.toString().endsWith(".properties")).findFirst().orElseThrow();
+        var record = new java.util.Properties();
+        try (var input = java.nio.file.Files.newInputStream(path)) { record.load(input); }
+        assertEquals("PREPARED", record.getProperty("phase"));
+      }
     }
   }
   /** A recipient block is checked before withdrawing postage. */

@@ -270,6 +270,9 @@ class ShippingService @JvmOverloads constructor(
     }
 
     /** Charge one payment route while holding the same asset lease used by EnthusiaStaff. */
+    // Bukkit's saveData() exposes no narrower checked failure contract. Any unchecked failure
+    // must retain the durable intent: publishing or refunding after an uncertain save can dupe cargo.
+    @Suppress("TooGenericExceptionCaught")
     private fun chargeAndSubmit(sender: Player, inv: Inventory, target: OfflinePlayer, shipment: PreparedShipment) {
         val lease = movementLocks.acquire(sender.uniqueId)
         if (lease == null) {
