@@ -5,6 +5,7 @@ import static org.mockito.Mockito.*;
 import static org.mockito.AdditionalMatchers.aryEq;
 import io.enthusia.express.domain.MapartQueue;
 import io.enthusia.express.infrastructure.util.ContainerScanner;
+import io.enthusia.express.infrastructure.payment.ShippingPayments;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.inventory.ItemStack;
@@ -12,19 +13,21 @@ import net.milkbowl.vault.economy.EconomyResponse;
 import org.junit.jupiter.api.Test;
 import java.util.OptionalLong;
 import java.util.concurrent.CompletableFuture;
+import java.nio.file.Path;
+import org.junit.jupiter.api.io.TempDir;
 
 class MapartPostageTest {
+  @TempDir Path directory;
   @Test void ambiguousRefundCannotCreditTwiceWhenRetried() {
     try (var f = new ShippingServiceTest.Fixture(OptionalLong.of(1))) {
       var economy = install(f);
-      var result = new io.enthusia.express.infrastructure.payment.ShippingPayments(f.plugin).charge(f.sender, 2);
+      var result = new ShippingPayments(f.plugin).charge(f.sender, 2);
       when(economy.depositPlayer((OfflinePlayer) f.sender, 2.0)).thenThrow(new IllegalStateException("credited then response failed"));
       assertFalse(result.getReceipt().refund());
       assertFalse(result.getReceipt().refund());
       verify(economy, times(1)).depositPlayer((OfflinePlayer) f.sender, 2.0);
     }
   }
-  @org.junit.jupiter.api.io.TempDir java.nio.file.Path directory;
   private net.milkbowl.vault.economy.Economy install(ShippingServiceTest.Fixture f) {
     var fixture = new CurrencyShippingTest();
     fixture.paymentDirectory = directory;

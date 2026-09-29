@@ -12,6 +12,9 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.util.function.BiConsumer;
 import io.enthusia.express.infrastructure.db.MailRepository;
 import io.enthusia.express.domain.MailType;
+import io.enthusia.express.domain.MailNotification;
+import io.enthusia.express.infrastructure.hook.NativeMailToast;
+import io.enthusia.express.infrastructure.hook.NativeToastPackets;
 import java.nio.file.Path;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -32,14 +35,14 @@ class MailToastTest {
     var scheduler = mock(org.bukkit.scheduler.BukkitScheduler.class);
     var task = mock(org.bukkit.scheduler.BukkitTask.class);
     when(scheduler.runTaskLater(eq(plugin), any(Runnable.class), eq(100L))).thenReturn(task);
-    var packets = mock(io.enthusia.express.infrastructure.hook.NativeToastPackets.class);
+    var packets = mock(NativeToastPackets.class);
     Object key = new Object();
     when(packets.key(anyString())).thenReturn(key);
-    var notice = new io.enthusia.express.domain.MailNotification(1, "Alex", MailType.LETTER, 1);
+    var notice = new MailNotification(1, "Alex", MailType.LETTER, 1);
     try (var bukkit = mockStatic(Bukkit.class)) {
       bukkit.when(Bukkit::getScheduler).thenReturn(scheduler);
       bukkit.when(() -> Bukkit.getPlayer(id)).thenReturn(player);
-      var renderer = new io.enthusia.express.infrastructure.hook.NativeMailToast(plugin);
+      var renderer = new NativeMailToast(plugin);
       var field = renderer.getClass().getDeclaredField("bridge");
       field.setAccessible(true);
       field.set(renderer, packets);
@@ -73,12 +76,12 @@ class MailToastTest {
     when(player.isOnline()).thenReturn(true);
     try (var bukkit = mockStatic(Bukkit.class)) {
       bukkit.when(Bukkit::getPluginManager).thenReturn(manager);
-      var renderer = new io.enthusia.express.infrastructure.hook.NativeMailToast(plugin);
-      renderer.accept(player, new io.enthusia.express.domain.MailNotification(1, "Alex", MailType.PACKAGE, 1));
+      var renderer = new NativeMailToast(plugin);
+      renderer.accept(player, new MailNotification(1, "Alex", MailType.PACKAGE, 1));
       verify(player).sendMessage(net.kyori.adventure.text.Component.text("Package from Alex"));
       clearInvocations(player);
       config.set("notifications.toast.chat-fallback", false);
-      renderer.accept(player, new io.enthusia.express.domain.MailNotification(1, "Alex", MailType.PACKAGE, 1));
+      renderer.accept(player, new MailNotification(1, "Alex", MailType.PACKAGE, 1));
       verify(player, never()).sendMessage(any(net.kyori.adventure.text.Component.class));
       renderer.close();
     }

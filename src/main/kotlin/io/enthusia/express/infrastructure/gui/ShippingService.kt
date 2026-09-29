@@ -56,7 +56,7 @@ class ShippingService @JvmOverloads constructor(
 
     /** Centralize permission, in-flight-send and combat checks before accepting shipping actions. */
     private fun validateShippingAccess(sender: Player, closeBlocked: Boolean): Boolean {
-        val permission = if (sender.uniqueId in mapartSessions) "enthusiaexpress.mapart.submit" else "enthusiaexpress.packages.send"
+        val permission = if (sender.uniqueId in mapartSessions) MAPART_SUBMIT_PERMISSION else "enthusiaexpress.packages.send"
         if (!sender.hasPermission("enthusiaexpress.use") || !sender.hasPermission(permission)) {
             sender.sendMessage(Text.msg(plugin.config, "no-permission"))
             return false
@@ -96,7 +96,7 @@ class ShippingService @JvmOverloads constructor(
 
     /** Reuse the recoverable cargo/payment lifecycle for museum maps and packed mapart. */
     fun openMapart(sender: Player) {
-        if (!sender.hasPermission("enthusiaexpress.mapart.submit")) {
+        if (!sender.hasPermission(MAPART_SUBMIT_PERMISSION)) {
             sender.sendMessage(Text.msg(plugin.config, "no-permission"))
             return
         }
@@ -343,7 +343,7 @@ class ShippingService @JvmOverloads constructor(
     /** Recheck permission and combat changes caused by payment listeners. */
     private fun eligibleSender(sender: Player): Boolean = combatHook.mayUseMail(sender) &&
         sender.hasPermission("enthusiaexpress.use") && sender.hasPermission(
-            if (sender.uniqueId in mapartSessions) "enthusiaexpress.mapart.submit" else "enthusiaexpress.packages.send")
+            if (sender.uniqueId in mapartSessions) MAPART_SUBMIT_PERMISSION else "enthusiaexpress.packages.send")
 
     /** Hold the movement lease until storage accepts the shipment or compensation is complete. */
     private fun submitReserved(sender: Player, target: OfflinePlayer, shipment: PreparedShipment,
@@ -584,6 +584,7 @@ class ShippingService @JvmOverloads constructor(
 
 
     companion object {
+        private const val MAPART_SUBMIT_PERMISSION = "enthusiaexpress.mapart.submit"
         const val TITLE_PREFIX = "Send package"
         const val PACKAGE_SLOT = 13
         const val CONFIRM_SLOT = 15

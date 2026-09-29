@@ -491,7 +491,7 @@ class MailboxServiceTest {
     var stack = mock(ItemStack.class);
     codec.when(() -> ItemCodec.decode(record.payload())).thenReturn(stack);
     when(repository.claim(record)).thenReturn(CompletableFuture.completedFuture(true));
-    when(inventory.addItem(stack)).thenReturn(new java.util.HashMap<>());
+    when(inventory.addItem(stack)).thenReturn(new HashMap<>());
     doThrow(new IllegalStateException("save failed")).when(player).saveData();
     open(record);
     service.click(player, 18);

@@ -1,7 +1,9 @@
 package io.enthusia.express;
 
 import io.enthusia.express.domain.MailBlockedException;
+import io.enthusia.express.domain.UncertainMailCommitException;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.*;
 
 import io.enthusia.express.infrastructure.db.MailRepository;
@@ -33,7 +35,7 @@ import org.mockito.MockedStatic;
 class ShippingServiceTest {
   @Test void uncertainCommitNeverAutomaticallyRefundsOrReplaysCargo() {
     try (var f = new Fixture(CompletableFuture.failedFuture(
-        new io.enthusia.express.domain.UncertainMailCommitException(new java.sql.SQLException("commit reply lost"))))) {
+        new UncertainMailCommitException(new SQLException("commit reply lost"))))) {
       f.confirm();
       f.service.retryCompensations();
       verify(f.playerInventory, never()).addItem(any(ItemStack.class));
@@ -46,6 +48,7 @@ class ShippingServiceTest {
       var order = inOrder(f.sender, f.repository);
       order.verify(f.sender).saveData();
       order.verify(f.repository).insertMailLimited(any(), anyString(), any(), anyString(), any(), any(), anyInt(), anyBoolean());
+      assertNull(f.top.getItem(ShippingService.PACKAGE_SLOT));
     }
   }
 

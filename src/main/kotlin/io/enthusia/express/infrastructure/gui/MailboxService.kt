@@ -156,7 +156,7 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
     private fun renderMapart(player: Player, session: Session, rows: List<MapartSubmission>?, error: Throwable?) {
         if (!active(player, session)) return
         if (error != null) {
-            player.sendMessage(Text.msg(plugin.config, "database-error"))
+            player.sendMessage(Text.msg(plugin.config, DATABASE_ERROR))
             return
         }
         val entries = checkNotNull(rows)
@@ -193,7 +193,7 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
 
         if (!active(player, session)) return
         if (error != null) {
-            player.sendMessage(Text.msg(plugin.config, "database-error"))
+            player.sendMessage(Text.msg(plugin.config, DATABASE_ERROR))
             return
         }
         val inboxRecords = checkNotNull(records)
@@ -204,8 +204,8 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
             session.records[slot++] = record
         }
         session.loaded = true
-        MailboxControls.renderLoaded(inv, session.type, session.page, sent = false,
-            inboxRecords.size, inboxRecords.count { it.unread }, theme)
+        MailboxControls.renderLoaded(inv, MailboxControls.SummaryState(session.type, session.page, false,
+            inboxRecords.size, inboxRecords.count { it.unread }, false), theme)
         if (inboxRecords.isEmpty()) MailboxControls.emptyState(inv, session.type, session.page, sent = false)
     }
 
@@ -213,7 +213,7 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
     private fun renderSent(player: Player, session: Session, records: List<io.enthusia.express.domain.SentMailRecord>?, error: Throwable?) {
         if (!active(player, session)) return
         if (error != null) {
-            player.sendMessage(Text.msg(plugin.config, "database-error"))
+            player.sendMessage(Text.msg(plugin.config, DATABASE_ERROR))
             return
         }
         val entries = checkNotNull(records).filter { it.mail.sender == player.uniqueId }
@@ -223,8 +223,8 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
             session.records[slot] = entry.mail
         }
         session.loaded = true
-        MailboxControls.renderLoaded(session.inventory, session.type, session.page, sent = true,
-            entries.size, 0, theme)
+        MailboxControls.renderLoaded(session.inventory, MailboxControls.SummaryState(session.type, session.page, true,
+            entries.size, 0, false), theme)
         if (entries.isEmpty()) MailboxControls.emptyState(session.inventory, session.type, session.page, sent = true)
     }
 
@@ -617,6 +617,7 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
 
     companion object {
         const val TITLE_PREFIX = "Mailbox"
+        private const val DATABASE_ERROR = "database-error"
         private val dateFormat = DateTimeFormatter.ofPattern("MMM d, yyyy HH:mm 'UTC'", Locale.US).withZone(ZoneOffset.UTC)
 
         /** Create a menu decoration with a display name and no persisted-mail mutation. */

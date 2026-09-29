@@ -11,6 +11,8 @@ import org.bukkit.inventory.ItemStack
 
 /** Consistent mailbox chrome separates navigation, context, content and paging. */
 object MailboxControls {
+    data class SummaryState(val type: MailType, val page: Int, val sent: Boolean,
+                            val count: Int, val unread: Int, val loading: Boolean)
     const val CONTENT_START = 18
     const val CONTENT_END = 44
     const val PREVIOUS_SLOT = 45
@@ -29,7 +31,7 @@ object MailboxControls {
         inventory.setItem(1, category(Material.CHEST, "Packages", type == MailType.PACKAGE, theme))
         inventory.setItem(4, category(Material.WRITABLE_BOOK, "Letters", type == MailType.LETTER, theme))
         inventory.setItem(7, category(Material.BELL, "Announcements", type == MailType.ANNOUNCEMENT, theme))
-        inventory.setItem(13, summary(type, page, sent, 0, 0, loading = true, theme))
+        inventory.setItem(13, summary(SummaryState(type, page, sent, 0, 0, loading = true), theme))
 
         if (page > 0) inventory.setItem(PREVIOUS_SLOT,
             item(theme, "mailbox.previous", Material.ARROW, "§ePrevious Page", listOf("§7Go to page $page.")))
@@ -44,11 +46,10 @@ object MailboxControls {
     }
 
     /** Replace the loading summary and reveal next-page navigation only when another page can exist. */
-    fun renderLoaded(inventory: Inventory, type: MailType, page: Int, sent: Boolean,
-                     count: Int, unread: Int, theme: GuiTheme) {
-        inventory.setItem(13, summary(type, page, sent, count, unread, loading = false, theme))
-        if (count == MAIL_PAGE_SIZE) inventory.setItem(NEXT_SLOT,
-            item(theme, "mailbox.next", Material.ARROW, "§eNext Page", listOf("§7Go to page ${page + 2}.")))
+    fun renderLoaded(inventory: Inventory, state: SummaryState, theme: GuiTheme) {
+        inventory.setItem(13, summary(state.copy(loading = false), theme))
+        if (state.count == MAIL_PAGE_SIZE) inventory.setItem(NEXT_SLOT,
+            item(theme, "mailbox.next", Material.ARROW, "§eNext Page", listOf("§7Go to page ${state.page + 2}.")))
         else inventory.setItem(NEXT_SLOT, quiet(Material.BLACK_STAINED_GLASS_PANE))
     }
     /** Place a centered empty-state card in the content area instead of sending chat noise. */
@@ -72,15 +73,14 @@ object MailboxControls {
             if (selected) "§a▶ $name" else "§f$name",
             listOf(if (selected) "§aSelected" else "§7Click to select"))
 
-    private fun summary(type: MailType, page: Int, sent: Boolean, count: Int, unread: Int,
-                        loading: Boolean, theme: GuiTheme): ItemStack {
-        val name = type.name.lowercase().replaceFirstChar { it.uppercase() }
-        val location = if (sent) "Sent Mail" else "Inbox"
-        val lore = if (loading) listOf("§7$location", "§7Loading page ${page + 1}…")
-        else listOf("§7$location §8• §f$count shown",
-            if (!sent) "§7Unread on page: §a$unread" else "§7Read-only history",
-            "§7Page ${page + 1}")
-        return item(theme, "mailbox.summary", when (type) {
+    private fun summary(state: SummaryState, theme: GuiTheme): ItemStack {
+        val name = state.type.name.lowercase().replaceFirstChar { it.uppercase() }
+        val location = if (state.sent) "Sent Mail" else "Inbox"
+        val lore = if (state.loading) listOf("§7$location", "§7Loading page ${state.page + 1}…")
+        else listOf("§7$location §8• §f${state.count} shown",
+            if (!state.sent) "§7Unread on page: §a${state.unread}" else "§7Read-only history",
+            "§7Page ${state.page + 1}")
+        return item(theme, "mailbox.summary", when (state.type) {
             MailType.PACKAGE -> Material.CHEST
             MailType.LETTER -> Material.WRITABLE_BOOK
             MailType.ANNOUNCEMENT -> Material.BELL

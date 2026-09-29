@@ -4,6 +4,9 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.enthusia.express.infrastructure.db.MailRepository;
 import io.enthusia.express.domain.MailType;
+import io.enthusia.express.domain.UncertainMailCommitException;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -19,9 +22,9 @@ class TransactionRecoveryTest {
   @Test void committedWriteWithLostResponseIsReportedAsUncertain() throws Exception {
     var repository = new MailRepository(null, directory.resolve("uncertain.db").toFile(), 1000);
     repository.initialize().join();
-    var field = MailRepository.class.getDeclaredField("connection");
-    field.setAccessible(true);
-    Connection real = (Connection) field.get(repository);
+    VarHandle connection = MethodHandles.privateLookupIn(MailRepository.class, MethodHandles.lookup())
+        .findVarHandle(MailRepository.class, "connection", Connection.class);
+    Connection real = (Connection) connection.get(repository);
     Connection wrapped = (Connection) java.lang.reflect.Proxy.newProxyInstance(
         Connection.class.getClassLoader(), new Class<?>[]{Connection.class}, (proxy, method, args) -> {
           try {
@@ -30,12 +33,12 @@ class TransactionRecoveryTest {
             return result;
           } catch (java.lang.reflect.InvocationTargetException error) { throw error.getCause(); }
         });
-    field.set(repository, wrapped);
+    connection.set(repository, wrapped);
     UUID recipient = UUID.randomUUID();
     try {
       var error = assertThrows(CompletionException.class, () -> repository.insertMailLimited(
           UUID.randomUUID(), "S", recipient, "R", MailType.PACKAGE, new byte[]{1}, 1, false).join());
-      assertTrue(io.enthusia.express.domain.UncertainMailCommitException.causedBy(error));
+      assertTrue(UncertainMailCommitException.causedBy(error));
       assertEquals(1, repository.listInbox(recipient, MailType.PACKAGE).join().size());
     } finally { repository.close(); }
   }
