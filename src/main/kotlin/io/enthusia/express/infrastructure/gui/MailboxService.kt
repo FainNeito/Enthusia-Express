@@ -336,7 +336,9 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
     }
 
     private fun completeMapartLookup(player: Player, session: Session, entry: MapartSubmission?, error: Throwable?) {
-        if (error != null || entry == null || !active(player, session) || entry.processedAt != null) {
+        val lookupFailed = error != null || entry == null
+        val entryUnavailable = entry != null && (!active(player, session) || entry.processedAt != null)
+        if (lookupFailed || entryUnavailable) {
             claiming.remove(player.uniqueId)
             return
         }

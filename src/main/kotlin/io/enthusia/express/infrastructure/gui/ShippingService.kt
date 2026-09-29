@@ -188,8 +188,9 @@ class ShippingService @JvmOverloads constructor(
     private fun prepareShipment(sender: Player, inv: Inventory): PreparedShipment? {
         val packageItem = inv.getItem(PACKAGE_SLOT)
         val mapart = sender.uniqueId in mapartSessions
-        if (isPlaceholder(packageItem) || packageItem == null ||
-            (!mapart && !ContainerScanner.isAllowedShippingContainer(packageItem))) {
+        val missingPackage = packageItem == null || isPlaceholder(packageItem)
+        val invalidContainer = !missingPackage && !mapart && !ContainerScanner.isAllowedShippingContainer(packageItem)
+        if (missingPackage || invalidContainer) {
             sender.sendMessage(if (mapart) "§cPlace filled maps, or a shulker box or bundle containing only filled maps."
                 else Text.msg(plugin.config, "invalid-container"))
             return null
@@ -289,8 +290,9 @@ class ShippingService @JvmOverloads constructor(
                 return
             }
             val payment = ReservedPayment(receipt, unit, lease, intent)
-            if (!currentShippingSession(sender, inv) || !mapartStillEnabled(sender) ||
-                (target.isOnline && sender.uniqueId !in mapartSessions) || !eligibleSender(sender)) {
+            val sessionEnded = !currentShippingSession(sender, inv) || !mapartStillEnabled(sender)
+            val recipientOrSenderIneligible = (target.isOnline && sender.uniqueId !in mapartSessions) || !eligibleSender(sender)
+            if (sessionEnded || recipientOrSenderIneligible) {
                 deferCompensation(sender, payment, "§eShipment cancelled; your cargo and fee will be returned.")
                 pending.remove(sender.uniqueId)
                 return
