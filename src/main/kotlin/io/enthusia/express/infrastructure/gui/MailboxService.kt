@@ -344,22 +344,40 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
 
     /** Mark only a currently visible unread letter or announcement owned by this inbox recipient. */
     private fun markTextRead(player: Player, session: Session, visible: MailRecord) {
-        if (!session.loaded || visible.type == MailType.PACKAGE || !visible.unread ||
-            !claiming.add(player.uniqueId)) return
+        if (!session.loaded || visible.type == MailType.PACKAGE || !visible.unread) return
+        if (!claiming.add(player.uniqueId)) return
         main.complete(repository.get(visible.id)) { record, error ->
-            if (error != null || record == null || !validRecord(player, session, record) ||
-                record.type != visible.type || !record.unread || record.status != MailStatus.UNCLAIMED) {
-                claiming.remove(player.uniqueId)
-                if (error != null && active(player, session)) player.sendMessage(Text.msg(plugin.config, DATABASE_ERROR))
-                return@complete
-            }
-            main.complete(repository.markRead(record.id, player.uniqueId)) { marked, failure ->
-                claiming.remove(player.uniqueId)
-                if (!active(player, session)) return@complete
-                if (failure != null) player.sendMessage(Text.msg(plugin.config, DATABASE_ERROR))
-                else if (marked == true) openPage(player, session.type, session.page)
-            }
+            completeReadLookup(player, session, visible, record, error)
         }
+    }
+
+    private fun completeReadLookup(
+        player: Player, session: Session, visible: MailRecord, record: MailRecord?, error: Throwable?,
+    ) {
+        if (error != null) {
+            claiming.remove(player.uniqueId)
+            if (active(player, session)) player.sendMessage(Text.msg(plugin.config, DATABASE_ERROR))
+            return
+        }
+        if (!eligibleTextRead(player, session, visible, record)) {
+            claiming.remove(player.uniqueId)
+            return
+        }
+        main.complete(repository.markRead(requireNotNull(record).id, player.uniqueId)) { marked, failure ->
+            completeReadWrite(player, session, marked, failure)
+        }
+    }
+
+    private fun eligibleTextRead(player: Player, session: Session, visible: MailRecord, record: MailRecord?): Boolean {
+        if (record == null || !validRecord(player, session, record)) return false
+        return record.type == visible.type && record.unread && record.status == MailStatus.UNCLAIMED
+    }
+
+    private fun completeReadWrite(player: Player, session: Session, marked: Boolean?, failure: Throwable?) {
+        claiming.remove(player.uniqueId)
+        if (!active(player, session)) return
+        if (failure != null) player.sendMessage(Text.msg(plugin.config, DATABASE_ERROR))
+        else if (marked == true) openPage(player, session.type, session.page)
     }
 
     private fun completeMapartLookup(player: Player, session: Session, entry: MapartSubmission?, error: Throwable?) {
