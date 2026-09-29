@@ -21,7 +21,10 @@ class GuiListener(private val shipping: ShippingService, private val mailbox: Ma
             shippingClick(event, player)
         } else if (mailbox.owns(player)) {
             event.isCancelled = true
-            if (event.rawSlot >= 0 && event.rawSlot < top.size) mailbox.deferClick(player, event.rawSlot)
+            if (event.rawSlot >= 0 && event.rawSlot < top.size &&
+                (event.click == ClickType.LEFT || event.click == ClickType.RIGHT)) {
+                mailbox.deferClick(player, event.rawSlot, event.click == ClickType.RIGHT)
+            }
         }
     }
 

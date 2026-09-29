@@ -277,6 +277,7 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
         if (record.type == MailType.PACKAGE) lines.add("§7Contents: §f${record.packedItemCount} packed items")
         lines.add("")
         lines.add(action)
+        if (record.type != MailType.PACKAGE && record.unread) lines.add("§eRight-click to mark as read")
         return lines
     }
 
@@ -292,10 +293,11 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
     }
 
     /** Schedule a click for the next tick and reject stale sessions before dispatch. */
-    fun deferClick(player: Player, slot: Int) {
+    @JvmOverloads
+    fun deferClick(player: Player, slot: Int, markAsRead: Boolean = false) {
         val session = sessions[player.uniqueId]
         Bukkit.getScheduler().runTask(plugin, Runnable {
-            if (session != null && active(player, session)) click(player, slot)
+            if (session != null && active(player, session)) click(player, slot, markAsRead)
         })
     }
 
@@ -310,13 +312,14 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
     }
 
     /** Handle navigation or reserve one in-flight lookup for a visible mail entry. */
-    fun click(player: Player, slot: Int) {
+    @JvmOverloads
+    fun click(player: Player, slot: Int, markAsRead: Boolean = false) {
         val session = sessions[player.uniqueId]
         if (session == null || !active(player, session)) {
             player.closeInventory()
             return
         }
-        if (navigate(player, session, slot)) return
+        if (!markAsRead && navigate(player, session, slot)) return
         val visible = session.records[slot] ?: return
         if (session.mapart) {
             if (session.processed || !claiming.add(player.uniqueId)) return
@@ -326,12 +329,36 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
             return
         }
         if (session.sent) {
-            readSent(player, session, visible)
+            if (!markAsRead) readSent(player, session, visible)
+            return
+        }
+        if (markAsRead) {
+            markTextRead(player, session, visible)
             return
         }
         if (!claiming.add(player.uniqueId)) return
         main.complete(repository.get(visible.id)) { record, error ->
             completeLookup(player, session, record, error)
+        }
+    }
+
+    /** Mark only a currently visible unread letter or announcement owned by this inbox recipient. */
+    private fun markTextRead(player: Player, session: Session, visible: MailRecord) {
+        if (!session.loaded || visible.type == MailType.PACKAGE || !visible.unread ||
+            !claiming.add(player.uniqueId)) return
+        main.complete(repository.get(visible.id)) { record, error ->
+            if (error != null || record == null || !validRecord(player, session, record) ||
+                record.type != visible.type || !record.unread || record.status != MailStatus.UNCLAIMED) {
+                claiming.remove(player.uniqueId)
+                if (error != null && active(player, session)) player.sendMessage(Text.msg(plugin.config, DATABASE_ERROR))
+                return@complete
+            }
+            main.complete(repository.markRead(record.id, player.uniqueId)) { marked, failure ->
+                claiming.remove(player.uniqueId)
+                if (!active(player, session)) return@complete
+                if (failure != null) player.sendMessage(Text.msg(plugin.config, DATABASE_ERROR))
+                else if (marked == true) openPage(player, session.type, session.page)
+            }
         }
     }
 

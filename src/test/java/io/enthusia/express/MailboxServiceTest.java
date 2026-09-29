@@ -386,6 +386,51 @@ class MailboxServiceTest {
     verify(sounds).play(player, SoundFeedback.Cue.LETTER_OPEN);
   }
 
+  /** Right-click marks text mail read without decoding, opening, or claiming its payload. */
+  @Test
+  void rightClickMarksLettersAndAnnouncementsReadWithoutOpening() {
+    for (MailType type : List.of(MailType.LETTER, MailType.ANNOUNCEMENT)) {
+      clearInvocations(repository, player);
+      MailRecord record = record(type);
+      when(repository.markRead(1, id)).thenReturn(CompletableFuture.completedFuture(true));
+      open(record);
+      service.click(player, 18, true);
+      drain();
+      verify(repository).markRead(1, id);
+      verify(repository, never()).claim(any(MailRecord.class));
+      verify(player, never()).openBook(any(ItemStack.class));
+      codec.verifyNoInteractions();
+    }
+  }
+
+  /** Right-click never claims a package or changes the recipient's sent-history copy. */
+  @Test
+  void rightClickIgnoresPackagesAndSentHistory() {
+    open(record(MailType.PACKAGE));
+    clearInvocations(repository);
+    service.click(player, 18, true);
+    verifyNoInteractions(repository);
+    when(repository.listSent(id, MailType.LETTER, 0))
+        .thenReturn(CompletableFuture.completedFuture(List.of()));
+    service.openSent(player, MailType.LETTER);
+    service.click(player, 18, true);
+    verify(repository, never()).markRead(anyLong(), any());
+  }
+
+  /** A lookup returning a row no longer owned by the player cannot mark it read. */
+  @Test
+  void rightClickRechecksRecipientOwnership() {
+    MailRecord visible = record(MailType.LETTER);
+    open(visible);
+    MailRecord transferred = new MailRecord(visible.id(), visible.sender(), visible.senderName(),
+        UUID.randomUUID(), "Other", visible.type(), visible.status(), visible.payload(),
+        visible.packedItemCount(), visible.createdAt(), visible.updatedAt(), true, false);
+    when(repository.get(visible.id())).thenReturn(CompletableFuture.completedFuture(transferred));
+    service.click(player, 18, true);
+    drain();
+    verify(repository, never()).markRead(anyLong(), any());
+  }
+
   /** Verifies that rejected read does not produce success sound. */
   @Test
   void rejectedReadDoesNotProduceSuccessSound() {
