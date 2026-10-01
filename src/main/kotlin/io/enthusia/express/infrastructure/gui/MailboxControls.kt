@@ -18,6 +18,7 @@ object MailboxControls {
     const val PREVIOUS_SLOT = 45
     const val MODE_SLOT = 47
     const val PAGE_SLOT = 49
+    const val MARK_ALL_READ_SLOT = 50
     const val REFRESH_SLOT = 51
     const val CLOSE_SLOT = 52
     const val NEXT_SLOT = 53
@@ -40,6 +41,9 @@ object MailboxControls {
             listOf("§7Currently: §f$location")))
         inventory.setItem(PAGE_SLOT, item(theme, "mailbox.page", Material.MAP, "§fPage ${page + 1}",
             listOf("§7Newest mail is shown first.")))
+        if (!sent && type != MailType.PACKAGE) inventory.setItem(MARK_ALL_READ_SLOT,
+            item(theme, "mailbox.mark-all-read", Material.LIME_DYE, "§aMark All Text Read",
+                listOf("§7Letters and announcements", "§7across every page.")))
         inventory.setItem(REFRESH_SLOT, item(theme, "mailbox.refresh", Material.CLOCK, "§eRefresh",
             listOf("§7Reload this page.")))
         inventory.setItem(CLOSE_SLOT, item(theme, "mailbox.close", Material.BARRIER, "§cClose"))

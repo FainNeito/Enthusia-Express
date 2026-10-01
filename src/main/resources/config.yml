@@ -96,6 +96,7 @@ gui:
         sent: ""
         page: ""
         summary: ""
+        mark-all-read: ""
         refresh: ""
         close: ""
         entry:

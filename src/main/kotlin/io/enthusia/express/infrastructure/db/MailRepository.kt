@@ -414,6 +414,17 @@ class MailRepository(
         }
     }
 
+    /** One recipient-scoped update clears both text categories without loading their payloads. */
+    override fun markAllTextRead(recipient: UUID): CompletableFuture<Int> = supply {
+        connection.prepareStatement(
+            "UPDATE mail SET unread=0 WHERE recipient_uuid=? AND type IN ('LETTER','ANNOUNCEMENT')" +
+                " AND status='UNCLAIMED' AND unread=1"
+        ).use { ps ->
+            ps.setString(1, recipient.toString())
+            ps.executeUpdate()
+        }
+    }
+
     /** One transaction, no stale read/modify/write window; text mail never enters RTS. */
     override fun expire(now: Long, returnCutoff: Long, purgeCutoff: Long, textCutoff: Long): CompletableFuture<Int> = supply {
         inTransaction {

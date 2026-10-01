@@ -294,6 +294,29 @@ class MailRepositoryTest {
     repository.expire(System.currentTimeMillis(), 0, 0, Long.MAX_VALUE).join();
     assertEquals(MailStatus.PURGED, repository.get(id).join().status());
   }
+
+  /** Bulk read covers every page and both text types, but never another player or a package. */
+  @Test
+  void bulkReadIsRecipientScopedAndLeavesPackagesUnread() {
+    long packageId = insert();
+    long alreadyRead = repository.insertMail(sender, "Sender", recipient, "Recipient",
+        MailType.LETTER, new byte[] {1}, 0, false).join();
+    assertTrue(repository.markRead(alreadyRead, recipient).join());
+    for (int i = 0; i < 30; i++) repository.insertMail(sender, "Sender", recipient, "Recipient",
+        MailType.LETTER, new byte[] {1}, 0, false).join();
+    long announcement = repository.insertMail(sender, "Sender", recipient, "Recipient",
+        MailType.ANNOUNCEMENT, new byte[] {1}, 0, false).join();
+    long otherPlayer = repository.insertMail(sender, "Sender", sender, "Sender",
+        MailType.ANNOUNCEMENT, new byte[] {1}, 0, false).join();
+
+    assertEquals(31, repository.markAllTextRead(recipient).join());
+    assertEquals(0, repository.markAllTextRead(recipient).join());
+    assertTrue(repository.listInbox(recipient, MailType.LETTER, 0).join().stream().noneMatch(MailRecord::unread));
+    assertTrue(repository.listInbox(recipient, MailType.LETTER, 1).join().stream().noneMatch(MailRecord::unread));
+    assertFalse(repository.get(announcement).join().unread());
+    assertTrue(repository.get(packageId).join().unread());
+    assertTrue(repository.get(otherPlayer).join().unread());
+  }
   /** Verifies that broadcast is atomic and per recipient unread is independent. */
 
   @Test

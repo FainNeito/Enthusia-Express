@@ -403,6 +403,45 @@ class MailboxServiceTest {
     }
   }
 
+  /** A single inbox button clears all text mail while the current page stays open. */
+  @Test
+  void bulkReadButtonWorksInEitherTextCategory() {
+    for (MailType type : List.of(MailType.LETTER, MailType.ANNOUNCEMENT)) {
+      clearInvocations(repository, player);
+      when(repository.listInbox(id, type, 0)).thenReturn(CompletableFuture.completedFuture(List.of()));
+      when(repository.markAllTextRead(id)).thenReturn(CompletableFuture.completedFuture(3));
+      service.open(player, type);
+      drain();
+      service.click(player, 50);
+      drain();
+      verify(repository).markAllTextRead(id);
+      verify(player).sendMessage("§aMarked 3 text messages as read.");
+      verify(repository, never()).markRead(anyLong(), any());
+      verify(player, never()).openBook(any(ItemStack.class));
+    }
+  }
+
+  /** Repeated clicks cannot queue duplicate bulk writes, and packages have no bulk action. */
+  @Test
+  void bulkReadRejectsDuplicateAndPackageClicks() {
+    var pending = new CompletableFuture<Integer>();
+    when(repository.listInbox(id, MailType.LETTER, 0)).thenReturn(CompletableFuture.completedFuture(List.of()));
+    when(repository.markAllTextRead(id)).thenReturn(pending);
+    service.open(player, MailType.LETTER);
+    drain();
+    service.click(player, 50);
+    service.click(player, 50);
+    verify(repository, times(1)).markAllTextRead(id);
+    pending.complete(1);
+    drain();
+    when(repository.listInbox(id, MailType.PACKAGE, 0)).thenReturn(CompletableFuture.completedFuture(List.of()));
+    service.open(player, MailType.PACKAGE);
+    drain();
+    clearInvocations(repository);
+    service.click(player, 50);
+    verifyNoInteractions(repository);
+  }
+
   /** Right-click never claims a package or changes the recipient's sent-history copy. */
   @Test
   void rightClickIgnoresPackagesAndSentHistory() {

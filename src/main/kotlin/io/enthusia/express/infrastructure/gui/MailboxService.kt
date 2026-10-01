@@ -380,6 +380,21 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
         else if (marked == true) openPage(player, session.type, session.page)
     }
 
+    /** Clear this recipient's unread letters and announcements with one storage update. */
+    private fun markAllTextRead(player: Player, session: Session) {
+        if (!session.loaded || session.sent || session.type == MailType.PACKAGE || !claiming.add(player.uniqueId)) return
+        main.complete(repository.markAllTextRead(player.uniqueId)) { changed, failure ->
+            claiming.remove(player.uniqueId)
+            if (!active(player, session)) return@complete
+            if (failure != null) player.sendMessage(Text.msg(plugin.config, DATABASE_ERROR))
+            else {
+                val count = changed ?: 0
+                player.sendMessage("§aMarked $count text ${if (count == 1) "message" else "messages"} as read.")
+                openPage(player, session.type, session.page)
+            }
+        }
+    }
+
     private fun completeMapartLookup(player: Player, session: Session, entry: MapartSubmission?, error: Throwable?) {
         val lookupFailed = error != null || entry == null
         val entryUnavailable = entry != null && (!active(player, session) || entry.processedAt != null)
@@ -445,6 +460,7 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
             MailboxControls.MODE_SLOT -> { openPage(player, session.type, 0, !session.sent) }
             MailboxControls.PREVIOUS_SLOT -> { previousPage(player, session) }
             MailboxControls.NEXT_SLOT -> { nextPage(player, session) }
+            MailboxControls.MARK_ALL_READ_SLOT -> { markAllTextRead(player, session) }
             MailboxControls.REFRESH_SLOT -> { openPage(player, session.type, session.page, session.sent) }
             MailboxControls.CLOSE_SLOT -> { player.closeInventory() }
             else -> return false

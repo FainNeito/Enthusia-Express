@@ -89,4 +89,6 @@ interface MailClaims {
     fun restoreClaim(record: MailRecord): CompletableFuture<Boolean>
     /** Clear unread state only for eligible text mail owned by the recipient. */
     fun markRead(id: Long, recipient: UUID): CompletableFuture<Boolean>
+    /** Clear all unread letters and announcements owned by the recipient, across every page. */
+    fun markAllTextRead(recipient: UUID): CompletableFuture<Int>
 }
