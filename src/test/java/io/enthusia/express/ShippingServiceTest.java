@@ -1,7 +1,9 @@
 package io.enthusia.express;
 
 import io.enthusia.express.domain.MailBlockedException;
+import io.enthusia.express.domain.UncertainMailCommitException;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.*;
 
 import io.enthusia.express.infrastructure.db.MailRepository;
@@ -31,6 +33,40 @@ import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
 
 class ShippingServiceTest {
+  @Test void uncertainCommitNeverAutomaticallyRefundsOrReplaysCargo() {
+    try (var f = new Fixture(CompletableFuture.failedFuture(
+        new UncertainMailCommitException(new SQLException("commit reply lost"))))) {
+      f.confirm();
+      f.service.retryCompensations();
+      verify(f.playerInventory, never()).addItem(any(ItemStack.class));
+      verify(f.sender).sendMessage(contains("administrator review"));
+    }
+  }
+  @Test void senderInventorySavedBeforePackageBecomesClaimable() {
+    try (var f = new Fixture(OptionalLong.of(1))) {
+      f.confirm();
+      var order = inOrder(f.sender, f.repository);
+      order.verify(f.sender).saveData();
+      order.verify(f.repository).insertMailLimited(any(), anyString(), any(), anyString(), any(), any(), anyInt(), anyBoolean());
+      assertNull(f.top.getItem(ShippingService.PACKAGE_SLOT));
+    }
+  }
+
+  @Test void failedSenderSaveHoldsReservationWithoutPublishingOrRefunding() throws Exception {
+    try (var f = new Fixture(OptionalLong.of(1))) {
+      doThrow(new IllegalStateException("disk failure")).when(f.sender).saveData();
+      f.confirm();
+      f.service.retryCompensations();
+      verify(f.repository, never()).insertMailLimited(any(), anyString(), any(), anyString(), any(), any(), anyInt(), anyBoolean());
+      verify(f.playerInventory, never()).addItem(any(ItemStack.class));
+      try (var files = java.nio.file.Files.list(f.plugin.getDataFolder().toPath().resolve("shipping-recovery"))) {
+        var path = files.filter(file -> file.toString().endsWith(".properties")).findFirst().orElseThrow();
+        var record = new java.util.Properties();
+        try (var input = java.nio.file.Files.newInputStream(path)) { record.load(input); }
+        assertEquals("PREPARED", record.getProperty("phase"));
+      }
+    }
+  }
   /** A recipient block is checked before withdrawing postage. */
   @Test
   void blockedRecipientTakesNoPayment() {
@@ -243,7 +279,7 @@ class ShippingServiceTest {
       verify(f.playerInventory).addItem(f.packageItem);
       verify(f.playerInventory).addItem(argThat((ItemStack item) ->
           item.getType() == Material.RAW_GOLD && item.getAmount() == 2));
-      verify(f.sender).saveData();
+      verify(f.sender, times(2)).saveData();
       var again = new ShippingService(f.plugin, f.repository, f.combat, f.main, f.sounds, f.movementLocks);
       retry.invoke(again);
       verify(f.playerInventory, times(1)).addItem(f.packageItem);

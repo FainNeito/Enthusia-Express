@@ -28,6 +28,7 @@ import org.bukkit.plugin.java.JavaPlugin
 private const val BLOCK_PERMISSION = "enthusiaexpress.block"
 private const val INBOX = "inbox"
 private const val SENT = "sent"
+private const val MAPART = "mapart"
 private const val NO_PERMISSION = "no-permission"
 private const val UNKNOWN_RECIPIENT = "target-never-joined"
 
@@ -75,12 +76,29 @@ class MailCommand @JvmOverloads constructor(
     private fun dispatch(sender: Player, args: Array<String>) {
         val subcommand = args.firstOrNull()?.lowercase(Locale.ROOT) ?: INBOX
         if (subcommand == INBOX) mailbox.open(sender, inboxType(args.getOrNull(1)))
+        else if (subcommand == MAPART) mapart(sender, args)
         else if (subcommand == "blocked") blocking?.list(sender, args.getOrNull(1)?.toIntOrNull() ?: if (args.size == 1) 1 else 0)
         else if (subcommand == SENT) mailbox.openSent(sender, inboxType(args.getOrNull(1)))
         else {
             val action = SendAction.entries.firstOrNull { it.key == subcommand }
             if (action == null) sender.sendMessage("§e/mail send <OfflinePlayer> §7or §e/mail inbox [packages|letters|announcements]")
             else send(sender, action, args)
+        }
+    }
+
+    /** Route museum submissions to their dedicated sender and manager menus. */
+    private fun mapart(sender: Player, args: Array<String>) {
+        when (args.getOrNull(1)?.lowercase(Locale.ROOT)) {
+            "submit" -> {
+                if (!plugin.config.getBoolean("mapart.enabled", true)) {
+                    sender.sendMessage("§cMapart Museum submissions are temporarily paused.")
+                    return
+                }
+                shipping.openMapart(sender)
+            }
+            "inbox" -> mailbox.openMapart(sender)
+            "processed" -> mailbox.openMapart(sender, true)
+            else -> sender.sendMessage("§e/mail mapart <submit|inbox|processed>")
         }
     }
 
@@ -137,7 +155,7 @@ class MailCommand @JvmOverloads constructor(
     /** Suggest permitted commands and cached names without enumerating offline player files. */
     override fun onTabComplete(sender: CommandSender, command: Command, alias: String, args: Array<String>): List<String> =
         when (args.size) {
-            1 -> (SendAction.entries.filter { sender.hasPermission(it.permission) }.map { it.key } + listOf(INBOX, SENT) + if (sender.hasPermission(BLOCK_PERMISSION)) listOf("blocked") else emptyList())
+            1 -> (SendAction.entries.filter { sender.hasPermission(it.permission) }.map { it.key } + listOf(INBOX, SENT, MAPART) + if (sender.hasPermission(BLOCK_PERMISSION)) listOf("blocked") else emptyList())
                 .filter { it.startsWith(args[0].lowercase(Locale.ROOT)) }
             2 -> argumentSuggestions(sender, args)
             else -> emptyList()
@@ -146,6 +164,8 @@ class MailCommand @JvmOverloads constructor(
     /** Return matching inbox categories or cached recipient names, capped at twenty results. */
     private fun argumentSuggestions(sender: CommandSender, args: Array<String>): List<String> {
         if (args[0].lowercase(Locale.ROOT) in listOf(INBOX, SENT)) return listOf("packages", "letters", "announcements")
+            .filter { it.startsWith(args[1], ignoreCase = true) }
+        if (args[0].equals(MAPART, true)) return listOf("submit", "inbox", "processed")
             .filter { it.startsWith(args[1], ignoreCase = true) }
         val action = SendAction.entries.firstOrNull { it.key.equals(args[0], true) } ?: return emptyList()
         if (!sender.hasPermission(action.permission)) return emptyList()

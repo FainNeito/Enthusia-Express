@@ -3,11 +3,29 @@ package io.enthusia.express.application
 import io.enthusia.express.domain.MailRecord
 import io.enthusia.express.domain.MailSummary
 import io.enthusia.express.domain.MailType
+import io.enthusia.express.domain.MapartSubmission
 import java.util.OptionalLong
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 
-interface MailStore : MailQueries, MailWrites, MailClaims, MailLifecycle, MailBlocks
+const val MAIL_PAGE_SIZE = 27
+
+interface MailStore : MailQueries, MailWrites, MailClaims, MailLifecycle, MailBlocks, MapartStore
+
+interface MapartStore {
+    /** Save map cargo and its intake metadata in one transaction. The token makes retries idempotent. */
+    @Suppress("LongParameterList")
+    fun insertMapart(sender: UUID, senderName: String, payload: ByteArray,
+                     mapId: Int?, mapName: String, token: UUID): CompletableFuture<Long>
+    /** Show shared Mapart intake or processed history without exposing payload bytes. */
+    fun listMapart(page: Int, processed: Boolean): CompletableFuture<List<MapartSubmission>>
+    /** Load intake metadata for an already selected package. */
+    fun getMapart(id: Long): CompletableFuture<MapartSubmission?>
+    /** Mark a delivered map processed without touching its physical delivery. */
+    fun markMapartProcessed(id: Long, manager: UUID): CompletableFuture<Boolean>
+    /** Atomically bind an unclaimed shared-queue submission to the claiming manager. */
+    fun claimMapart(record: MailRecord, manager: UUID, managerName: String): CompletableFuture<Boolean>
+}
 
 interface MailBlocks {
     /** Persist or remove a recipient's sender block by UUID. */
@@ -46,6 +64,8 @@ interface MailWrites {
 }
 
 interface MailQueries {
+    /** Snapshot pending arrivals newer than a session watermark without reading payloads. */
+    fun mailNotification(recipient: UUID, afterId: Long): CompletableFuture<io.enthusia.express.domain.MailNotification>
     /** Load sender-owned history, including claimed, returned and expired entries. */
     fun listSent(sender: UUID, type: MailType, page: Int): CompletableFuture<List<io.enthusia.express.domain.SentMailRecord>>
     /** Count packages and unread text mail for a recipient notification. */
@@ -69,4 +89,6 @@ interface MailClaims {
     fun restoreClaim(record: MailRecord): CompletableFuture<Boolean>
     /** Clear unread state only for eligible text mail owned by the recipient. */
     fun markRead(id: Long, recipient: UUID): CompletableFuture<Boolean>
+    /** Clear all unread letters and announcements owned by the recipient, across every page. */
+    fun markAllTextRead(recipient: UUID): CompletableFuture<Int>
 }

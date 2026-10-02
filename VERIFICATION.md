@@ -1,5 +1,20 @@
 # Enthusia Express 1.2.1 verification
 
+## Release candidate review — 2026-10-01
+
+The current distributable uses Kotlin 2.4.20, Gradle 9.7.1, Java 21 bytecode and SQLite JDBC 3.51.3.0. The review covers the shared Mapart Museum intake, native mail-arrival notifications, inbox/sent controls, individual and bulk text-mail read actions, and the inherited shipment/claim recovery protections.
+
+- The local `clean build verifyPaperCompatibility` passed 210 tests with zero failures or errors and compiled all eleven baseline Paper API targets. Tests include the compiled call-cycle audit and shaded SQLite-driver checks.
+- GitHub verifies five representative API/runtime combinations: Paper 1.21, 1.21.8 and 1.21.11 on Java 21; Paper 26.2 and 26.3-pre-2 on Java 25. The Java 25 jobs test the baseline shaded JAR against the newer API.
+- The two Codacy findings introduced by bulk-read handling were addressed by separating the eligibility/operation guards and moving completion handling into a documented method. This preserves recipient isolation, duplicate-operation protection and stale-session checks.
+- A new real-SQLite/rendering regression reproduced retained sent history being falsely labeled expired because page snapshots omit payloads. Sent cards now use the persisted purge status for expiration and read hints; a separate purged-history regression preserves the actual expired state.
+- Full CodeRabbit review identified two additional issues, both reproduced before correction: disabled Currency bindings could not retry after enable, and SQL operator precedence excluded museum rows from only one purge branch. Binding now retries disabled providers without repeating diagnostics; grouping the purge predicate protects both branches. The new tests preserve fail-closed incompatible APIs and payloads in legacy returned museum rows.
+- PR #5 was compared with current main and closed as superseded. Its safety changes are retained in main; merging its older tree would remove newer shipping journals, movement leases and complete temporary delivery-receipt recovery.
+
+Publish `v1.2.1-rc.1` as a prerelease for staging. Actual EnthusiaCurrency, CombatLogX, Nexo/resource-pack and Java/Bedrock client acceptance remains outstanding. Native advancement headings are client-controlled; the separately requested editable mail-only display is not included. Final Paper 26.3 remains unverified. The historical safety evidence below records earlier snapshots and is not the current test count or artifact checksum.
+
+## Historical safety verification
+
 Reviewed baseline: merged main `66786088c3988478afe34518d779694b00d882b1`. This safety release contains 34 Kotlin production files and uses Java 21 baseline bytecode, Kotlin 2.3.21, Gradle 9.1.0 and bundled SQLite JDBC 3.51.3.0.
 
 See [Paper 26 compatibility](docs/paper-26-compatibility.md) for exact pinned APIs, reproduction commands and prerelease limits. Final 26.3 is not verified.
@@ -37,4 +52,4 @@ SPEAR requirements REQ-037 through REQ-043 and tasks TDD-015 and TDD-016 record 
 
 Inventory, third-party currency and SQLite do not share an atomic transaction. Abrupt process death or a provider that debits and then throws can still require evidence-based administrator reconciliation. Unknown old pending claims cannot safely be reset automatically. Legacy Bukkit API usage still emits deprecation warnings. Folia is not supported. Chat filtering remains excluded.
 
-Testing JAR SHA-256: `20039bc6bfa0aa05c6cd3b3cf882be8c96313386b6d2a1d19c7ee9ed60c687a3`
+Historical testing JAR SHA-256: `20039bc6bfa0aa05c6cd3b3cf882be8c96313386b6d2a1d19c7ee9ed60c687a3`. Use the release asset's checksum for the current artifact.

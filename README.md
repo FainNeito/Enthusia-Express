@@ -15,12 +15,18 @@ A Kotlin plugin targeting Paper 1.21.x on Java 21, with Paper 26.2 / Java 25 com
 | `/mail letter <player>` | Send a copy of the signed book in your main hand to a known offline player. | `enthusiaexpress.letters.send` |
 | `/mail announce <player>` | Send a signed-book announcement to one known player, including online players. | `enthusiaexpress.admin.announce` |
 | `/mail announce all` | Send an announcement to a snapshot of all known players, including those currently online. | `enthusiaexpress.admin.announce` |
+| `/mail mapart submit` | Submit filled maps, or a shulker box/bundle containing only filled maps, to the shared museum intake. | `enthusiaexpress.mapart.submit` |
+| `/mail mapart inbox` or `/mail mapart processed` | Claim museum submissions and view or mark delivered maps processed. | `enthusiaexpress.mapart.manage` |
 
-Write and sign a book with Minecraft's normal book editor, hold it in your main hand, then send it. The original remains yours; text mail has no item fee. Click a letter or announcement to open the book. Reading clears its unread flag, and it can be read again until text retention expires. Broadcast unread state is independent for every recipient. Future first-time players are not included in past broadcasts. `all` is reserved as the broadcast target.
+Write and sign a book with Minecraft's normal book editor, hold it in your main hand, then send it. The original remains yours; text mail has no item fee. Click a letter or announcement to open the book. Reading clears its unread flag, and it can be read again until text retention expires. In either the Letters or Announcements inbox, click **Mark All Text Read** to clear all unread letters and announcements across every page; packages are unaffected. Broadcast unread state is independent for every recipient. Future first-time players are not included in past broadcasts. `all` is reserved as the broadcast target.
 
 The general use, inbox, package and letter permissions default to everyone. Announcement publishing defaults to operators. `enthusiaexpress.admin` grants the announcement permission. Permissions are checked again inside services; there is no combat bypass permission. Commands require a player because authoring uses a held book. Recipient lookup uses the server's cached player profiles and does not perform a blocking network lookup.
 
 The selected category is marked in green with an arrow and a Selected tooltip. The compact Inbox/Sent indicator shows the page number; a separate button switches between received and sent mail without reopening the window. History cannot be used to claim packages. It includes retained expired metadata, but expired content cannot be reopened. Existing returned packages whose original destination was overwritten before this upgrade show an unknown recipient. New sends preserve the destination through returns. The `enthusiaexpress.sent` permission defaults to everyone.
+
+Museum intake is separate from personal mail and has no automatic return/expiration. Any authorized manager can claim a submission once; delivery must be acknowledged before it can be marked processed. `mapart.enabled` pauses new submissions, and `mapart.raw-gold-postage` sets the fee per submission. The configured payment route supports EnthusiaCurrency's combined bank and inventory balance.
+
+`notifications.toast.enabled` enables transient native advancement toasts for pending mail on join and new arrivals. Single arrivals identify the sender and mail type; grouped arrivals show a total mail count. `notifications.toast.chat-fallback` controls chat fallback when native server bindings are incompatible. The vanilla advancement heading is controlled by the client; a custom mail-only heading and Bedrock toast parity are not implemented or verified.
 
 ## Build
 

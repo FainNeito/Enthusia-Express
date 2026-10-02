@@ -19,24 +19,43 @@ import org.bukkit.inventory.ItemStack
 object SentMailDisplay {
     private val dateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm 'UTC'").withZone(ZoneOffset.UTC)
 
-    /** Show the original destination, content summary, date and current delivery state. */
+    /** Show destination, type, date, retained content and current delivery state as a readable card. */
     fun icon(entry: SentMailRecord): ItemStack {
         val mail = entry.mail
-        val item = if (mail.type == MailType.PACKAGE) ItemStack(Material.CHEST) else ItemStack(Material.WRITTEN_BOOK)
+        val item = ItemStack(when (mail.type) {
+            MailType.PACKAGE -> Material.CHEST
+            MailType.LETTER -> Material.WRITTEN_BOOK
+            MailType.ANNOUNCEMENT -> Material.BELL
+        })
         val meta = item.itemMeta!!
-        meta.setDisplayName("§eTo: ${entry.recipientName ?: "Unknown (legacy return)"}")
-        meta.lore = listOf("§7${mail.type.name.lowercase().replaceFirstChar { it.uppercase() }} #${mail.id}",
-            "§7Sent: ${dateFormat.format(Instant.ofEpochMilli(mail.createdAt))}", "§f${status(entry)}",
-            contentHint(mail))
+        val recipient = entry.recipientName ?: "Unknown (legacy return)"
+        val typeName = mail.type.name.lowercase().replaceFirstChar { it.uppercase() }
+        val nameColor = when (mail.type) {
+            MailType.PACKAGE -> "§e"
+            MailType.LETTER -> "§f"
+            MailType.ANNOUNCEMENT -> "§6"
+        }
+        meta.setDisplayName("$nameColor$typeName to §f$recipient")
+        meta.lore = buildList {
+            add("§8Mail #${mail.id}")
+            add("")
+            add("§7Sent: §f${dateFormat.format(Instant.ofEpochMilli(mail.createdAt))}")
+            add("§7Status: §f${status(entry)}")
+            add(contentHint(mail))
+            if (mail.type != MailType.PACKAGE && mail.status != MailStatus.PURGED) {
+                add("")
+                add("§eLeft-click to read sent copy")
+            }
+        }
         item.itemMeta = meta
         return item
     }
 
-    /** Describe retained content without suggesting collection from history. */
+    /** Page snapshots omit payloads; only the persisted purge status proves content expiration. */
     private fun contentHint(mail: MailRecord): String = when {
-        mail.payload.isEmpty() -> "§7Contents expired"
-        mail.type == MailType.PACKAGE -> "§7${mail.packedItemCount} packed items"
-        else -> "§aClick to read sent copy"
+        mail.status == MailStatus.PURGED -> "§7Contents: §8Expired"
+        mail.type == MailType.PACKAGE -> "§7Contents: §f${mail.packedItemCount} packed items"
+        else -> "§7Contents: §fSent book copy retained"
     }
 
     /** Distinguish pending delivery reservations from completed collection and text read state. */
