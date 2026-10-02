@@ -430,8 +430,8 @@ class MailRepository(
         inTransaction {
             var changed = connection.prepareStatement(
                 "UPDATE mail SET status='PURGED', payload=X'', updated_at=? WHERE" +
-                    " (type='PACKAGE' AND status='RETURNED' AND updated_at<?) OR (type IN" +
-                    " ('LETTER','ANNOUNCEMENT') AND status='UNCLAIMED' AND created_at<?)" +
+                    " ((type='PACKAGE' AND status='RETURNED' AND updated_at<?) OR (type IN" +
+                    " ('LETTER','ANNOUNCEMENT') AND status='UNCLAIMED' AND created_at<?))" +
                     " AND id NOT IN (SELECT mail_id FROM mapart_submissions)"
             ).use { ps ->
                 ps.setLong(1, now)

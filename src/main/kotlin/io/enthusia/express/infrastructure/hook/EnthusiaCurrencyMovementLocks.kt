@@ -44,16 +44,20 @@ class EnthusiaCurrencyMovementLocks(private val plugin: JavaPlugin) : MovementLo
     @Volatile private var closed = false
     @Volatile private var bindingAttempted = false
     @Volatile private var boundApi: Api? = null
+    private var disabledWarned = false
 
     /** Probe the optional integration once at startup so incompatible Currency builds fail clearly, not per click. */
     fun bindIfPresent() {
         if (closed || bindingAttempted) return
         val currency = Bukkit.getPluginManager().getPlugin("EnthusiaCurrency") ?: return
-        bindingAttempted = true
         if (!currency.isEnabled) {
-            plugin.logger.severe("EnthusiaCurrency ${currency.description.version} is installed but disabled; refusing mail asset mutation")
+            if (!disabledWarned) {
+                disabledWarned = true
+                plugin.logger.severe("EnthusiaCurrency ${currency.description.version} is installed but disabled; refusing mail asset mutation")
+            }
             return
         }
+        bindingAttempted = true
         boundApi = resolve(currency)
         if (boundApi != null) {
             plugin.logger.info("Bound EnthusiaCurrency ${currency.description.version} moderation API v$API_VERSION for mail movement leases.")

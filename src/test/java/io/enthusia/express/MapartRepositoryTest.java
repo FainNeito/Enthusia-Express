@@ -83,6 +83,22 @@ class MapartRepositoryTest {
     } finally { repository.close(); }
   }
 
+  /** Even legacy returned museum rows are excluded from destructive personal-mail purge. */
+  @Test void legacyReturnedMapartIsExcludedFromPurge() throws Exception {
+    var repository = open();
+    try {
+      long id = repository.insertMapart(UUID.randomUUID(), "A", new byte[] {1}, 7, "Landscape", UUID.randomUUID()).join();
+      try (var connection = DriverManager.getConnection("jdbc:sqlite:" + directory.resolve("mail.db"));
+           var statement = connection.prepareStatement("UPDATE mail SET status='RETURNED',return_delivery=1 WHERE id=?")) {
+        statement.setLong(1, id);
+        statement.executeUpdate();
+      }
+      repository.expire(System.currentTimeMillis(), 0, Long.MAX_VALUE, Long.MAX_VALUE).join();
+      assertEquals(MailStatus.RETURNED, repository.get(id).join().status());
+      assertArrayEquals(new byte[] {1}, repository.get(id).join().payload());
+    } finally { repository.close(); }
+  }
+
   @Test void personalMailBlockDoesNotHideDedicatedMuseumIntake() {
     var repository = open();
     try {

@@ -20,6 +20,34 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
 class EnthusiaCurrencyMovementLocksTest {
+    /** A disabled provider can be probed once after enable, while mutations stay fail-closed. */
+    @Test
+    void disabledCurrencyCanBindAfterEnableWithoutRepeatedDiagnostics() {
+        Logger logger = mock(Logger.class);
+        JavaPlugin express = mock(JavaPlugin.class);
+        when(express.getLogger()).thenReturn(logger);
+        Plugin currency = mock(Plugin.class);
+        when(currency.isEnabled()).thenReturn(false);
+        PluginDescriptionFile description = mock(PluginDescriptionFile.class);
+        when(description.getVersion()).thenReturn("1.4.3-test");
+        when(currency.getDescription()).thenReturn(description);
+        PluginManager plugins = mock(PluginManager.class);
+        when(plugins.getPlugin("EnthusiaCurrency")).thenReturn(currency);
+
+        try (MockedStatic<Bukkit> bukkit = mockStatic(Bukkit.class)) {
+            bukkit.when(Bukkit::getPluginManager).thenReturn(plugins);
+            var locks = new EnthusiaCurrencyMovementLocks(express);
+            locks.bindIfPresent();
+            assertNull(locks.acquire(UUID.randomUUID()));
+            assertNull(locks.acquire(UUID.randomUUID()));
+            verify(logger, times(1)).severe(contains("installed but disabled"));
+            when(currency.isEnabled()).thenReturn(true);
+            assertNull(locks.acquire(UUID.randomUUID()));
+            assertNull(locks.acquire(UUID.randomUUID()));
+            verify(logger, times(1)).severe(contains("does not publish"));
+        }
+    }
+
     @Test
     void missingModerationApiIsDiagnosedOnceAndClaimsStayFailClosed() {
         Logger logger = Logger.getAnonymousLogger();

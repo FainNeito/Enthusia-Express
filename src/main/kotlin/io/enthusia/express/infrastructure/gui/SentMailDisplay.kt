@@ -42,7 +42,7 @@ object SentMailDisplay {
             add("§7Sent: §f${dateFormat.format(Instant.ofEpochMilli(mail.createdAt))}")
             add("§7Status: §f${status(entry)}")
             add(contentHint(mail))
-            if (mail.type != MailType.PACKAGE && mail.payload.isNotEmpty()) {
+            if (mail.type != MailType.PACKAGE && mail.status != MailStatus.PURGED) {
                 add("")
                 add("§eLeft-click to read sent copy")
             }
@@ -51,9 +51,9 @@ object SentMailDisplay {
         return item
     }
 
-    /** Describe retained content without suggesting collection from history. */
+    /** Page snapshots omit payloads; only the persisted purge status proves content expiration. */
     private fun contentHint(mail: MailRecord): String = when {
-        mail.payload.isEmpty() -> "§7Contents: §8Expired"
+        mail.status == MailStatus.PURGED -> "§7Contents: §8Expired"
         mail.type == MailType.PACKAGE -> "§7Contents: §f${mail.packedItemCount} packed items"
         else -> "§7Contents: §fSent book copy retained"
     }
