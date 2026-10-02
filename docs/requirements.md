@@ -181,3 +181,15 @@ THE SYSTEM SHALL verify its build and regression suite against pinned Paper 26.2
 ## REQ-045
 
 WHEN a failed shipment waits for a currency movement lease THE SYSTEM SHALL retain durable cargo, account and original postage route across restart, retry only definitely unattempted compensation under an owned lease, and hold uncertain asset mutations for operator reconciliation without automatic replay.
+
+## REQ-046 — Bulk read
+
+WHEN a recipient selects Mark All Text Read in a received Letters or Announcements inbox THE SYSTEM SHALL atomically clear unread state for that recipient's retained unclaimed letters and announcements across every page. Packages, other recipients and sent-history controls shall remain unaffected; duplicate clicks and stale-session completions shall not create duplicate writes or reopen obsolete menus.
+
+## REQ-047 — Shared museum intake
+
+WHEN an authorized sender submits filled maps THE SYSTEM SHALL validate bounded map-only cargo and charge configured postage before publishing one token-identified museum submission. Managers shall claim only one eligible generation and mark a submission processed only after confirmed delivery. Museum intake shall remain separate from personal mail and expiration.
+
+## REQ-048 — Cosmetic mail arrivals
+
+WHEN a connected session has newly pending mail THE SYSTEM SHALL display a grouped read-only arrival notification with sender and type for one arrival or total mail count for multiple arrivals. Missing native toast bindings shall affect only the configured cosmetic fallback and shall not mutate mail or register server advancements.

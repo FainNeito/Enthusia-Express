@@ -382,16 +382,22 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
 
     /** Clear this recipient's unread letters and announcements with one storage update. */
     private fun markAllTextRead(player: Player, session: Session) {
-        if (!session.loaded || session.sent || session.type == MailType.PACKAGE || !claiming.add(player.uniqueId)) return
+        if (!session.loaded || session.sent || session.type == MailType.PACKAGE) return
+        if (!claiming.add(player.uniqueId)) return
         main.complete(repository.markAllTextRead(player.uniqueId)) { changed, failure ->
-            claiming.remove(player.uniqueId)
-            if (!active(player, session)) return@complete
-            if (failure != null) player.sendMessage(Text.msg(plugin.config, DATABASE_ERROR))
-            else {
-                val count = changed ?: 0
-                player.sendMessage("§aMarked $count text ${if (count == 1) "message" else "messages"} as read.")
-                openPage(player, session.type, session.page)
-            }
+            completeBulkRead(player, session, changed, failure)
+        }
+    }
+
+    /** Release the operation guard and refresh only the same authorized inbox session. */
+    private fun completeBulkRead(player: Player, session: Session, changed: Int?, failure: Throwable?) {
+        claiming.remove(player.uniqueId)
+        if (!active(player, session)) return
+        if (failure != null) player.sendMessage(Text.msg(plugin.config, DATABASE_ERROR))
+        else {
+            val count = changed ?: 0
+            player.sendMessage("§aMarked $count text ${if (count == 1) "message" else "messages"} as read.")
+            openPage(player, session.type, session.page)
         }
     }
 
