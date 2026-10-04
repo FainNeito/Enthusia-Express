@@ -22,6 +22,10 @@ data class ChargeResult(val receipt: PaymentReceipt?, val balance: Double = 0.0,
                         val reconciliationId: String? = null)
 
 class ShippingPayments(private val plugin: JavaPlugin) {
+    /** Museum postage uses the same authoritative combined-balance route as ordinary mail. */
+    fun chargeRawGold(player: Player, cost: Int): ChargeResult {
+        return charge(player, cost)
+    }
     /** Describe the selected route without withdrawing any balance. */
     fun priceUnit(): String {
         val mode = plugin.config.getString("payments.provider", "auto")
@@ -83,8 +87,11 @@ class ShippingPayments(private val plugin: JavaPlugin) {
     /** Create an idempotent refund that restores physical gold to the current player account. */
     private fun physicalReceipt(player: Player, cost: Int): ChargeResult {
         var refunded = false
+        var attempted = false
         return ChargeResult(PaymentReceipt {
-            if (!refunded) {
+            if (!attempted) {
+                // Do not repeat a refund after partial inventory mutation.
+                attempted = true
                 val current = Bukkit.getPlayer(player.uniqueId) ?: player
                 var refund = cost
                 while (refund > 0) {
@@ -97,7 +104,7 @@ class ShippingPayments(private val plugin: JavaPlugin) {
                 if (!current.isOnline) current.saveData()
                 refunded = true
             }
-            true
+            refunded
         })
     }
     private companion object { const val CURRENCY_PLUGIN = "EnthusiaCurrency" }

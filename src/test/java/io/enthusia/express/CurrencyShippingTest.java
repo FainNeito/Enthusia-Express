@@ -117,7 +117,7 @@ class CurrencyShippingTest {
     }
   }
 
-  private Economy install(ShippingServiceTest.Fixture f) {
+  Economy install(ShippingServiceTest.Fixture f) {
     when(f.plugin.getDataFolder()).thenReturn(paymentDirectory.toFile());
     f.plugin.getConfig().set("payments.provider", "auto");
     PluginManager manager = mock(PluginManager.class);
@@ -138,6 +138,26 @@ class CurrencyShippingTest {
     when(economy.withdrawPlayer((OfflinePlayer) f.sender, 2.0)).thenReturn(success(2));
     when(economy.depositPlayer((OfflinePlayer) f.sender, 2.0)).thenReturn(success(2));
     return economy;
+  }
+
+  /** Recipient visibility becoming online during payment compensates instead of publishing. */
+  @Test void recipientBecomingVisibleDuringPaymentReturnsCargoAndFeeOnce() {
+    try (var f = new ShippingServiceTest.Fixture(OptionalLong.of(1))) {
+      Economy economy = install(f);
+      var session = mock(org.bukkit.entity.Player.class);
+      when(f.target.getPlayer()).thenReturn(session);
+      when(f.sender.canSee(session)).thenReturn(true);
+      when(economy.withdrawPlayer((OfflinePlayer) f.sender, 2.0)).thenAnswer(call -> {
+        when(f.target.isOnline()).thenReturn(true);
+        return success(2);
+      });
+      f.confirm();
+      f.service.retryCompensations();
+      f.service.retryCompensations();
+      verify(f.repository, never()).insertMailLimited(any(), anyString(), any(), anyString(), any(), any(), anyInt(), anyBoolean());
+      verify(f.playerInventory, times(1)).addItem(f.packageItem);
+      verify(economy, times(1)).depositPlayer((OfflinePlayer) f.sender, 2.0);
+    }
   }
 
   /** A rejecting provider may close the menu, but neither cargo nor fees are duplicated. */
@@ -322,11 +342,11 @@ class CurrencyShippingTest {
       when(f.sender.isOnline()).thenReturn(false);
       pending.complete(OptionalLong.empty());
       verify(economy, never()).depositPlayer(any(OfflinePlayer.class), anyDouble());
-      verify(f.sender, never()).saveData();
+      verify(f.sender, times(1)).saveData(); // Sender reservation was saved before insertion.
       when(f.sender.isOnline()).thenReturn(true);
       f.service.retryCompensations();
       verify(economy).depositPlayer((OfflinePlayer) f.sender, 2.0);
-      verify(f.sender).saveData();
+      verify(f.sender, times(2)).saveData();
     }
   }
   /** Verifies that physical mode loads without vault classes. */

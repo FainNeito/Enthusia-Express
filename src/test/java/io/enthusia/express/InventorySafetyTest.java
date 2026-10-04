@@ -167,6 +167,32 @@ class InventorySafetyTest {
     listener.onDrag(event);
     verify(event).setCancelled(true);
   }
+
+  /** Only a plain right-click may request a mark-as-read action from the inbox. */
+  @Test
+  void rightClickDispatchesMailboxReadWithoutShiftOrNumberKeyActions() {
+    ShippingService shipping = mock(ShippingService.class);
+    MailboxService mailbox = mock(MailboxService.class);
+    GuiListener listener = new GuiListener(shipping, mailbox);
+    Player player = mock(Player.class);
+    Inventory top = mock(Inventory.class);
+    when(top.getSize()).thenReturn(54);
+    InventoryView view = mock(InventoryView.class);
+    when(view.getTopInventory()).thenReturn(top);
+    when(mailbox.owns(player)).thenReturn(true);
+    for (ClickType click : List.of(ClickType.RIGHT, ClickType.SHIFT_RIGHT, ClickType.NUMBER_KEY)) {
+      InventoryClickEvent event = mock(InventoryClickEvent.class);
+      when(event.getWhoClicked()).thenReturn(player);
+      when(event.getView()).thenReturn(view);
+      when(event.getRawSlot()).thenReturn(18);
+      when(event.getClick()).thenReturn(click);
+      listener.onClick(event);
+      verify(event).setCancelled(true);
+    }
+    verify(mailbox, times(3)).owns(player);
+    verify(mailbox).deferClick(player, 18, true);
+    verifyNoMoreInteractions(mailbox);
+  }
   /** Verifies that placeholder cannot be picked up and real cargo triggers restoration check. */
 
   @Test

@@ -13,7 +13,8 @@ object ConfigValidation {
             "payments.provider must be auto, physical, or enthusia-currency"
         }
         for (key in listOf("mail.require-combatlogx", "letters.enabled", "announcements.enabled", "mail.limits.one-outstanding-package-per-recipient",
-            "mail.limits.one-outstanding-letter-per-recipient", "notifications.join-mail.enabled", "sounds.enabled")) {
+            "mail.limits.one-outstanding-letter-per-recipient", "notifications.join-mail.enabled", "sounds.enabled",
+            "notifications.toast.enabled", "notifications.toast.chat-fallback", "mapart.enabled")) {
             require(!config.contains(key) || config.isBoolean(key)) { "$key must be true or false" }
         }
         range(config, "database.busy-timeout-ms", 5000, 1, 60000)
@@ -22,6 +23,7 @@ object ConfigValidation {
         range(config, "mail.max-completions-per-tick", 64, 1, 1024)
         range(config, "mail.completion-budget-ms", 2, 1, 20)
         range(config, "mail.raw-gold-per-item", 1, 0, 1000000)
+        range(config, "mapart.raw-gold-postage", 1, 0, 1000000)
         range(config, "mail.max-recursive-container-depth", 8, 1, 32)
         range(config, "mail.return-after-hours", 168, 1, 876000)
         range(config, "mail.purge-returned-after-hours", 168, 1, 876000)

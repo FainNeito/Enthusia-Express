@@ -28,6 +28,46 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.junit.jupiter.api.Test;
 
 class MailCommandTest {
+    /** A mapart goes to the shared intake queue. */
+    @Test
+    void mapartSubmissionUsesDedicatedShippingMethod() {
+        try (var bukkit = mockStatic(Bukkit.class)) {
+            var plugin = mock(JavaPlugin.class);
+            var config = new YamlConfiguration();
+            // Existing installations need not gain a new config key to accept Museum maps.
+            when(plugin.getConfig()).thenReturn(config);
+            var sender = mock(Player.class);
+            when(sender.getUniqueId()).thenReturn(UUID.randomUUID());
+            when(sender.hasPermission(anyString())).thenReturn(true);
+            var combat = mock(CombatLogXHook.class);
+            when(combat.mayUseMail(sender)).thenReturn(true);
+            var shipping = mock(ShippingService.class);
+            var command = new MailCommand(plugin, shipping, mock(MailboxService.class), combat,
+                mock(BookMailService.class), mock(MainThread.class));
+            command.onCommand(sender, mock(Command.class), "mail", new String[] {"mapart", "submit"});
+            verify(shipping).openMapart(sender);
+            verify(shipping, never()).open(any(), any());
+        }
+    }
+    @Test
+    void explicitMuseumPauseStillBlocksNewSubmissions() {
+      try (var bukkit = mockStatic(Bukkit.class)) {
+        var plugin = mock(JavaPlugin.class);
+        var config = new YamlConfiguration();
+        config.set("mapart.enabled", false);
+        when(plugin.getConfig()).thenReturn(config);
+        var sender = mock(Player.class);
+        when(sender.hasPermission(anyString())).thenReturn(true);
+        var combat = mock(CombatLogXHook.class);
+        when(combat.mayUseMail(sender)).thenReturn(true);
+        var shipping = mock(ShippingService.class);
+        var command = new MailCommand(plugin, shipping, mock(MailboxService.class), combat,
+            mock(BookMailService.class), mock(MainThread.class));
+        command.onCommand(sender, mock(Command.class), "mail", new String[] {"mapart", "submit"});
+        verify(shipping, never()).openMapart(sender);
+        verify(sender).sendMessage(contains("temporarily paused"));
+      }
+    }
     /** Block commands route the caller and recipient without starting mail delivery. */
     @Test
     void blockCommandsUsePlayerPreferences() {

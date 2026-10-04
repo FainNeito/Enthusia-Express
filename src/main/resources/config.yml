@@ -1,6 +1,14 @@
 database:
   busy-timeout-ms: 5000
   max-queued-operations: 256
+mapart:
+  # Permanent Mapart Museum intake, not a competition-submission system.
+  # Set false only to pause new submissions; managers can still work existing intake.
+  # Managers are any players granted enthusiaexpress.mapart.manage.
+  enabled: true
+  # Raw Gold value per submission (loose maps or a map-filled shulker/bundle).
+  # payments.provider auto uses EnthusiaCurrency's combined bank + inventory balance.
+  raw-gold-postage: 1
 mail:
   return-after-hours: 168
   purge-returned-after-hours: 168
@@ -29,6 +37,12 @@ announcements:
   enabled: true
   cooldown-seconds: 10
 notifications:
+  toast:
+    # Transient vanilla advancement toasts; no additional plugin required.
+    # Uses native server bindings; incompatible bindings use chat fallback.
+    # Single mail: sender/type. Multiple mail: total mail count (not items inside packages).
+    enabled: true
+    chat-fallback: true
   join-mail:
     # Counts claimable packages and unread letters/announcements without blocking the join event.
     # No message is sent for zero mail or when the joining session disconnects before completion.
@@ -64,7 +78,7 @@ gui:
     # Opt-in. Nexo supplies assets and its resource pack; absent/unloaded items use vanilla icons.
     enabled: false
     # Nexo glyph/shift tags require its inventory-title packet formatting.
-    # Keep one mailbox title for all categories to preserve cursor position.
+    # The mailbox appends Inbox or Sent Mail to this base title; category switches reuse the same inventory.
     titles:
       mailbox: ""
       shipping: ""
@@ -81,6 +95,14 @@ gui:
         inbox: ""
         sent: ""
         page: ""
+        summary: ""
+        mark-all-read: ""
+        refresh: ""
+        close: ""
+        entry:
+          package: ""
+          letter: ""
+          announcement: ""
       shipping:
         cancel: ""
         recipient: ""

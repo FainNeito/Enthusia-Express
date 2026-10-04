@@ -42,16 +42,38 @@ private object NoopMovementLease : MovementLease {
 class EnthusiaCurrencyMovementLocks(private val plugin: JavaPlugin) : MovementLocks, AutoCloseable {
     private val active = ConcurrentHashMap.newKeySet<ReflectiveLease>()
     @Volatile private var closed = false
+    @Volatile private var bindingAttempted = false
+    @Volatile private var boundApi: Api? = null
+    private var disabledWarned = false
+
+    /** Probe the optional integration once at startup so incompatible Currency builds fail clearly, not per click. */
+    fun bindIfPresent() {
+        if (closed || bindingAttempted) return
+        val currency = Bukkit.getPluginManager().getPlugin("EnthusiaCurrency") ?: return
+        if (!currency.isEnabled) {
+            if (!disabledWarned) {
+                disabledWarned = true
+                plugin.logger.severe("EnthusiaCurrency ${currency.description.version} is installed but disabled; refusing mail asset mutation")
+            }
+            return
+        }
+        bindingAttempted = true
+        boundApi = resolve(currency)
+        if (boundApi != null) {
+            plugin.logger.info("Bound EnthusiaCurrency ${currency.description.version} moderation API v$API_VERSION for mail movement leases.")
+        }
+    }
 
     /** Fail closed when Currency is installed but its moderation service is unavailable or incompatible. */
     override fun acquire(playerId: UUID): MovementLease? {
         if (closed) return null
         val currency = Bukkit.getPluginManager().getPlugin("EnthusiaCurrency") ?: return NoopMovementLease
         if (!currency.isEnabled) {
-            plugin.logger.warning("EnthusiaCurrency is installed but disabled; refusing mail asset mutation")
+            if (!bindingAttempted) bindIfPresent()
             return null
         }
-        val api = resolve(currency) ?: return null
+        if (!bindingAttempted) bindIfPresent()
+        val api = boundApi ?: return null
         val lease = ReflectiveLease(api, playerId, UUID.randomUUID())
         if (!lease.acquireInitial()) return null
         active.add(lease)
@@ -78,8 +100,24 @@ class EnthusiaCurrencyMovementLocks(private val plugin: JavaPlugin) : MovementLo
             type.getMethod("renewMovementLock", UUID::class.java, UUID::class.java, Duration::class.java),
             type.getMethod("releaseMovementLock", UUID::class.java, UUID::class.java),
         )
+    } catch (error: ClassNotFoundException) {
+        plugin.logger.severe(
+            "EnthusiaCurrency ${currency.description.version} does not publish $API_CLASS. " +
+                "Install a Currency build with moderation API v$API_VERSION (current source is 1.4.4); refusing mail asset mutation."
+        )
+        null
+    } catch (error: NoSuchMethodException) {
+        plugin.logger.severe(
+            "EnthusiaCurrency ${currency.description.version} exposes an incompatible moderation API: ${error.message}; " +
+                "expected v$API_VERSION. Refusing mail asset mutation."
+        )
+        null
     } catch (error: Throwable) {
-        plugin.logger.log(Level.SEVERE, "Cannot bind EnthusiaCurrency moderation API; refusing mail asset mutation", error)
+        plugin.logger.log(
+            Level.SEVERE,
+            "Cannot bind EnthusiaCurrency ${currency.description.version} moderation API v$API_VERSION; refusing mail asset mutation",
+            error,
+        )
         null
     }
 
