@@ -59,3 +59,7 @@ Chat-filter integration is deferred at the user's request. GUI cursor behavior a
 - Deny `enthusiaexpress.block` and verify block management is unavailable. Check name completion for block/unblock.
 - With Nexo absent or disabled, verify every normal menu control works. Follow NEXO.md with real pack assets; check category selection, stable cursor position, title alignment and all buttons.
 - Use a custom shipping placeholder, close/reopen, and attempt click/drag/shift-click: no marker may enter player inventory or become a shipment. Unknown Nexo IDs must retain usable vanilla controls.
+
+## Hidden-recipient mail acceptance
+
+With disposable accounts on the exact staff/plugin stack, compare a genuinely offline recipient with a staff-mode/vanished recipient hidden from the sender. Letter and package sends must have the same acceptance and stored recipient identity. Repeat package confirmation and a visibility change during payment: becoming visible online must compensate cargo/postage once. Visible online recipients remain rejected. Recheck recipient blocks, self-mail and outstanding limits. Mail notifications and mailbox access remain unchanged. This requires live client evidence; mocked Paper visibility is not acceptance.

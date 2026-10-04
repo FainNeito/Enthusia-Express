@@ -55,3 +55,7 @@ The baseline build retains the Paper 1.21 API and Java 21 bytecode. Pinned 26.2 
 ## Shipping compensation
 
 `ShippingRecovery` is an infrastructure-only, main-thread-owned journal. Forced atomic phase changes distinguish definite unattempted compensation from ambiguous asset mutation. `ShippingService` retains live provider receipts, polls a bounded rotating pending batch and participates in EnthusiaCurrency's operation-owned movement lease. Restart recovery recreates only the persisted payment route. `PREPARED` and `APPLYING` are evidence for reconciliation, never automatic refund requests. Claim delivery now carries its callback context in a data class and separates eligibility, inventory mutation and rollback; exception cleanup preserves propagation through `finally`.
+
+## Recipient presence privacy
+
+The infrastructure RecipientPresence adapter uses Paper Player.canSee on the sending player and current recipient session. Online-only mail gates apply only to visible recipients; hidden recipients retain offline delivery semantics. Missing session handles retain the prior online rejection. Shipping rechecks this policy at open, confirmation, block-lookup completion and after payment callbacks. No staff ranks, permissions or provider internals are inferred; no new API dependency is bundled.

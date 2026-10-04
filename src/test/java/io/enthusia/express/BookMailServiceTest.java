@@ -52,6 +52,24 @@ class BookMailServiceTest {
     verifyNoInteractions(repository);
   }
 
+  @Test
+  void hiddenOnlineRecipientAcceptsTheSameLetterAsOfflineRecipient() {
+    UUID recipientId = target.getUniqueId();
+    Player session = mock(Player.class);
+    when(target.isOnline()).thenReturn(true);
+    when(target.getPlayer()).thenReturn(session);
+    when(player.canSee(session)).thenReturn(false);
+    try (var codec = mockStatic(ItemCodec.class)) {
+      byte[] bytes = {1, 2};
+      codec.when(() -> ItemCodec.encode(book)).thenReturn(bytes);
+      when(repository.insertMailLimited(any(), anyString(), any(), anyString(), any(), any(), anyInt(), anyBoolean()))
+          .thenReturn(CompletableFuture.completedFuture(OptionalLong.of(1)));
+      service.send(player, target, false, false);
+      verify(repository).insertMailLimited(any(), anyString(), eq(recipientId), anyString(), eq(MailType.LETTER), eq(bytes), anyInt(), anyBoolean());
+      verify(player, never()).sendMessage(contains("currently online"));
+    }
+  }
+
   @BeforeEach
   void setup() {
     plugin = mock(JavaPlugin.class);

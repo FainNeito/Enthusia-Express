@@ -116,7 +116,7 @@ WHEN inbox navigation is clicked THE SYSTEM SHALL reuse the active inventory wit
 
 ## REQ-029
 
-WHEN a letter targets an online player THE SYSTEM SHALL explain that a letter is unnecessary because the recipient is online.
+WHEN a letter targets a player visibly online to the sender THE SYSTEM SHALL explain that a letter is unnecessary because the recipient is online.
 
 ## REQ-030
 
@@ -181,3 +181,7 @@ THE SYSTEM SHALL verify its build and regression suite against pinned Paper 26.2
 ## REQ-045
 
 WHEN a failed shipment waits for a currency movement lease THE SYSTEM SHALL retain durable cargo, account and original postage route across restart, retry only definitely unattempted compensation under an owned lease, and hold uncertain asset mutations for operator reconciliation without automatic replay.
+
+## REQ-046 — Recipient presence privacy
+
+WHEN a recipient is hidden from the sender by Paper visibility THE SYSTEM SHALL accept ordinary mail using offline-recipient semantics, without revealing the hidden session through online-only rejection. Visible online recipients, self-mail, blocking, postage and compensation policies shall remain unchanged. Shipping shall recheck visible presence before payment and after provider callbacks.

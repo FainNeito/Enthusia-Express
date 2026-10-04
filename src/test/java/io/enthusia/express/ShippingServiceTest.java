@@ -31,6 +31,32 @@ import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
 
 class ShippingServiceTest {
+  @Test
+  void hiddenOnlineRecipientCanReceivePackageThroughConfirmation() {
+    try (Fixture f = new Fixture(OptionalLong.of(1))) {
+      Player session = mock(Player.class);
+      when(f.target.isOnline()).thenReturn(true);
+      when(f.target.getPlayer()).thenReturn(session);
+      when(f.sender.canSee(session)).thenReturn(false);
+      f.service.open(f.sender, f.target);
+      f.confirm();
+      verify(f.repository).insertMailLimited(any(), anyString(), eq(f.targetId), anyString(), eq(MailType.PACKAGE), any(), anyInt(), anyBoolean());
+    }
+  }
+
+  @Test
+  void visibleOnlineRecipientStillRejectsShippingBeforePayment() {
+    try (Fixture f = new Fixture(OptionalLong.of(1))) {
+      Player session = mock(Player.class);
+      when(f.target.isOnline()).thenReturn(true);
+      when(f.target.getPlayer()).thenReturn(session);
+      when(f.sender.canSee(session)).thenReturn(true);
+      f.confirm();
+      verify(f.playerInventory, never()).setStorageContents(any());
+      verify(f.repository, never()).insertMailLimited(any(), anyString(), any(), anyString(), any(), any(), anyInt(), anyBoolean());
+    }
+  }
+
   /** A recipient block is checked before withdrawing postage. */
   @Test
   void blockedRecipientTakesNoPayment() {

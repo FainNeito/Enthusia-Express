@@ -60,7 +60,7 @@ class BookMailService @JvmOverloads constructor(
 
     /** Reject absent, online or self recipients for ordinary offline letters. */
     private fun invalidLetterRecipient(player: Player, target: OfflinePlayer?) =
-        target == null || target.isOnline || target.uniqueId == player.uniqueId
+        target == null || RecipientPresence.visiblyOnline(player, target) || target.uniqueId == player.uniqueId
 
     /** Check send permissions, combat protection, feature enablement and letter recipient policy. */
     private fun validateSend(player: Player, target: OfflinePlayer?, announcement: Boolean): Boolean {
@@ -79,14 +79,14 @@ class BookMailService @JvmOverloads constructor(
             return false
         }
         if (!announcement && invalidLetterRecipient(player, target)) {
-            player.sendMessage(recipientRejection(target))
+            player.sendMessage(recipientRejection(player, target))
             return false
         }
         return readyToSend(player, section)
     }
 
     /** Explain online letters separately from absent or self recipients. */
-    private fun recipientRejection(target: OfflinePlayer?): String = if (target?.isOnline == true)
+    private fun recipientRejection(player: Player, target: OfflinePlayer?): String = if (target != null && RecipientPresence.visiblyOnline(player, target))
         Text.msgOrDefault(plugin.config, "letter-target-online",
             "&eThere is no need to send a letter: that player is currently online.")
         else Text.msgOrDefault(plugin.config, "letter-invalid-recipient", "&cChoose another player to send a letter to.")
