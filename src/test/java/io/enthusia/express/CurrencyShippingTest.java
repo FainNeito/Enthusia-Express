@@ -140,6 +140,26 @@ class CurrencyShippingTest {
     return economy;
   }
 
+  /** Recipient visibility becoming online during payment compensates instead of publishing. */
+  @Test void recipientBecomingVisibleDuringPaymentReturnsCargoAndFeeOnce() {
+    try (var f = new ShippingServiceTest.Fixture(OptionalLong.of(1))) {
+      Economy economy = install(f);
+      var session = mock(org.bukkit.entity.Player.class);
+      when(f.target.getPlayer()).thenReturn(session);
+      when(f.sender.canSee(session)).thenReturn(true);
+      when(economy.withdrawPlayer((OfflinePlayer) f.sender, 2.0)).thenAnswer(call -> {
+        when(f.target.isOnline()).thenReturn(true);
+        return success(2);
+      });
+      f.confirm();
+      f.service.retryCompensations();
+      f.service.retryCompensations();
+      verify(f.repository, never()).insertMailLimited(any(), anyString(), any(), anyString(), any(), any(), anyInt(), anyBoolean());
+      verify(f.playerInventory, times(1)).addItem(f.packageItem);
+      verify(economy, times(1)).depositPlayer((OfflinePlayer) f.sender, 2.0);
+    }
+  }
+
   /** A rejecting provider may close the menu, but neither cargo nor fees are duplicated. */
   @Test void rejectedCallbackReturnsCargoWithoutRefundOrSubmission() {
     try (var f = new ShippingServiceTest.Fixture(OptionalLong.of(1))) {

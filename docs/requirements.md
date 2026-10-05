@@ -116,7 +116,7 @@ WHEN inbox navigation is clicked THE SYSTEM SHALL reuse the active inventory wit
 
 ## REQ-029
 
-WHEN a letter targets an online player THE SYSTEM SHALL explain that a letter is unnecessary because the recipient is online.
+WHEN a letter targets a player visibly online to the sender THE SYSTEM SHALL explain that a letter is unnecessary because the recipient is online.
 
 ## REQ-030
 
@@ -193,3 +193,7 @@ WHEN an authorized sender submits filled maps THE SYSTEM SHALL validate bounded 
 ## REQ-048 — Cosmetic mail arrivals
 
 WHEN a connected session has newly pending mail THE SYSTEM SHALL display a grouped read-only arrival notification with sender and type for one arrival or total mail count for multiple arrivals. Missing native toast bindings shall affect only the configured cosmetic fallback and shall not mutate mail or register server advancements.
+
+## REQ-049 — Recipient presence privacy
+
+WHEN a recipient is hidden from the sender by Paper visibility THE SYSTEM SHALL accept ordinary mail using offline-recipient semantics, without revealing the hidden session through online-only rejection. Visible online recipients, self-mail, blocking, postage and compensation policies shall remain unchanged. Shipping shall recheck visible presence before payment and after provider callbacks. Shared museum intake shall remain exempt from personal-recipient online checks.

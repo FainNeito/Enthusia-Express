@@ -44,6 +44,8 @@ class MapartPostageTest {
   @Test void museumUsesCombinedBalanceExactlyOnceAndPreservesPackage() {
     try (var f = new ShippingServiceTest.Fixture(OptionalLong.of(1))) {
       var economy = install(f);
+      // Shared museum intake must not inherit personal-recipient presence checks.
+      when(f.target.isOnline()).thenReturn(true);
       when(f.playerInventory.getStorageContents()).thenReturn(new ItemStack[0]);
       var result = new CompletableFuture<Long>();
       museum(f, result);
@@ -52,6 +54,7 @@ class MapartPostageTest {
       verify(economy, times(1)).withdrawPlayer((OfflinePlayer) f.sender, 2.0);
       verify(f.playerInventory, never()).setStorageContents(any());
       verify(f.repository, times(1)).insertMapart(eq(f.senderId), eq("Sender"), aryEq(new byte[]{1,2}), isNull(), eq("Mapart package (128 maps)"), any());
+      verify(f.target, never()).getPlayer();
       result.complete(1L);
       verify(economy, never()).depositPlayer(any(OfflinePlayer.class), anyDouble());
     }

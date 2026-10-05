@@ -3,6 +3,7 @@
 
 package io.enthusia.express.infrastructure.gui
 
+import io.enthusia.express.infrastructure.mail.RecipientPresence
 import io.enthusia.express.domain.MailBlockedException
 import io.enthusia.express.application.MailStore
 import io.enthusia.express.domain.MailType
@@ -76,8 +77,7 @@ class ShippingService @JvmOverloads constructor(
     /** Create the sender-owned cargo menu for an offline recipient. */
     fun open(sender: Player, target: OfflinePlayer) {
         if (!validateShippingAccess(sender, false)) return
-        val online = target.player
-        if (online != null && online.isOnline) {
+        if (RecipientPresence.visiblyOnline(sender, target)) {
             sender.sendMessage(Text.msg(plugin.config, TARGET_ONLINE))
             return
         }
@@ -143,7 +143,7 @@ class ShippingService @JvmOverloads constructor(
             sender.closeInventory()
             return
         }
-        if (target.isOnline && sender.uniqueId !in mapartSessions) {
+        if (sender.uniqueId !in mapartSessions && RecipientPresence.visiblyOnline(sender, target)) {
             sender.sendMessage(Text.msg(plugin.config, TARGET_ONLINE))
             sender.closeInventory()
             return
@@ -261,7 +261,7 @@ class ShippingService @JvmOverloads constructor(
             sender.sendMessage(Text.msgOrDefault(plugin.config, "recipient-not-accepting", "&cThat player is not accepting your mail."))
             return
         }
-        if (target.isOnline && sender.uniqueId !in mapartSessions) {
+        if (sender.uniqueId !in mapartSessions && RecipientPresence.visiblyOnline(sender, target)) {
             sender.sendMessage(Text.msg(plugin.config, TARGET_ONLINE))
             return
         }
@@ -294,7 +294,8 @@ class ShippingService @JvmOverloads constructor(
             }
             val payment = ReservedPayment(receipt, unit, lease, intent)
             val sessionEnded = !currentShippingSession(sender, inv) || !mapartStillEnabled(sender)
-            val recipientOrSenderIneligible = (target.isOnline && sender.uniqueId !in mapartSessions) || !eligibleSender(sender)
+            val recipientOrSenderIneligible =
+                (sender.uniqueId !in mapartSessions && RecipientPresence.visiblyOnline(sender, target)) || !eligibleSender(sender)
             if (sessionEnded || recipientOrSenderIneligible) {
                 deferCompensation(sender, payment, "§eShipment cancelled; your cargo and fee will be returned.")
                 pending.remove(sender.uniqueId)
