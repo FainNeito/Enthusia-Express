@@ -409,3 +409,15 @@ Evidence: both hidden-recipient regressions failed on unchanged source, then pas
   Integration evidence: existing CurrencyShippingTest Vault/Mockito callbacks exercise a recipient becoming visible during withdrawal and exactly-once cargo/fee compensation; MapartPostageTest now supplies an online museum target and verifies shared intake never requests a personal recipient session. Existing mocks and java/org.bukkit/net.milkbowl APIs are unchanged. RecipientPresence remains infrastructure-only; no domain/application imports or companion API signatures changed.
   SPEAR: infrastructure reconciliation of existing behavior; prove/engine are not applicable and no historical red/green evidence is invented. Project-local EARS/state helpers remain absent; use the pinned external validator and existing architecture/regression/packaging checks, and record their actual results here. Local mocked tests do not establish live staff visibility, client toast rendering or production acceptance.
   Result: Gradle 9.7.1 / Kotlin 2.4.20 clean builds on Java 25 pass all 214 tests on each pinned Paper 26.3-pre-2 and 26.2 API target, with zero failures/errors/skips; stable ran last. Architecture and shaded packaging tests pass. The external EARS validator passes REQ-049 after adapting the document's level-two header in memory; its full-document run flags unchanged legacy REQ-022 through REQ-025 wording, so whole-document EARS compliance is not claimed. Java 21 baseline and actual-baseline-JAR runtime matrix remain hosted checks, not these locally compiled verification artifacts. No server, configuration or permission changes.
+
+- [x] **TDD-047** — REQ-050 event delivery API for EnthusiaHolidays Secret Santa.
+
+  Tag: TDD
+
+  References: REQ-050, REQ-005, REQ-013, REQ-047.
+
+  Acceptance: token-idempotent event packages (same token → same mail id, no second row; token reused for a different recipient rejected); no postage, limits or blocks; exempt from return/expire/purge; claimable and acknowledged like ordinary packages; restart-safe; items validated (1–27 stacks, nesting limit) and wrapped in one shulker box; `EventDelivery` registered in ServicesManager with JDK/Bukkit-only signatures.
+
+  Evidence: RED was 40 test-compilation errors (missing `EventDelivery`, `EventDeliveryRecord`, `insertEventPackage` and the packager). GREEN: `EventDeliveryRepositoryTest` (8, real SQLite: claimable system package, token idempotency incl. restart and a 6-thread race, cross-recipient token rejection, blocks ignored, never expired/returned/purged, normal claim + acknowledgment, invalid input) and `EventDeliveryServiceTest` (3: validation, single packing, packaging failures as failed futures). Full suite 225 passing (214 before); `clean build verifyPaperCompatibility` passes.
+
+  Progress: complete for automated scope. `ShulkerEventPackager` (real shulker meta and serialization) needs live Paper acceptance together with EnthusiaHolidays.

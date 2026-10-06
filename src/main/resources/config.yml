@@ -143,3 +143,8 @@ messages:
   book-cooldown: "&ePlease wait before sending another book."
   book-sent: "&aBook delivered to {count} mailbox(es). Your original book is unchanged."
   database-error: "&cThe mail database operation failed. Please contact an administrator."
+
+# REQ-050 event delivery API (EnthusiaHolidays Secret Santa and other event plugins).
+api:
+  # Shulker box colour that wraps event packages.
+  event-package-material: RED_SHULKER_BOX
