@@ -57,4 +57,16 @@ class EventDeliveryServiceTest {
     assertTrue(result.isCompletedExceptionally());
     verifyNoInteractions(store);
   }
+
+  /** Any packaging failure, not only validation, comes back as a failed future. */
+  @Test
+  void unexpectedPackagingErrorsBecomeFailedFutures() {
+    List<ItemStack> items = List.of(stack());
+    when(packager.pack(items, "Santa")).thenThrow(new ArithmeticException("overflow"));
+    assertTrue(api.deliverPackage(recipient, "Bob", "Santa", items, token).isCompletedExceptionally());
+    List<ItemStack> withNull = new ArrayList<>();
+    withNull.add(null);
+    assertTrue(api.deliverPackage(recipient, "Bob", "Santa", withNull, token).isCompletedExceptionally());
+    verifyNoInteractions(store);
+  }
 }
