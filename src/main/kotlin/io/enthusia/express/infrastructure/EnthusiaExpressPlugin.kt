@@ -65,6 +65,9 @@ class EnthusiaExpressPlugin : JavaPlugin() {
         Bukkit.getPluginManager().registerEvents(GuiListener(shipping, mailbox), this)
         Bukkit.getPluginManager().registerEvents(JoinNotificationService(this, repository, main), this)
         startToasts(repository, main)
+        // Other plugins (EnthusiaFriends Block Everywhere) block mail through this service instead of /mail block.
+        Bukkit.getServicesManager().register(io.enthusia.express.application.api.MailBlockApi::class.java,
+            io.enthusia.express.application.api.StoreMailBlockApi(repository), this, org.bukkit.plugin.ServicePriority.Normal)
         expiration.start()
         logger.info("Enthusia Express enabled.")
     }
@@ -91,6 +94,7 @@ class EnthusiaExpressPlugin : JavaPlugin() {
 
     /** Stop recurring work, return open cargo, drain completions and close the receipt journal before SQLite. */
     override fun onDisable() {
+        Bukkit.getServicesManager().unregisterAll(this)
         toastTask?.cancel()
         toastService?.close()
         toastRenderer?.close()
