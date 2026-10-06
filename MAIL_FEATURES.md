@@ -144,3 +144,7 @@ No live Paper client was used. Before production rollout, verify the pane appear
 ## Kotlin 1.2.0 update
 
 A package claim keeps its limit reservation while inventory delivery is pending. Successful acknowledgment releases it; compensation restores the original package. See README.md for the EnthusiaCurrency provider setting and TESTING.md for the expanded staging checks.
+
+## Mail block API for other plugins
+
+Express registers `io.enthusia.express.application.api.MailBlockApi` with Bukkit's `ServicesManager`. Other plugins (EnthusiaFriends' Block Everywhere) use it to check, block and unblock mail between two players without running `/mail block`. It applies the same rules as the command (no self-blocks, bounded sender name), writes to the same block list players see with `/mail blocked`, and performs no permission checks or player messages of its own, so the calling plugin must authorize the player first. Futures complete off the main thread. Blocks are stored in this server's `mail.db`.
