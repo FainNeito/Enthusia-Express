@@ -65,8 +65,20 @@ class EnthusiaExpressPlugin : JavaPlugin() {
         Bukkit.getPluginManager().registerEvents(GuiListener(shipping, mailbox), this)
         Bukkit.getPluginManager().registerEvents(JoinNotificationService(this, repository, main), this)
         startToasts(repository, main)
+        registerEventDelivery(repository)
         expiration.start()
         logger.info("Enthusia Express enabled.")
+    }
+
+    /** Expose the REQ-050 event delivery API to other plugins. */
+    private fun registerEventDelivery(repository: MailRepository) {
+        val material = org.bukkit.Material.matchMaterial(config.getString("api.event-package-material", "RED_SHULKER_BOX")!!)
+            ?.takeIf { it.name.endsWith("SHULKER_BOX") } ?: org.bukkit.Material.RED_SHULKER_BOX
+        val packager = io.enthusia.express.infrastructure.api.ShulkerEventPackager(material,
+            config.getInt("mail.max-recursive-container-depth", 8))
+        Bukkit.getServicesManager().register(io.enthusia.express.api.EventDelivery::class.java,
+            io.enthusia.express.infrastructure.api.EventDeliveryService(repository, packager), this,
+            org.bukkit.plugin.ServicePriority.Normal)
     }
 
     /** Wire the cosmetic arrival observer independently from mail mutations. */

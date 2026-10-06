@@ -125,3 +125,14 @@ Existing installations should add `messages.insufficient-currency` from the ship
 ## Review documentation policy
 
 Method contracts explain server-thread ownership, asynchronous completion and recovery, including private callbacks. CodeRabbit requires docstring coverage; Codacy's optional `CommentOverPrivateFunction` preference conflicts with that requirement. Files containing these contracts suppress only that documentation-style rule. Other analysis rules and quality gates remain enabled. The isolated SQLite reset-failure regression suppresses `PMD.AvoidAccessibilityAlteration` only for deliberate test fault injection; production connection visibility remains private.
+
+## Event delivery API (REQ-050)
+
+Other plugins can mail items as a system package through Bukkit's ServicesManager:
+
+```kotlin
+val delivery = Bukkit.getServicesManager().load(io.enthusia.express.api.EventDelivery::class.java)
+delivery?.deliverPackage(recipientId, recipientName, "Secret Santa", items, token) // CompletableFuture<Long>
+```
+
+The items (1–27 stacks) arrive in one shulker box (`api.event-package-material`). There is no postage, and outstanding limits and blocks don't apply. Event packages never expire, return or purge. Reusing the same `token` never creates a second package.

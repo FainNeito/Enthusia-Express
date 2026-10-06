@@ -10,7 +10,17 @@ import java.util.concurrent.CompletableFuture
 
 const val MAIL_PAGE_SIZE = 27
 
-interface MailStore : MailQueries, MailWrites, MailClaims, MailLifecycle, MailBlocks, MapartStore
+interface MailStore : MailQueries, MailWrites, MailClaims, MailLifecycle, MailBlocks, MapartStore, EventDeliveries
+
+interface EventDeliveries {
+    /**
+     * Store one system package for [recipient] (REQ-050): no postage, limits or blocks, never expired.
+     * [token] makes retries idempotent; reusing it for another recipient fails.
+     */
+    @Suppress("LongParameterList")
+    fun insertEventPackage(recipient: UUID, recipientName: String, senderName: String,
+                           payload: ByteArray, packedCount: Int, token: UUID): CompletableFuture<io.enthusia.express.domain.EventDeliveryRecord>
+}
 
 interface MapartStore {
     /** Save map cargo and its intake metadata in one transaction. The token makes retries idempotent. */
