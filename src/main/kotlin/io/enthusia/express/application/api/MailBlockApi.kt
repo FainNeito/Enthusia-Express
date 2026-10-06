@@ -26,7 +26,7 @@ class StoreMailBlockApi(private val store: MailBlocks) : MailBlockApi {
         if (owner == sender) return CompletableFuture.failedFuture(IllegalArgumentException("A player cannot block their own mail"))
         val name = senderName.trim()
         // The name is only stored when blocking; an unblock must work even if the caller has no valid name.
-        if (blocked && (name.isEmpty() || name.length > MAX_NAME || name.any { it.isISOControl() })) {
+        if (blocked && !validName(name)) {
             return CompletableFuture.failedFuture(IllegalArgumentException("Invalid sender name"))
         }
         return store.setBlocked(owner, sender, name, blocked)
@@ -34,5 +34,8 @@ class StoreMailBlockApi(private val store: MailBlocks) : MailBlockApi {
 
     private companion object {
         const val MAX_NAME = 64
+
+        /** Same rule as /mail block: non-empty, bounded and free of control characters. */
+        fun validName(name: String): Boolean = name.length in 1..MAX_NAME && name.none { it.isISOControl() }
     }
 }
