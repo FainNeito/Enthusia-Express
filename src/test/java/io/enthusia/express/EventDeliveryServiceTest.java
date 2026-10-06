@@ -18,7 +18,8 @@ class EventDeliveryServiceTest {
   MailStore store = mock(MailStore.class);
   EventPackager packager = mock(EventPackager.class);
   EventDelivery api = new EventDeliveryService(store, packager);
-  UUID recipient = UUID.randomUUID(), token = UUID.randomUUID();
+  UUID recipient = UUID.randomUUID();
+  UUID token = UUID.randomUUID();
 
   ItemStack stack() {
     ItemStack item = mock(ItemStack.class);

@@ -14,7 +14,8 @@ import org.junit.jupiter.api.io.TempDir;
 class EventDeliveryRepositoryTest {
   @TempDir Path directory;
   MailRepository repository;
-  UUID recipient = UUID.randomUUID(), token = UUID.randomUUID();
+  UUID recipient = UUID.randomUUID();
+  UUID token = UUID.randomUUID();
   byte[] payload = {7, 7, 7};
 
   @BeforeEach
