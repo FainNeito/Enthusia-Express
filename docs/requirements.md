@@ -197,3 +197,7 @@ WHEN a connected session has newly pending mail THE SYSTEM SHALL display a group
 ## REQ-049 — Recipient presence privacy
 
 WHEN a recipient is hidden from the sender by Paper visibility THE SYSTEM SHALL accept ordinary mail using offline-recipient semantics, without revealing the hidden session through online-only rejection. Visible online recipients, self-mail, blocking, postage and compensation policies shall remain unchanged. Shipping shall recheck visible presence before payment and after provider callbacks. Shared museum intake shall remain exempt from personal-recipient online checks.
+
+## REQ-050 — Event delivery API
+
+WHEN an integrating plugin (EnthusiaHolidays) requests an event delivery through the public `EventDelivery` service THE SYSTEM SHALL wrap the supplied items (1–27 non-empty stacks within the configured nesting limit) in one shulker-box package from the given display sender and store it for the recipient without postage, outstanding-mail limits or sender blocks. Event packages SHALL never be returned, expired or purged by retention, and SHALL be claimed through the normal mailbox with the existing claim/acknowledgment safety. A caller-supplied delivery token SHALL make retries idempotent: the same token always resolves to the first package without storing another, and a token reused for a different recipient SHALL be rejected. The service SHALL use only JDK and Bukkit types and SHALL be registered in Bukkit's ServicesManager.

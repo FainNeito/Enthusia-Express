@@ -91,6 +91,12 @@ class MailRepository(
                     processed_by TEXT
                 )""")
                 st.execute("CREATE INDEX IF NOT EXISTS idx_mapart_status ON mapart_submissions(processed_at,mail_id)")
+                st.execute("""CREATE TABLE IF NOT EXISTS event_deliveries (
+                    token TEXT PRIMARY KEY,
+                    mail_id INTEGER NOT NULL UNIQUE REFERENCES mail(id),
+                    recipient_uuid TEXT NOT NULL,
+                    delivered_at INTEGER NOT NULL
+                )""")
                 val columns = HashSet<String>()
                 st.executeQuery("PRAGMA table_info(mail)").use { rs ->
                     while (rs.next()) columns.add(rs.getString("name"))
@@ -152,6 +158,37 @@ class MailRepository(
                         ps.executeUpdate()
                     }
                     id
+                }
+            }
+        }
+    }
+
+    /** Token-idempotent system package that retention never touches (REQ-050). */
+    override fun insertEventPackage(recipient: UUID, recipientName: String, senderName: String,
+                                    payload: ByteArray, packedCount: Int, token: UUID): CompletableFuture<io.enthusia.express.domain.EventDeliveryRecord> {
+        if (payload.isEmpty()) return CompletableFuture.failedFuture(IllegalArgumentException("Empty event package"))
+        if (senderName.isBlank() || senderName.length > 64) return CompletableFuture.failedFuture(IllegalArgumentException("Invalid sender name"))
+        if (recipientName.isBlank() || packedCount < 0) return CompletableFuture.failedFuture(IllegalArgumentException("Invalid event package"))
+        val copy = payload.clone()
+        return supply {
+            inTransaction {
+                val existing = connection.prepareStatement("SELECT mail_id,recipient_uuid FROM event_deliveries WHERE token=?").use { ps ->
+                    ps.setString(1, token.toString())
+                    ps.executeQuery().use { rs -> if (rs.next()) rs.getLong(1) to rs.getString(2) else null }
+                }
+                if (existing != null) {
+                    require(existing.second == recipient.toString()) { "Event delivery token already used for another recipient" }
+                    io.enthusia.express.domain.EventDeliveryRecord(existing.first, false)
+                } else {
+                    val id = insert(InsertData(null, senderName, recipient, recipientName, MailType.PACKAGE, copy, packedCount, false), false)
+                    connection.prepareStatement("INSERT INTO event_deliveries(token,mail_id,recipient_uuid,delivered_at) VALUES(?,?,?,?)").use { ps ->
+                        ps.setString(1, token.toString())
+                        ps.setLong(2, id)
+                        ps.setString(3, recipient.toString())
+                        ps.setLong(4, System.currentTimeMillis())
+                        ps.executeUpdate()
+                    }
+                    io.enthusia.express.domain.EventDeliveryRecord(id, true)
                 }
             }
         }
@@ -432,7 +469,8 @@ class MailRepository(
                 "UPDATE mail SET status='PURGED', payload=X'', updated_at=? WHERE" +
                     " ((type='PACKAGE' AND status='RETURNED' AND updated_at<?) OR (type IN" +
                     " ('LETTER','ANNOUNCEMENT') AND status='UNCLAIMED' AND created_at<?))" +
-                    " AND id NOT IN (SELECT mail_id FROM mapart_submissions)"
+                    " AND id NOT IN (SELECT mail_id FROM mapart_submissions)" +
+                    " AND id NOT IN (SELECT mail_id FROM event_deliveries)"
             ).use { ps ->
                 ps.setLong(1, now)
                 ps.setLong(2, purgeCutoff)
@@ -446,7 +484,8 @@ class MailRepository(
                     " ELSE 'RETURNED' END, payload=CASE WHEN sender_uuid IS NULL THEN X''" +
                     " ELSE payload END, unread=1, return_delivery=1, updated_at=? WHERE" +
                 " type='PACKAGE' AND status='UNCLAIMED' AND updated_at<?" +
-                    " AND id NOT IN (SELECT mail_id FROM mapart_submissions)"
+                    " AND id NOT IN (SELECT mail_id FROM mapart_submissions)" +
+                    " AND id NOT IN (SELECT mail_id FROM event_deliveries)"
             ).use { ps ->
                 ps.setLong(1, now)
                 ps.setLong(2, returnCutoff)
