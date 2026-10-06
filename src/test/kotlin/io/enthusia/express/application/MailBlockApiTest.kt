@@ -50,4 +50,14 @@ class MailBlockApiTest {
         }
         assertTrue(store.blocked.isEmpty())
     }
+
+    /** Verifies that unblocking does not depend on a valid sender name. */
+    @Test
+    fun `unblock works without a valid name`() {
+        val store = FakeBlocks()
+        val api = StoreMailBlockApi(store)
+        api.setBlocked(owner, sender, "FainNoir", true).join()
+        api.setBlocked(owner, sender, "", false).join()
+        assertFalse(api.isBlocked(owner, sender).join())
+    }
 }
