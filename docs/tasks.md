@@ -1,5 +1,21 @@
 # SPEAR migration tasks
 
+## TDD-061 — Protected Post Office navigation and viewer fallback
+
+Tag: TDD
+References: REQ-060, REQ-061, REQ-036; implementation.md Layer Dependency Rules, Thread ownership and Shipping compensation.
+Evidence: Existing io.enthusia.express.infrastructure.gui.GuiTheme, NexoItemSource, MuseumView, MenuChoice, MailboxControls, MailboxService and ShippingService own optional assets and inventory lifecycles. Nexo1.29.1 actual JAR javap confirms com.nexomc.nexo.api.NexoItems registry methods and com.nexomc.nexo.glyphs.Glyph / fonts.FontManager signatures; official https://docs.nexomc.com/configuration/glyphs documents title glyphs, shift offsets and visual-only inventories. Existing org.bukkit.entity.Player, Bukkit, Material, inventory.ItemStack, plugin.Plugin, plugin.PluginManager, plugin.java.JavaPlugin and configuration.file.YamlConfiguration tests provide public Paper APIs. org.junit.jupiter.api.Test / Assertions, org.mockito.Mockito and MockedStatic are existing regression fixtures; java.util.List, Map, Set, UUID and IdentityHashMap are JDK-only. Existing com.nexomc loader reflection is optional infrastructure. No domain/database mutation is introduced by the skin. Font and sprite assets are original renderings from approved concept sources; no third-party menu pack is copied.
+Evidence imports verified from existing JDK/Paper/JUnit/Mockito APIs and the inspected source: io.enthusia.express.infrastructure.gui.PostOfficeLayout, java.nio.file.Files, java.nio.file.Path, java.util.List, java.util.Map, java.util.regex.Pattern, java.util.stream.IntStream, javax.imageio.ImageIO, net.kyori.adventure.text.Component, org.bukkit.configuration.file.YamlConfiguration, org.bukkit.entity.Player, org.bukkit.plugin.Plugin, org.junit.jupiter.api.Assertions.*, org.junit.jupiter.api.Test.
+Status: [x] automated implementation and local review complete; exact TEST activation and real client acceptance remain separate gates.
+Result: missing PostOfficeLayout/forViewer APIs produced eight expected compilation errors in nexo-layout-red.log after fixing unrelated local toolchain arguments. Protected-card, curator absence, full catalog, wide-tab, accepted/declined-pack and missing-background checks pass. The asset contract caught a real sent/museum icon/background filename collision; bg-prefixed background paths correct it. The Java21 baseline build passes250 tests with zero failures/errors/skips, all11 older API compilation targets, layer/no-call-cycle checks, EARS and12 helper regressions. Source review retained native detail/input readability, all painted tab hit regions and existing public Java overloads. Final clean-head runtime/hosted checks and TEST evidence are tracked separately.
+
+## INFRA-062 — TEST activation and real client acceptance
+
+Tag: INFRA
+References: REQ-060, REQ-061, REQ-031, REQ-038, REQ-047; implementation.md Optional Post Office presentation and Thread ownership.
+Evidence: configured Bloom alias test resolves5d109214 and API identity SMP Test Server /5d109214-9243-46d6-9ef3-db2765b10fc3; DPAPI credential loader in enthusia-dev-tools is used without session scraping. TEST has Nexo1.29.1, Currency/Vault, CombatLogX and backend Floodgate;34 existing Nexo YAML files have no ee_postoffice_ ID collision. Existing update queue is empty. Windows Computer Use identified Dawn Client26.3, and a live baseline screenshot shows FainNeito on ENTHUSIA TEST with the original mailbox. Root world uses the26.3 world/players layout. No production operation is authorized. Power, backups, additive asset/config writes and client interactions must be identity-checked and recorded; a new Site page may privately deliver requested screenshots. No prove/engine step applies to operational activation; source changes found during acceptance require their own regression/refinement evidence.
+Status: pending coordinated backup, exact committed artifact, TEST activation and live flow checks. No live success is claimed yet.
+
 - [x] **TDD-001** — Rewrite the plugin in Kotlin while preserving behavior.
 
   Tag: TDD

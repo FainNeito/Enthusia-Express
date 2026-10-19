@@ -1,5 +1,13 @@
 # Enthusia Express requirements
 
+## REQ-060 — Optional Post Office presentation
+
+WHEN a Java player with the accepted resource pack opens an enabled Post Office menu THE SYSTEM SHALL render the approved red, gold and cream navigation with protected slot routing, explicit mail states and unchanged cargo, postage and recovery ownership.
+
+## REQ-061 — Presentation fallback
+
+IF the optional Post Office assets or accepted Java resource pack are unavailable THEN THE SYSTEM SHALL retain usable vanilla controls or supported native forms without exposing decorative inventory items to players.
+
 Purpose: offline mail for Paper players and server administrators. This Kotlin migration preserves the merged 1.1.0 behavior, SQLite schema, configuration and permissions.
 
 ## Museum and interface extension

@@ -1,0 +1,118 @@
+ee_postoffice_letter:
+  material: PAPER
+  excludeFromInventory: true
+  Pack:
+    parent_model: item/generated
+    texture: enthusiaexpress:postoffice/letter
+
+ee_postoffice_read:
+  material: PAPER
+  excludeFromInventory: true
+  Pack:
+    parent_model: item/generated
+    texture: enthusiaexpress:postoffice/read
+
+ee_postoffice_package:
+  material: PAPER
+  excludeFromInventory: true
+  Pack:
+    parent_model: item/generated
+    texture: enthusiaexpress:postoffice/package
+
+ee_postoffice_announcement:
+  material: PAPER
+  excludeFromInventory: true
+  Pack:
+    parent_model: item/generated
+    texture: enthusiaexpress:postoffice/announcement
+
+ee_postoffice_museum:
+  material: PAPER
+  excludeFromInventory: true
+  Pack:
+    parent_model: item/generated
+    texture: enthusiaexpress:postoffice/museum
+
+ee_postoffice_map:
+  material: PAPER
+  excludeFromInventory: true
+  Pack:
+    parent_model: item/generated
+    texture: enthusiaexpress:postoffice/map
+
+ee_postoffice_sent:
+  material: PAPER
+  excludeFromInventory: true
+  Pack:
+    parent_model: item/generated
+    texture: enthusiaexpress:postoffice/sent
+
+ee_postoffice_settings:
+  material: PAPER
+  excludeFromInventory: true
+  Pack:
+    parent_model: item/generated
+    texture: enthusiaexpress:postoffice/settings
+
+ee_postoffice_seal:
+  material: PAPER
+  excludeFromInventory: true
+  Pack:
+    parent_model: item/generated
+    texture: enthusiaexpress:postoffice/seal
+
+ee_postoffice_check:
+  material: PAPER
+  excludeFromInventory: true
+  Pack:
+    parent_model: item/generated
+    texture: enthusiaexpress:postoffice/check
+
+ee_postoffice_close:
+  material: PAPER
+  excludeFromInventory: true
+  Pack:
+    parent_model: item/generated
+    texture: enthusiaexpress:postoffice/close
+
+ee_postoffice_back:
+  material: PAPER
+  excludeFromInventory: true
+  Pack:
+    parent_model: item/generated
+    texture: enthusiaexpress:postoffice/back
+
+ee_postoffice_next:
+  material: PAPER
+  excludeFromInventory: true
+  Pack:
+    parent_model: item/generated
+    texture: enthusiaexpress:postoffice/next
+
+ee_postoffice_blank:
+  material: PAPER
+  excludeFromInventory: true
+  Pack:
+    parent_model: item/generated
+    texture: enthusiaexpress:postoffice/blank
+
+ee_postoffice_letter_selected:
+  material: PAPER
+  excludeFromInventory: true
+  Pack:
+    parent_model: item/generated
+    texture: enthusiaexpress:postoffice/letter-selected
+
+ee_postoffice_package_selected:
+  material: PAPER
+  excludeFromInventory: true
+  Pack:
+    parent_model: item/generated
+    texture: enthusiaexpress:postoffice/package-selected
+
+ee_postoffice_announcement_selected:
+  material: PAPER
+  excludeFromInventory: true
+  Pack:
+    parent_model: item/generated
+    texture: enthusiaexpress:postoffice/announcement-selected

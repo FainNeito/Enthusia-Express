@@ -1,5 +1,13 @@
 # Enthusia Express implementation
 
+## Optional Post Office presentation
+
+The original red/gold/cream assets are source-controlled under assets/nexo-postoffice and independent of Nexo's full server pack. GuiTheme creates viewer-bound adapters; the Post Office profile requires an accepted Java pack, six resolvable inventory glyphs and the transparent control item. Backend Floodgate identity failures refuse the custom profile. Missing optional assets retain vanilla controls. Native input/review dialogs retain normal widgets and use a glyph banner only when available.
+
+PostOfficeLayout owns presentation-only slot maps. MuseumView protects all click/drag paths, maps every home-card slot to its existing command action, and revalidates the live actor and inventory next tick. Catalog entries occupy 18..44, independently of footer controls. Mailbox categories retain their anchors and reuse the active inventory; wide tabs route all three visual slots to their anchor. Shipping's owner, cargo marker, quote, payment and recovery lifecycle are unchanged. Scoped themes are released on inventory close. No schema or companion-plugin API signature is changed by this presentation layer.
+
+Gradle's test inputs include the asset directory so texture/config edits invalidate the artifact-contract test. JUnit validates registry bindings, image dimensions and glyph definitions. Actual UI alignment, Nexo dispatch and player interactions require the separately authorized TEST client run; passing unit tests is not that acceptance.
+
 ## Layer Dependency Rules
 
 The source root is `src/main/kotlin/io/enthusia/express`.

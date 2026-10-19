@@ -42,6 +42,7 @@ class ShippingService @JvmOverloads constructor(
 ) {
     private val TARGET_ONLINE = "target-online"
     private val theme = GuiTheme(plugin)
+    private val menuThemes = java.util.IdentityHashMap<Inventory, GuiTheme>()
     private val payments = ShippingPayments(plugin)
     private val recovery by lazy { ShippingRecovery(plugin.dataFolder.toPath().resolve("shipping-recovery"), plugin.logger) }
     private val refundReceipts = HashMap<UUID, PaymentReceipt>()
@@ -96,11 +97,13 @@ class ShippingService @JvmOverloads constructor(
         sender.closeInventory()
         mapartSessions.remove(sender.uniqueId)
         targets[sender.uniqueId] = target.uniqueId
-        val inv = Bukkit.createInventory(null, 27, theme.title("shipping", TITLE_PREFIX))
-        inv.setItem(CANCEL_SLOT, button("shipping.cancel", Material.BARRIER, "§cCancel"))
+        val skin = theme.forViewer(sender)
+        val inv = Bukkit.createInventory(null, 27, skin.title("shipping", TITLE_PREFIX))
+        menuThemes[inv] = skin
+        inv.setItem(CANCEL_SLOT, button("shipping.cancel", Material.BARRIER, "§cCancel", inv))
         quotes.remove(sender.uniqueId)
-        inv.setItem(4, button("shipping.recipient", Material.PAPER, "§7To: ${target.name ?: "recipient"}"))
-        inv.setItem(CONFIRM_SLOT, button("shipping.quote", Material.LIME_CONCRETE, "§eView postage"))
+        inv.setItem(4, button("shipping.recipient", Material.PAPER, "§7To: ${target.name ?: "recipient"}", inv))
+        inv.setItem(CONFIRM_SLOT, button("shipping.quote", Material.LIME_CONCRETE, "§eView postage", inv))
         refreshPlaceholder(inv)
         inventories[sender.uniqueId] = inv
         sender.openInventory(inv)
@@ -119,10 +122,12 @@ class ShippingService @JvmOverloads constructor(
             return
         }
         targets[sender.uniqueId] = MapartQueue.ID
-        val inv = Bukkit.createInventory(null, 27, theme.title("shipping", "Mapart Museum submission"))
-        inv.setItem(CANCEL_SLOT, button("shipping.cancel", Material.BARRIER, "§cCancel"))
-        inv.setItem(4, button("shipping.recipient", Material.MAP, "§7To: Mapart Museum"))
-        inv.setItem(CONFIRM_SLOT, button("shipping.quote", Material.LIME_CONCRETE, "§eView submission fee"))
+        val skin = theme.forViewer(sender)
+        val inv = Bukkit.createInventory(null, 27, skin.title("shipping", "Mapart Museum submission"))
+        menuThemes[inv] = skin
+        inv.setItem(CANCEL_SLOT, button("shipping.cancel", Material.BARRIER, "§cCancel", inv))
+        inv.setItem(4, button("shipping.recipient", Material.MAP, "§7To: Mapart Museum", inv))
+        inv.setItem(CONFIRM_SLOT, button("shipping.quote", Material.LIME_CONCRETE, "§eView submission fee", inv))
         quotes.remove(sender.uniqueId)
         inventories[sender.uniqueId] = inv
         refreshPlaceholder(inv)
@@ -192,7 +197,7 @@ class ShippingService @JvmOverloads constructor(
         }
         quotes[sender.uniqueId] = Quote(shipment.payload.copyOf(), shipment.count, shipment.cost, unit)
         val mapart = sender.uniqueId in mapartSessions
-        val control = button("shipping.confirm", Material.LIME_CONCRETE, if (mapart) "§aSubmit mapart" else "§aSend package")
+        val control = button("shipping.confirm", Material.LIME_CONCRETE, if (mapart) "§aSubmit mapart" else "§aSend package", inv)
         val meta = control.itemMeta!!
         meta.lore = listOf("§eCost: ${shipment.cost} $unit", "§7${shipment.count} packed items", "§aClick again to send")
         control.itemMeta = meta
@@ -553,6 +558,7 @@ class ShippingService @JvmOverloads constructor(
         mapartSessions.remove(player.uniqueId)
         museumDrafts.remove(player.uniqueId)
         inventories.remove(player.uniqueId)
+        menuThemes.remove(inv)
         quotes.remove(player.uniqueId)
     }
 
@@ -563,7 +569,7 @@ class ShippingService @JvmOverloads constructor(
     fun refreshPlaceholder(inventory: Inventory) {
         val current = inventory.getItem(PACKAGE_SLOT)
         if (current != null && !current.type.isAir) return
-        val marker = button("shipping.placeholder", Material.GRAY_STAINED_GLASS_PANE, "§7Place package here")
+        val marker = button("shipping.placeholder", Material.GRAY_STAINED_GLASS_PANE, "§7Place package here", inventory)
         val meta = marker.itemMeta!!
         meta.lore = if (inventories.entries.any { it.value === inventory && it.key in mapartSessions })
             listOf("§7Filled maps, or maps in a", "§7shulker box or bundle", "§7Click to view the submission fee")
@@ -615,8 +621,8 @@ class ShippingService @JvmOverloads constructor(
     }
 
     /** Create a named decorative shipping control. */
-    private fun button(key: String, material: Material, name: String): ItemStack {
-        val stack = theme.item(key, material)
+    private fun button(key: String, material: Material, name: String, inventory: Inventory): ItemStack {
+        val stack = (menuThemes[inventory] ?: theme).item(key, material)
         val meta = stack.itemMeta!!
         meta.setDisplayName(name)
         stack.itemMeta = meta

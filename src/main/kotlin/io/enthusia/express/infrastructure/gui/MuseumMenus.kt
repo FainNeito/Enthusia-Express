@@ -61,7 +61,7 @@ class MuseumMenus(
                 } else {
                     emptyList()
                 }
-        view.show(player, "Enthusia Express", "Choose a mailbox or museum service. Packages still use your inventory.", emptyList(), choices)
+        view.show(player, "Enthusia Express", "Choose a mailbox or museum service. Packages still use your inventory.", emptyList(), choices, "home")
     }
 
     fun command(player: Player, args: Array<String>): Boolean = commands.command(player, args)
@@ -89,6 +89,7 @@ class MuseumMenus(
                 "Page ${page + 1} · ${entries.size} entries. ${if (entries.isEmpty()) "No matching artwork." else "Choose an artwork for credit, map IDs and review history."}",
                 emptyList(),
                 actions,
+                "catalog",
             )
         }
     }

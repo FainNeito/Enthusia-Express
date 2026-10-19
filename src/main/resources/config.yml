@@ -85,6 +85,9 @@ gui:
   nexo:
     # Opt-in. Nexo supplies assets and its resource pack; absent/unloaded items use vanilla icons.
     enabled: false
+    # Opt-in Post Office layouts. Install assets/nexo-postoffice and its profile first.
+    # Java players must have accepted the pack. Backend Floodgate clients retain forms/vanilla controls.
+    post-office: false
     # Nexo glyph/shift tags require its inventory-title packet formatting.
     # The mailbox appends Inbox or Sent Mail to this base title; category switches reuse the same inventory.
     titles:

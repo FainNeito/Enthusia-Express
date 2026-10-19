@@ -70,6 +70,7 @@ tasks {
     jar { archiveClassifier.set("plain") }
     test {
         useJUnitPlatform()
+        inputs.dir("assets/nexo-postoffice")
         dependsOn(shadowJar)
         if (baselineJar.isPresent) {
             val artifact = file(baselineJar.get())

@@ -141,7 +141,7 @@ class DialogMenus(private val plugin: JavaPlugin) {
         val base =
             dialogStatic(
                 prefix + "DialogBase", CREATE_METHOD, Component.text(title), null, true, false, after,
-                listOf(dialogStatic(prefix + "body.DialogBody", "plainMessage", Component.text(body))), inputs,
+                listOf(dialogStatic(prefix + "body.DialogBody", "plainMessage", GuiTheme(plugin).forViewer(player).dialogBody(body))), inputs,
             )
         val optionsBuilder = dialogStatic("net.kyori.adventure.text.event.ClickCallback\$Options", "builder")
         dialogCall(CALLBACK_OPTIONS_BUILDER, optionsBuilder, "uses", 1)

@@ -1,0 +1,4 @@
+assets/nexo-postoffice/**/*.yml text eol=lf
+assets/nexo-postoffice/*.json text eol=lf
+assets/nexo-postoffice/**/*.png binary
+tools/build_postoffice_assets.py text eol=lf
