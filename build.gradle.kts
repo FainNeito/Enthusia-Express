@@ -8,17 +8,18 @@ plugins {
 }
 
 group = "io.enthusia"
-version = "1.2.1"
+version = "1.3.0-SNAPSHOT"
 
 // Keep the released JAR on the oldest API. Newer targets are verification builds.
 val paperVersion = providers.gradleProperty("paperVersion").getOrElse("1.21")
 val modernPaperApis = mapOf(
     "26.2" to "26.2.build.123-stable",
+    "26.3" to "26.3.build.205-stable",
     "26.3-pre-2" to "26.3-pre-2.build.0-alpha"
 )
 val paperApiVersion = modernPaperApis[paperVersion] ?: run {
     require(paperVersion.startsWith("1.21")) {
-        "Unverified Paper target: $paperVersion. Use 26.3-pre-2 for experimental 26.3 verification."
+        "Unverified Paper target: $paperVersion. Use a pinned target: ${modernPaperApis.keys.joinToString()}."
     }
     "$paperVersion-R0.1-SNAPSHOT"
 }

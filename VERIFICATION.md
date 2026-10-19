@@ -1,3 +1,31 @@
+# Verification: 1.3.0-SNAPSHOT museum and hybrid menus
+
+This unmerged testing branch starts at canonical Express main a650216c6e795f900988b05d788de68b9d4a9866. It is not a production release or live client acceptance.
+
+## Current automated proof
+
+- Gradle 9.7.1 / Kotlin 2.4.20, Java 21 baseline: clean build and all eleven 1.21 API compilation targets pass.
+- 243 tests pass without failures, errors or skips, including architecture, compiled call-cycle inspection, real SQLite migration/concurrency/recovery, postage and bundled-driver packaging.
+- The actual Java 21 baseline shaded JAR is tested against final Paper 26.3.build.205-stable on Java 25; 243 tests pass. This is API/runtime-fixture proof, not a running 26.3 Minecraft server.
+- Project EARS validation and twelve SPEAR helper regression tests pass. No production Kotlin layer imports Paper or SQL into domain/application.
+- A fresh loopback-only Paper 26.2.129 server loads Express and the real public dialog builders, text input and callback options through an isolated probe. Its synthetic Player captures showDialog; no client rendering, inventory, provider or resource-pack acceptance is claimed.
+
+Actual red evidence: missing catalog schema (museum-red.log), missing owner/expiry gate (dialog-session-red.log), unconfigured action-bar delivery (notification-red.log), and missing inventory closure before form transitions (dialog-cargo-red.log). Corresponding regressions and the retained safety suite now pass. Logs and raw XML reports remain local evidence, not repository artifacts.
+
+## Delivery and remaining gates
+
+[Workflow, additive migration, permissions and acceptance](docs/museum-dialogs.md) records the implemented scope and rollback boundaries. [Interactive preview](https://express-museum-dialogs-preview-20261018.awareyak.chatgpt.site) is an owner-private illustrative simulation. The hosted Site reports a successful deployment; fresh browser/device QA was unavailable in this session. Native client layout, Floodgate/Cumulus responses, actual currency/Nexo configuration and coordinated recovery rehearsals remain staging gates. Prior CombatLogX confirmation is not fresh acceptance of every new path.
+
+Tags PR #26 is green at 111154b2e5c9420a2f9fe962906cb8d46ae973ef but requires an upstream maintainer to merge. Its 254-test verification and Codacy pass do not update the network pin or deployed fork. Reconcile current fork holiday/menu changes and verify the combined build after merge. No production server was changed.
+
+The current artifact hash and precise verification scope are in verification-summary.json. Unmerged artifacts are for isolated testing only; production artifacts must be rebuilt from clean merged source and verified pins.
+
+---
+
+# Historical 1.2.1 evidence (superseded snapshot)
+
+The remainder preserves the earlier safety audit. Its versions, counts and prerelease limitations describe that historical snapshot, not the current branch.
+
 # Enthusia Express 1.2.1 verification
 
 ## Release candidate review — 2026-10-01

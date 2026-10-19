@@ -421,3 +421,41 @@ Evidence: both hidden-recipient regressions failed on unchanged source, then pas
   Evidence: RED was 40 test-compilation errors (missing `EventDelivery`, `EventDeliveryRecord`, `insertEventPackage` and the packager). GREEN: `EventDeliveryRepositoryTest` (8, real SQLite: claimable system package, token idempotency incl. restart and a 6-thread race, cross-recipient token rejection, blocks ignored, never expired/returned/purged, normal claim + acknowledgment, invalid input) and `EventDeliveryServiceTest` (3: validation, single packing, packaging failures as failed futures). Full suite 225 passing (214 before); `clean build verifyPaperCompatibility` passes.
 
   Progress: complete for automated scope. `ShulkerEventPackager` (real shulker meta and serialization) needs live Paper acceptance together with EnthusiaHolidays.
+
+## TDD-051 — Museum catalog and review lifecycle
+
+Tag: TDD
+References: REQ-051 through REQ-055; implementation.md Layer Dependency Rules, Reviewed delivery recovery and Shipping compensation.
+Evidence: io.enthusia.express.infrastructure.db.MailRepository initialize/insertMapart/claimMapart/confirmDelivery/markMapartProcessed and MapartRepositoryTest define existing SQL, transaction and claim-generation behavior. io.enthusia.express.application.MailStore preserves asynchronous Java clients. New io.enthusia.express.domain museum records use only java.util.UUID and Kotlin/JDK value types. java.sql and org.sqlite adapters remain infrastructure. Existing org.junit.jupiter.api.Test, TempDir and Assertions fixtures use real SQLite; no new dependency is introduced. ContainerScanner.countMapartItems provides the bounded iterative traversal model. Native dialog API signatures were inspected with JDK25 javap against pinned Paper26.2.133 and official Paper dialog documentation; dialogs never own shipping cargo. Stateful additions must preserve payload-free lists and generation-guarded recovery.
+Status: verified for automated scope; live acceptance pending.
+
+TDD-051 proof: museum-red.log reproduced the absent persistent catalog before implementation. Five real-SQLite workflow tests and the eight existing museum tests pass; full build including architecture and call-cycle checks passed (museum-architecture.log). Review remains distinct from cargo delivery, legacy claims remain recoverable and listArtwork omits payload BLOBs. UI integration and live acceptance are separate tasks.
+
+## TDD-056 — Hybrid menus and stale-callback safety
+
+Tag: TDD
+References: REQ-056 and REQ-057; implementation.md Thread ownership and Layer Dependency Rules.
+Evidence: Paper26.2.133 javap confirms Dialog.create, RegistryBuilderFactory.empty, DialogBase.create, DialogAction.customClick(DialogActionCallback, ClickCallback.Options), ActionButton.create, DialogType.multiAction and TextDialogInput builder signatures. Geyser/Floodgate Cumulus official forms documentation describes builder inputs and validResultHandler. Existing MainThread and Bukkit Scheduler own callbacks; ShippingService retains physical inventories and compensation. New application DialogSessions uses java.util.UUID only; org.junit.jupiter.api tests prove one-shot, timeout and owner isolation.
+Status: verified for automated scope; live acceptance pending.
+
+TDD-056 proof: dialog-session-red.log proved the missing callback gate. DialogSessionTest now proves owner, one-shot, expiry and reopen invalidation; non-recursive bytecode and full build pass (hybrid-full-green.log). Navigation routes through existing commands between clicks, with no recursive project call cycle. Native Paper and optional Cumulus adapters require native client staging; their reflective API signatures are inspected, not claimed runtime-accepted. Physical cargo remains in ShippingService. Protocol771 capability threshold is verified against ViaVersion ProtocolVersion.v1_21_6; ViaAPI preserves older-client fallback.
+
+## TDD-058 — Configurable cosmetic messages
+
+Tag: TDD
+References: REQ-058; implementation.md Thread ownership and cosmetic arrival contract.
+Evidence: NativeMailToast.accept and NativeToastPackets.show are infrastructure-only and consume immutable io.enthusia.express.domain.MailNotification. Paper Audience.sendActionBar(Component) is already present on baseline Player; net.kyori.adventure.text.Component uses literal text. MailToastTest supplies existing org.junit.jupiter.api and org.mockito fixtures. Native advancement frame labels remain client-owned; no resource-pack translation rewrite is introduced.
+Status: verified for automated scope; live acceptance pending.
+
+TDD-058 proof: action-bar regression failed before implementation (notification-red.log), then all cosmetic tests pass. Baseline and actual-baseline-JAR tests on pinned final Paper26.3 each pass 242 tests with zero failures/errors/skips; all eleven baseline API compilations pass. Native frame headings remain explicitly client-owned. Cosmetic configuration cannot change mail records or rewards.
+
+## INFRA-059 — Final Paper26.3 profile and delivery evidence
+
+Tag: INFRA
+References: REQ-059, REQ-019, REQ-044; implementation.md Verification and Paper26 verification.
+Evidence: official Paper Maven metadata fetched directly publishes 26.3.build.205-stable. Existing baselineJar runtime test property keeps Java21 distributable classes in the Java25 runtime verification. The CI matrix adds the final target and uploads the versioned 1.3.0-SNAPSHOT baseline. Source version packaging assertion is updated to the new testing version. No behavioral red/engine steps apply to the build-profile and documentation task; the initial 26.3 run exposed only the old 1.2.1 metadata assertion, now corrected. Full-document EARS parsing recognizes level-two requirements; four legacy clauses are normalized without semantic change. Twelve local SPEAR helper tests pass.
+Status: verified for automated scope; live acceptance pending.
+
+Review refinement: dialog-cargo-red.log reproduced missing closeInventory before opening input. DialogMenus now closes through the existing inventory lifecycle before native/form/fallback input. The regression and final 243-test baseline suite pass, including all eleven older API compilation targets. Final Paper26.3 uses the same baseline JAR on Java25. The isolated Paper26.2 probe resolves actual dialog builders without a real client. Preview publication is separate from fresh browser/device QA, which was unavailable.
+
+INFRA-059 result: final profile, artifact packaging assertion and CI matrix updated; repository EARS and twelve helper regressions pass. Canonical Tags PR26 head111154b is green (254 tests, Codacy, artifact and verify); the current credential has pull-only upstream access, so maintainer merge and subsequent fork/network reconciliation remain blocked. No production deployment/activation or claim of client acceptance.

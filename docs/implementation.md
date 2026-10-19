@@ -59,3 +59,9 @@ The baseline build retains the Paper 1.21 API and Java 21 bytecode. Pinned 26.2 
 ## Recipient presence privacy
 
 The infrastructure RecipientPresence adapter uses Paper Player.canSee on the sending player and current recipient session. Online-only mail gates apply only to visible recipients; hidden recipients retain offline delivery semantics. Missing session handles retain the prior online rejection. Shipping rechecks this policy at open, confirmation, block-lookup completion and after payment callbacks. No staff ranks, permissions or provider internals are inferred; no new API dependency is bundled.
+
+## Museum extension (REQ-051 through REQ-059)
+
+JDK-only museum records and callback tokens live in domain/application. MuseumCatalog is owned by the serialized SQLite worker; additive metadata, manifests, revision guards, audit history and durable notices participate in the caller's existing transactions. List projections omit cargo BLOBs. MuseumMenus and DialogMenus are platform adapters; optional public Paper, ViaVersion and Floodgate/Cumulus APIs are discovered at runtime with fallback. Forms never own cargo: opening them first closes the inventory through its existing owner. Physical shipping, compensation and claim-generation receipts remain authoritative. Acknowledged collection and curator display are separate events.
+
+Final Paper26.3.build.205-stable is a pinned Java25 verification profile. The distributable remains the Java21 baseline. The notification adapter supports literal configured messages in native/actionbar/chat mode without changing client-owned native frame headings. See museum-dialogs.md for commands, optional dependencies, migration and unresolved client gates.

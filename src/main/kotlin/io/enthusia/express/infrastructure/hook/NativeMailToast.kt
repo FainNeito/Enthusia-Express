@@ -21,11 +21,16 @@ class NativeMailToast(private val plugin: JavaPlugin) : BiConsumer<Player, MailN
 
     override fun accept(player: Player, notice: MailNotification) {
         if (notice.count <= 0 || !player.isOnline) return
+        val text=message(notice)
+        when(plugin.config.getString("notifications.toast.mode","native")) {
+            "actionbar" -> { player.sendActionBar(Component.text(text.replace('\n',' ')));return }
+            "chat" -> { player.sendMessage(Component.text(text.replace('\n',' ')));return }
+        }
         try {
             val active = bridge ?: return fallback(player, notice)
             clear(player.uniqueId)
             val key = active.key("enthusiaexpress:mail/" + UUID.randomUUID())
-            active.show(player, key, notice)
+            if(text==notice.text()) active.show(player,key,notice) else active.showWithText(player,key,notice,text)
             val cleanup = Bukkit.getScheduler().runTaskLater(plugin, Runnable { clear(player.uniqueId) }, 100L)
             visible[player.uniqueId] = Visible(player, key, cleanup)
         } catch (error: ReflectiveOperationException) {
@@ -53,7 +58,15 @@ class NativeMailToast(private val plugin: JavaPlugin) : BiConsumer<Player, MailN
 
     private fun fallback(player: Player, notice: MailNotification) {
         if (plugin.config.getBoolean("notifications.toast.chat-fallback", true))
-            player.sendMessage(Component.text(notice.text().replace('\n', ' ')))
+            player.sendMessage(Component.text(message(notice).replace('\n', ' ')))
+    }
+
+    private fun message(notice: MailNotification): String {
+        val type=when(notice.type) { io.enthusia.express.domain.MailType.PACKAGE -> "Package";io.enthusia.express.domain.MailType.LETTER -> "Letter";else -> "Notice" }
+        val sender=notice.sender.orEmpty().replace(Regex("§."),"").filter { !it.isISOControl() }.take(16).ifBlank { "Server" }
+        val key=if(notice.count==1) "single-message" else "group-message"
+        return plugin.config.getString("notifications.toast.$key",notice.text()).orEmpty()
+            .replace("{sender}",sender).replace("{type}",type).replace("{count}",notice.count.toString()).take(240)
     }
 
     private fun warn(error: Throwable) {
@@ -65,6 +78,7 @@ class NativeMailToast(private val plugin: JavaPlugin) : BiConsumer<Player, MailN
 
     private fun connect(): NativeToastPackets? {
         if (!plugin.config.getBoolean("notifications.toast.enabled", true)) return null
+        if(plugin.config.getString("notifications.toast.mode","native")!="native") return null
         return try { NativeToastPackets() }
         catch (error: ReflectiveOperationException) { warn(error); null }
         catch (error: LinkageError) { warn(error); null }

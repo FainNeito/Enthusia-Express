@@ -9,12 +9,13 @@ object ConfigValidation {
     /** Reject invalid operational settings before registering mail handlers. */
     @JvmStatic
     fun validate(config: FileConfiguration) {
+        require(config.getString("notifications.toast.mode","native") in setOf("native","actionbar","chat")) { "notifications.toast.mode must be native, actionbar or chat" }
         require(config.getString("payments.provider", "auto") in setOf("auto", "physical", "enthusia-currency")) {
             "payments.provider must be auto, physical, or enthusia-currency"
         }
         for (key in listOf("mail.require-combatlogx", "letters.enabled", "announcements.enabled", "mail.limits.one-outstanding-package-per-recipient",
             "mail.limits.one-outstanding-letter-per-recipient", "notifications.join-mail.enabled", "sounds.enabled",
-            "notifications.toast.enabled", "notifications.toast.chat-fallback", "mapart.enabled")) {
+            "notifications.toast.enabled", "notifications.toast.chat-fallback", "mapart.enabled", "gui.dialogs.enabled")) {
             require(!config.contains(key) || config.isBoolean(key)) { "$key must be true or false" }
         }
         range(config, "database.busy-timeout-ms", 5000, 1, 60000)

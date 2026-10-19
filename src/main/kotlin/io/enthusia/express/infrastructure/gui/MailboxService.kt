@@ -44,6 +44,7 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
     private val movementLocks: MovementLocks = MovementLocks.NOOP,
 ) {
     private val theme = GuiTheme(plugin)
+    var museumDetails: ((Player,Long) -> Unit)? = null
     private val sessions = HashMap<UUID, Session>()
     private val claiming = HashSet<UUID>()
     private val loading = HashSet<UUID>()
@@ -69,6 +70,17 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
 
     /** Any permission holder can access the shared intake and processed-history views. */
     fun openMapart(player: Player, processed: Boolean = false) { openMapartPage(player, 0, processed) }
+
+    /** Claim only an explicitly selected eligible artwork; never interpret a repeated collect as display approval. */
+    fun claimMuseum(player: Player,id: Long) {
+        if(!managerAccess(player) || player.uniqueId in claiming) return
+        openMapartPage(player,0,false)
+        val session=sessions[player.uniqueId] ?: return
+        claiming.add(player.uniqueId)
+        main.complete(repository.getMapart(id)) { entry,error ->
+            completeLookup(player,session,entry?.mail,error)
+        }
+    }
 
     private fun managerAccess(player: Player): Boolean {
         return player.hasPermission("enthusiaexpress.mapart.manage") &&
@@ -322,6 +334,7 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
         if (!markAsRead && navigate(player, session, slot)) return
         val visible = session.records[slot] ?: return
         if (session.mapart) {
+            if(museumDetails!=null) { museumDetails?.invoke(player,visible.id);return }
             if (session.processed || !claiming.add(player.uniqueId)) return
             main.complete(repository.getMapart(visible.id)) { entry, error ->
                 completeMapartLookup(player, session, entry, error)

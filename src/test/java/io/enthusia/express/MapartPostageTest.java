@@ -17,6 +17,36 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.io.TempDir;
 
 class MapartPostageTest {
+  @Test void duplicateArtworkIsRejectedBeforePaymentOrCargoRemoval() {
+    try(var f=new ShippingServiceTest.Fixture(OptionalLong.of(1))) {
+      var economy=install(f);
+      f.plugin.getConfig().set("mapart.raw-gold-postage",2);
+      f.bukkit.when(()->Bukkit.getOfflinePlayer(MapartQueue.ID)).thenReturn(f.target);
+      f.scanner.when(()->ContainerScanner.countMapartItems(f.packageItem,8)).thenReturn(1);
+      f.scanner.when(()->ContainerScanner.mapartManifest(f.packageItem,8)).thenReturn(java.util.Map.of(42,1));
+      when(f.repository.duplicateMaps(java.util.Set.of(42))).thenReturn(CompletableFuture.completedFuture(java.util.Set.of(42)));
+      f.service.openArtwork(f.sender,new io.enthusia.express.domain.MuseumDetails("Art","Artist",1,1,""),false);
+      f.top.setItem(13,f.packageItem);
+      f.confirm();
+      assertSame(f.packageItem,f.top.getItem(13));
+      verify(economy,never()).withdrawPlayer(any(OfflinePlayer.class),anyDouble());
+      verify(f.repository,never()).submitArtwork(any(),anyString(),any(),any(),anyMap(),any(),anyBoolean());
+    }
+  }
+
+  @Test void museumDimensionMismatchIsRejectedBeforeQuoteAndPayment() {
+    try(var f=new ShippingServiceTest.Fixture(OptionalLong.of(1))) {
+      var economy=install(f);
+      f.bukkit.when(()->Bukkit.getOfflinePlayer(MapartQueue.ID)).thenReturn(f.target);
+      f.scanner.when(()->ContainerScanner.countMapartItems(f.packageItem,8)).thenReturn(1);
+      f.scanner.when(()->ContainerScanner.mapartManifest(f.packageItem,8)).thenReturn(java.util.Map.of(42,1));
+      f.service.openArtwork(f.sender,new io.enthusia.express.domain.MuseumDetails("Art","Artist",2,1,""),false);
+      f.top.setItem(13,f.packageItem);f.confirm();
+      assertSame(f.packageItem,f.top.getItem(13));
+      verify(economy,never()).withdrawPlayer(any(OfflinePlayer.class),anyDouble());
+      verify(f.repository,never()).duplicateMaps(anySet());
+    }
+  }
   @TempDir Path directory;
   @Test void ambiguousRefundCannotCreditTwiceWhenRetried() {
     try (var f = new ShippingServiceTest.Fixture(OptionalLong.of(1))) {

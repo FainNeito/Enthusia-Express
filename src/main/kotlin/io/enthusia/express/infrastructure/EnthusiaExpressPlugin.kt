@@ -26,6 +26,8 @@ class EnthusiaExpressPlugin : JavaPlugin() {
     private var repository: MailRepository? = null
     private var shippingService: ShippingService? = null
     private var mailboxService: MailboxService? = null
+    private var museumMenus: io.enthusia.express.infrastructure.gui.MuseumMenus? = null
+    private var museumNoticeTask: org.bukkit.scheduler.BukkitTask? = null
     private var expirationService: ExpirationService? = null
     private var acknowledgments: DeliveryAcknowledgments? = null
     private var movementLocks: EnthusiaCurrencyMovementLocks? = null
@@ -57,8 +59,13 @@ class EnthusiaExpressPlugin : JavaPlugin() {
         val mailbox = MailboxService(this, repository, combatHook, main, sounds, acknowledgments, movementLocks).also { mailboxService = it }
         mailboxTask = Bukkit.getScheduler().runTaskTimer(this, Runnable { mailbox.loadPendingPages() }, 1L, 1L)
         val expiration = ExpirationService(this, repository).also { expirationService = it }
+        val museum=io.enthusia.express.infrastructure.gui.MuseumMenus(this,repository,main,combatHook,shipping,mailbox).also { museumMenus=it }
+        mailbox.museumDetails={ player,id -> museum.detail(player,id) }
+        val museumNotices=io.enthusia.express.infrastructure.mail.MuseumNotifications(this,repository,main)
+        museumNoticeTask=Bukkit.getScheduler().runTaskTimer(this,Runnable { museumNotices.poll() },40L,100L)
+        Bukkit.getPluginManager().registerEvents(museum,this)
         val command = MailCommand(this, shipping, mailbox, combatHook, BookMailService(this, repository, combatHook, main, sounds), main,
-            io.enthusia.express.infrastructure.mail.MailBlockService(this, repository, main))
+            io.enthusia.express.infrastructure.mail.MailBlockService(this, repository, main),museum)
         getCommand("mail")!!.setExecutor(command)
         getCommand("mail")!!.tabCompleter = command
         Bukkit.getPluginManager().registerEvents(command.recipientNames, this)
@@ -108,6 +115,7 @@ class EnthusiaExpressPlugin : JavaPlugin() {
     override fun onDisable() {
         Bukkit.getServicesManager().unregisterAll(this)
         toastTask?.cancel()
+        museumNoticeTask?.cancel()
         toastService?.close()
         toastRenderer?.close()
         compensationTask?.cancel()
@@ -115,6 +123,7 @@ class EnthusiaExpressPlugin : JavaPlugin() {
         acknowledgmentTask?.cancel()
         expirationService?.stop()
         shippingService?.shutdown()
+        museumMenus?.shutdown()
         mailboxService?.shutdown()
         main?.close()
         movementLocks?.close()

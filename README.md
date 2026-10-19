@@ -1,14 +1,15 @@
-# Enthusia Express 1.2.1
+# Enthusia Express 1.3.0-SNAPSHOT
 
-Version 1.2.1 fixes reentrant shipping duplication and durable claim restoration, adds resource limits, and updates SQLite. Read the [production safety and staging guide](docs/production-safety.md) before upgrading. Live integration acceptance is required before production deployment.
+This unmerged testing version adds a reviewed museum catalog, artist submissions and updates, hybrid dialog/form navigation with chest fallbacks, and configurable cosmetic mail messages. Read the [museum workflow and acceptance guide](docs/museum-dialogs.md) and [production safety and staging guide](docs/production-safety.md). Live integration and client acceptance remain required before deployment.
 
-A Kotlin plugin targeting Paper 1.21.x on Java 21, with Paper 26.2 / Java 25 compatibility verification and experimental 26.3 prerelease checks. Packages and letters go to offline players; administrators can publish announcements to online or offline players.
+A Kotlin plugin targeting Paper 1.21.x on Java 21, with pinned Paper 26.2 and final 26.3 API verification on Java 25. Packages and letters go to offline players; administrators can publish announcements to online or offline players.
 
 ## Commands
 
 | Command | Behavior | Permission (in addition to `enthusiaexpress.use`) |
 | --- | --- | --- |
-| `/mail` or `/mail inbox [packages\|letters\|announcements]` | Open the mailbox. Arrows change pages; tabs change categories. | `enthusiaexpress.inbox` |
+| `/mail` | Open Express navigation; each service retains its own permission checks. | `enthusiaexpress.use` |
+| `/mail inbox [packages\|letters\|announcements]` | Open the mailbox. Arrows change pages; tabs change categories. | `enthusiaexpress.inbox` |
 | `/mail sent [packages\|letters\|announcements]` | View your sent history, recipients, dates and status. Sent books open without changing the recipient's unread state. | `enthusiaexpress.sent` |
 | `/mail send <player>` | Open a shipping inventory for a known offline player. Put one packed shulker box or bundle in the center and confirm. | `enthusiaexpress.packages.send` |
 | Click a package | Claim it into an empty inventory slot. | `enthusiaexpress.packages.claim` |
@@ -37,7 +38,7 @@ sh ./gradlew clean build
 sh ./gradlew verifyPaperCompatibility
 ```
 
-On Windows, use `gradlew.bat`. Install **`build/libs/EnthusiaExpress-1.2.1.jar`**, the shaded JAR. The `-plain.jar` is not the installable artifact. Kotlin standard library, SQLite and its native libraries are included; Paper, Vault and CombatLogX are not bundled.
+On Windows, use `gradlew.bat`. Install **`build/libs/EnthusiaExpress-1.3.0-SNAPSHOT.jar`**, the shaded JAR. The `-plain.jar` is not the installable artifact. Kotlin standard library, SQLite and its native libraries are included; Paper, Vault and CombatLogX are not bundled.
 
 The default compile API is Paper 1.21, with Java bytecode level 21. To run the tests with a later API classpath:
 
@@ -51,12 +52,12 @@ For Java 25 verification, install both JDK 21 and JDK 25. The target automatical
 
 ```sh
 sh ./gradlew clean build
-cp build/libs/EnthusiaExpress-1.2.1.jar /tmp/enthusia-baseline.jar
+cp build/libs/EnthusiaExpress-1.3.0-SNAPSHOT.jar /tmp/enthusia-baseline.jar
 sh ./gradlew clean build -PpaperVersion=26.2 -PbaselineJar=/tmp/enthusia-baseline.jar
 sh ./gradlew clean build -PpaperVersion=26.3-pre-2 -PbaselineJar=/tmp/enthusia-baseline.jar
 ```
 
-`26.2` pins API `26.2.build.123-stable`; `26.3-pre-2` pins `26.3-pre-2.build.0-alpha`. There is no final 26.3 verification target yet. Newer-API build outputs carry a `-verify-<target>` classifier and are not the universal distribution. The descriptor remains `api-version: '1.21'`, the minimum supported API. See [version compatibility and staging limits](docs/paper-26-compatibility.md).
+`26.2` pins API `26.2.build.123-stable`; `26.3-pre-2` pins `26.3-pre-2.build.0-alpha`. `26.3` pins the final API `26.3.build.205-stable`. Newer-API build outputs carry a `-verify-<target>` classifier and are not the universal distribution. The descriptor remains `api-version: '1.21'`, the minimum supported API. See [version compatibility and staging limits](docs/paper-26-compatibility.md).
 
 ## Installation and configuration
 
@@ -116,7 +117,7 @@ A claimed package retains its sending allowance until inventory delivery is ackn
 
 ## Pull request checks
 
-GitHub Actions runs Java 21 builds and tests on Paper API classpaths 1.21, 1.21.8 and 1.21.11, plus compilation against all eleven 1.21 APIs. Separate Java 25 jobs compile against pinned Paper 26.2 and 26.3-pre-2 APIs and run the tests against the baseline JAR. The prerelease job does not establish support for final 26.3. The successful baseline job publishes a testing JAR; every job publishes available test reports. CodeRabbit and Codacy remain separate review services. Local success does not imply their remote checks have finished.
+GitHub Actions runs Java 21 builds and tests on Paper API classpaths 1.21, 1.21.8 and 1.21.11, plus compilation against all eleven 1.21 APIs. Separate Java 25 jobs compile against pinned Paper 26.2, final 26.3 and 26.3-pre-2 APIs and run the tests against the baseline JAR. Final 26.3 is a separate pinned API job; live/client acceptance is still required. The successful baseline job publishes a testing JAR; every job publishes available test reports. CodeRabbit and Codacy remain separate review services. Local success does not imply their remote checks have finished.
 
 Player-name suggestions use online players to avoid scanning offline player files during typing. Fully typed names use Paper's cached lookup first, then resolve a missing UUID on a scheduler worker. The result must still belong to a player who has joined this server, and the sender session is rechecked before opening mail.
 

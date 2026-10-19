@@ -3,13 +3,16 @@ version: '${version}'
 main: io.enthusia.express.infrastructure.EnthusiaExpressPlugin
 api-version: '1.21'
 author: Enthusia
-softdepend: [CombatLogX, Vault, EnthusiaCurrency, Nexo]
+softdepend: [CombatLogX, Vault, EnthusiaCurrency, Nexo, floodgate, ViaVersion]
 commands:
   mail:
     description: Packages, letters, Mapart intake and admin announcements
     usage: /mail <send|letter|announce|inbox|sent|mapart|block|unblock|blocked>
     permission: enthusiaexpress.use
 permissions:
+  enthusiaexpress.mapart.duplicates:
+    description: Allows an explicitly confirmed duplicate-map museum submission.
+    default: op
   enthusiaexpress.use:
     default: true
   enthusiaexpress.inbox:

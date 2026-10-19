@@ -2,6 +2,18 @@
 
 Purpose: offline mail for Paper players and server administrators. This Kotlin migration preserves the merged 1.1.0 behavior, SQLite schema, configuration and permissions.
 
+## Museum and interface extension
+
+- REQ-051: WHEN an artist submits museum artwork THE SYSTEM SHALL persist a bounded title, credited artist, dimensions, description and every map identifier and copy count separately from submitter identity in the same transaction as recoverable cargo.
+- REQ-052: WHEN museum staff review a submission THE SYSTEM SHALL persist acceptance, needs-changes feedback, curator assignment and display completion with revision guards while keeping inventory delivery separate from review state.
+- REQ-053: WHEN a player views museum submissions THE SYSTEM SHALL expose only their own submission history unless they hold manager permission and provide bounded search, status and curator filters without reading cargo payloads.
+- REQ-054: WHEN submitted map identifiers overlap retained museum entries THE SYSTEM SHALL reject duplicate admission atomically unless the sender has an explicit duplicate-override permission and confirms the override before postage.
+- REQ-055: WHEN a museum review changes THE SYSTEM SHALL retain a recipient-scoped durable update for online or next-join notification without discarding it on a failed delivery callback.
+- REQ-056: WHEN a supported client opens Express THE SYSTEM SHALL offer dialog navigation, bounded metadata input and review details while retaining chest cargo controls, signed-book reading and command fallbacks for unsupported clients.
+- REQ-057: IF a dialog callback is stale, repeated, expired, disconnected or no longer authorized THEN THE SYSTEM SHALL refuse its mutation and preserve cargo and payment ownership.
+- REQ-058: WHEN cosmetic mail notifications are configured THE SYSTEM SHALL support configurable message templates and an optional action-bar display without claiming control over the vanilla advancement heading.
+- REQ-059: THE SYSTEM SHALL verify the baseline distributable against a pinned final-version Paper 26.3 API alongside the existing supported runtime profiles and distinguish automated proof from native client acceptance.
+
 ## REQ-001 — Kotlin implementation
 
 THE SYSTEM SHALL implement every production class in Kotlin and package the Kotlin runtime inside the installable JAR.
@@ -88,19 +100,19 @@ THE SYSTEM SHALL preserve the tested mail transitions while separating validatio
 
 ## REQ-022
 
-When a transaction commits successfully and restoring auto-commit fails, the plugin shall preserve the successful mail result while recovering or retiring the damaged connection.
+WHEN a transaction commits successfully and restoring auto-commit fails THE SYSTEM SHALL preserve the successful mail result while recovering or retiring the damaged connection.
 
 ## REQ-023
 
-When an acknowledgment fails after package delivery, the plugin shall retain a durable retry receipt and retry acknowledgment without restoring or redelivering the package.
+WHEN an acknowledgment fails after package delivery THE SYSTEM SHALL retain a durable retry receipt and retry acknowledgment without restoring or redelivering the package.
 
 ## REQ-024
 
-When an enabled CombatLogX implementation implements its published API through a non-public class, the plugin shall apply the published combat status safely.
+WHEN an enabled CombatLogX implementation implements its published API through a non-public class THE SYSTEM SHALL apply the published combat status safely.
 
 ## REQ-025
 
-When EnthusiaCurrency rejects postage for insufficient funds, the plugin shall display the currency balance without truncating fractional units or describing it as physical Raw Gold.
+WHEN EnthusiaCurrency rejects postage for insufficient funds THE SYSTEM SHALL display the currency balance without truncating fractional units or describing it as physical Raw Gold.
 
 ## REQ-026
 

@@ -42,9 +42,13 @@ internal class NativeToastPackets {
     fun key(value: String): Any = parse.invoke(null, value)
 
     fun show(player: Player, key: Any, notice: MailNotification) {
+        showWithText(player,key,notice,notice.text())
+    }
+
+    fun showWithText(player: Player,key: Any,notice: MailNotification,text: String) {
         val icon = if (notice.count == 1 && notice.type != MailType.PACKAGE) Material.PAPER else Material.CHEST
         val info = display.newInstance(icons.convert(ItemStack(icon)),
-            literal.invoke(null, notice.text()), literal.invoke(null, ""), Optional.empty<Any>(),
+            literal.invoke(null, text), literal.invoke(null, ""), Optional.empty<Any>(),
             frame.getField("TASK").get(null), true, false, true)
         val value = entry.newInstance(Optional.empty<Any>(), Optional.of(info),
             rewards.getField("EMPTY").get(null), emptyMap<String, Any>(), requirement, false)

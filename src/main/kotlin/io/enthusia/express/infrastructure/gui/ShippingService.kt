@@ -54,9 +54,21 @@ class ShippingService @JvmOverloads constructor(
     private val pending = HashSet<UUID>()
     private val targets = HashMap<UUID, UUID>()
     private val mapartSessions = HashSet<UUID>()
+    private data class MuseumDraft(val details: io.enthusia.express.domain.MuseumDetails, val override: Boolean)
+    private val museumDrafts=HashMap<UUID,MuseumDraft>()
+
+    fun openArtwork(sender: Player, details: io.enthusia.express.domain.MuseumDetails, duplicateOverride: Boolean) {
+        if(duplicateOverride && !sender.hasPermission("enthusiaexpress.mapart.duplicates")) return
+        openMapart(sender)
+        if(sender.uniqueId in mapartSessions && inventories.containsKey(sender.uniqueId)) museumDrafts[sender.uniqueId]=MuseumDraft(details,duplicateOverride)
+    }
 
     /** Centralize permission, in-flight-send and combat checks before accepting shipping actions. */
     private fun validateShippingAccess(sender: Player, closeBlocked: Boolean): Boolean {
+        if(museumDrafts[sender.uniqueId]?.override==true && !sender.hasPermission("enthusiaexpress.mapart.duplicates")) {
+            sender.sendMessage("§cDuplicate override permission is no longer available.")
+            return false
+        }
         val permission = if (sender.uniqueId in mapartSessions) MAPART_SUBMIT_PERMISSION else "enthusiaexpress.packages.send"
         if (!sender.hasPermission("enthusiaexpress.use") || !sender.hasPermission(permission)) {
             sender.sendMessage(Text.msg(plugin.config, "no-permission"))
@@ -151,7 +163,17 @@ class ShippingService @JvmOverloads constructor(
         val shipment = prepareShipment(sender, inv) ?: return
         if (confirmQuote(sender, inv, shipment)) {
             pending.add(sender.uniqueId)
-            if (sender.uniqueId in mapartSessions) checkedSend(sender, inv, target, false, null)
+            if (sender.uniqueId in museumDrafts) {
+                val draft=checkNotNull(museumDrafts[sender.uniqueId])
+                main.complete(repository.duplicateMaps(shipment.manifest.keys)) { duplicates,error ->
+                    if(!currentShippingSession(sender,inv)) { pending.remove(sender.uniqueId);return@complete }
+                    if(error==null && !duplicates.isNullOrEmpty() && !draft.override) {
+                        pending.remove(sender.uniqueId)
+                        sender.sendMessage("§eThese map IDs are already in the museum: ${duplicates.take(12).joinToString()}. No postage was charged.")
+                    } else checkedSend(sender,inv,target,false,error)
+                }
+            }
+            else if (sender.uniqueId in mapartSessions) checkedSend(sender, inv, target, false, null)
             else main.complete(repository.isBlocked(target.uniqueId, sender.uniqueId)) { blocked, error ->
                     checkedSend(sender, inv, target, blocked, error)
                 }
@@ -180,7 +202,8 @@ class ShippingService @JvmOverloads constructor(
         return false
     }
 
-    private data class PreparedShipment(val payloadItem: ItemStack, val payload: ByteArray, val count: Int, val cost: Int)
+    private data class PreparedShipment(val payloadItem: ItemStack, val payload: ByteArray, val count: Int, val cost: Int,
+        val manifest: Map<Int,Int> = emptyMap())
 
     /** Validate nesting and payload limits before calculating postage or removing items. */
     // Item serializers are supplied by Paper and may reject malformed/version-specific metadata.
@@ -233,7 +256,13 @@ class ShippingService @JvmOverloads constructor(
             sender.sendMessage(Text.msgOrDefault(plugin.config, "package-too-large", "&cThat package contains too much item data. Split its contents into smaller packages."))
             return null
         }
-        return PreparedShipment(payloadItem, payload, count, cost)
+        val draft=museumDrafts[sender.uniqueId]
+        val manifest=if(draft!=null) try {
+            ContainerScanner.mapartManifest(payloadItem,plugin.config.getInt("mail.max-recursive-container-depth",8)).also {
+                require(it.values.sum()==draft.details.width*draft.details.height) { "Map quantity must match the declared dimensions" }
+            }
+        } catch(error: IllegalArgumentException) { sender.sendMessage("§c${error.message}"); return null } else emptyMap()
+        return PreparedShipment(payloadItem, payload, count, cost,manifest)
     }
 
     /** Ignore callbacks after disable, disconnect or closing the owned inventory. */
@@ -295,7 +324,8 @@ class ShippingService @JvmOverloads constructor(
             val payment = ReservedPayment(receipt, unit, lease, intent)
             val sessionEnded = !currentShippingSession(sender, inv) || !mapartStillEnabled(sender)
             val recipientOrSenderIneligible =
-                (sender.uniqueId !in mapartSessions && RecipientPresence.visiblyOnline(sender, target)) || !eligibleSender(sender)
+                (sender.uniqueId !in mapartSessions && RecipientPresence.visiblyOnline(sender, target)) || !eligibleSender(sender) ||
+                (museumDrafts[sender.uniqueId]?.override==true && !sender.hasPermission("enthusiaexpress.mapart.duplicates"))
             if (sessionEnded || recipientOrSenderIneligible) {
                 deferCompensation(sender, payment, "§eShipment cancelled; your cargo and fee will be returned.")
                 pending.remove(sender.uniqueId)
@@ -359,12 +389,15 @@ class ShippingService @JvmOverloads constructor(
         val mapName = (if (mapart) mapMeta?.displayName?.takeIf { it.isNotBlank() } else null)
             ?.take(128) ?: if (mapart && mapMeta == null) "Mapart package (${shipment.count} maps)" else "Untitled map"
         val mapId = if (mapart) mapMeta?.mapView?.id else null
+        val artwork=museumDrafts[sender.uniqueId]
         sender.closeInventory()
         targets.remove(sender.uniqueId)
         val targetName = if (mapart) MapartQueue.NAME else target.name ?: target.uniqueId.toString()
         pending.add(sender.uniqueId)
         val submission = Submission(sender, targetName, shipment, payment, mapart)
-        val write = if (mapart) repository.insertMapart(sender.uniqueId, sender.name,
+        val write = if(artwork!=null) repository.submitArtwork(sender.uniqueId,sender.name,shipment.payload,artwork.details,
+            shipment.manifest,payment.intent.id,artwork.override).thenApply { java.util.OptionalLong.of(it) }
+        else if (mapart) repository.insertMapart(sender.uniqueId, sender.name,
             shipment.payload, mapId, mapName, payment.intent.id).thenApply { java.util.OptionalLong.of(it) }
         else repository.insertMailLimited(sender.uniqueId, sender.name, target.uniqueId, targetName,
             MailType.PACKAGE, shipment.payload, shipment.count, plugin.config.getBoolean("mail.limits.one-outstanding-package-per-recipient", false))
@@ -517,6 +550,7 @@ class ShippingService @JvmOverloads constructor(
         }
         targets.remove(player.uniqueId)
         mapartSessions.remove(player.uniqueId)
+        museumDrafts.remove(player.uniqueId)
         inventories.remove(player.uniqueId)
         quotes.remove(player.uniqueId)
     }
