@@ -1,5 +1,13 @@
 # SPEAR migration tasks
 
+## TDD-065 — Existing pack icons and label clearance
+
+Tag: TDD
+References: REQ-062, REQ-060, REQ-061; implementation.md Optional Post Office presentation and Layer Dependency Rules.
+Evidence: user screenshot32321 shows the previous centered lower icons obscuring labels and the vanilla Inventory text exceeding its painted band. Current MuseumView already anchors lower icons at36/39/42. tools/build_postoffice_assets.py base paints only y126..134 for a six-row inventory although the client font extends lower. Authoritative FainNeito/Enthusia-Pack main6ff2abd3060228e0a94fd6e25173a48158d9392e has java/nexo/items/lg_nav.yml, lg_ui.yml, lg_status.yml, lg_economy.yml and lg_enthusia_gui.yml; README/docs/LICENSES.md require licensed icon pixels to stay private. Reference registry IDs and texture hashes only in this public repository. Existing GuiTheme.item clones templates before metadata changes. org.bukkit.inventory.meta.ItemMeta.setEnchantmentGlintOverride is present on the baseline Paper API; org.junit.jupiter.api.Test/Assertions, org.mockito.Mockito, java.nio.file.Files/Path, java.util.regex.Pattern and javax.imageio.ImageIO are existing fixtures. No new dependencies, domain mutation, payment or cargo behavior is intended.
+Status: [x] automated/source scope complete; TEST activation and real-client acceptance for this revision remain separate.
+Result: pack-clearance-red.log proves three failures before the change: caption exceeded the cream band, profile still used replacement sprites, and selected shared icons lacked a glint. The focused tests then pass (pack-clearance-green.log). Existing pack IDs are pinned in icon-sources.json; sixteen newly drawn sprites and their item definitions are removed. Original chest backgrounds reserve the entire caption band, and selected-tab glint is applied only to a cloned item. Full clean build, all eleven API compilation targets, architecture/no-call-cycle gates and254 tests pass (pack-clearance-build.log); the actual baseline JAR also passes254 tests on final Paper26.3 / Java25 (pack-clearance-26.3.log). EARS and twelve state/helper tests pass. No domain/application dependency, cargo, payment, schema or permission changes. Read-only TEST comparison confirms every selected icon's installed bytes match the pinned private pack. The responsive owner-private preview references those same PNG bytes; existing actual captures are explicitly identified as the previous revision until new client captures are added. No production change is implied.
+
 ## TDD-064 — Resolve typed protocol overloads
 
 Tag: TDD

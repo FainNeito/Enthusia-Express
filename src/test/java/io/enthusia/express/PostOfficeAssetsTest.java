@@ -10,14 +10,39 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /** Missing registry bindings otherwise appear only after a real pack build. */
 class PostOfficeAssetsTest {
-    @Test void everyProfileBindingResolvesToAnOriginalTextureAndValidGlyph() throws Exception {
+    @Test void inventoryCaptionHasClearanceOnEveryChestBackground() throws Exception {
+        for (String name : java.util.List.of("home", "mailbox", "sent", "catalog", "museum", "shipping")) {
+            var image=ImageIO.read(Path.of("assets/nexo-postoffice/pack/assets/enthusiaexpress/textures/postoffice/bg-"+name+".png").toFile());
+            int top=name.equals("shipping")?74:128;
+            for(int y=top;y<=top+9;y++)for(int x=7;x<68;x++)
+                assertEquals(0xfff1cf,image.getRGB(x,y)&0xffffff,name+" caption at "+x+","+y);
+        }
+    }
+
+    @Test void sharedIconsAreReferencedWithoutPublishingTheirPixels() throws Exception {
+        Path root=Path.of("assets/nexo-postoffice");
+        String profile=Files.readString(root.resolve("express-profile.json"));
+        assertTrue(profile.contains("lg_vault"),"Reuse the existing pack's chest icon");
+        assertFalse(profile.contains("ee_postoffice_package"),"Do not generate a replacement icon family");
+        try(var files=Files.list(root.resolve("pack/assets/enthusiaexpress/textures/postoffice"))) {
+            assertTrue(files.allMatch(p->p.getFileName().toString().startsWith("bg-")||p.getFileName().toString().equals("blank.png")),"Private icons stay outside the public source tree");
+        }
+    }
+
+    @Test void everyProfileBindingResolvesToSharedIconMetadataOrSupportTextureAndValidGlyph() throws Exception {
         Path root=Path.of("assets/nexo-postoffice");
         var items=YamlConfiguration.loadConfiguration(root.resolve("items/enthusiaexpress_postoffice.yml").toFile());
         var glyphs=YamlConfiguration.loadConfiguration(root.resolve("glyphs/enthusiaexpress/postoffice.yml").toFile());
         String profile=Files.readString(root.resolve("express-profile.json"));
+        String sources=Files.readString(root.resolve("icon-sources.json"));
         var matches=Pattern.compile("\"gui\\.nexo\\.icons\\.[^\"]+\"\\s*:\\s*\"([a-z_]+)\"").matcher(profile);
         int bindings=0;
-        while(matches.find()) {assertTrue(items.contains(matches.group(1)),matches.group(1));bindings++;}
+        while(matches.find()) {
+            String id=matches.group(1);
+            assertTrue(items.contains(id)||sources.contains("\"id\": \""+id+"\""),id);
+            bindings++;
+        }
+        assertEquals(java.util.Set.of("ee_postoffice_blank"),items.getKeys(false));
         assertTrue(bindings>25,"An incomplete profile cannot be shipped as an installable menu");
         for(String id:items.getKeys(false)) {
             String texture=items.getString(id+".Pack.texture");

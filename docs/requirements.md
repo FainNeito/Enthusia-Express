@@ -1,5 +1,9 @@
 # Enthusia Express requirements
 
+## REQ-062 — Reuse pack icons and preserve label clearance
+
+WHEN the Post Office profile is generated THE SYSTEM SHALL reference the existing Enthusia Pack icon registry, retain a visible selected-category cue and reserve clear space for home-card text and the vanilla inventory label without redistributing private icon artwork.
+
 ## REQ-060 — Optional Post Office presentation
 
 WHEN a Java player with the accepted resource pack opens an enabled Post Office menu THE SYSTEM SHALL render the approved red, gold and cream navigation with protected slot routing, explicit mail states and unchanged cargo, postage and recovery ownership.

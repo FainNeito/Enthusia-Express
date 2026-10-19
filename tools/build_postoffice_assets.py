@@ -185,139 +185,6 @@ def fret(im, x, y, t, flipx=False, flipy=False):
     im.alpha_composite(art, (x, y))
 
 
-def draw_letter(d, t, kind):
-    o = t["edge"]
-    hi = t["hi"]
-    paper = t["paper"]
-    red = t["accent"]
-    d.rectangle((1, 3, 14, 12), fill=o)
-    d.rectangle((2, 4, 13, 11), fill=paper)
-    d.line([(2, 4), (7, 8), (8, 8), (13, 4)], fill=t["lo"])
-    d.line([(2, 11), (5, 8)], fill=t["muted"])
-    d.line([(13, 11), (10, 8)], fill=t["muted"])
-    if kind == "letter":
-        d.rectangle((7, 7, 9, 9), fill=red)
-        d.point((8, 7), fill=hi)
-    else:
-        d.line([(9, 11), (11, 13), (15, 8)], fill="#69B982", width=2)
-
-
-def draw_package(d, t, kind):
-    o = t["edge"]
-    hi = t["hi"]
-    red = t["accent"]
-    d.polygon([(1, 4), (7, 1), (14, 4), (14, 12), (8, 15), (1, 12)], fill=o)
-    d.polygon([(2, 5), (8, 8), (8, 14), (2, 11)], fill="#B5844F")
-    d.polygon([(8, 8), (13, 5), (13, 11), (8, 14)], fill="#8A5B39")
-    d.polygon([(2, 4), (7, 2), (13, 4), (8, 7)], fill="#E4BB7A")
-    d.line([(5, 3), (11, 6), (11, 12)], fill=red, width=2)
-    d.line([(5, 6), (5, 12)], fill=red, width=1)
-    d.point((5, 3), fill=hi)
-
-
-def draw_announcement(d, t, kind):
-    o = t["edge"]
-    gold = t["gold"]
-    hi = t["hi"]
-    paper = t["paper"]
-    red = t["accent"]
-    d.rectangle((3, 3, 12, 11), fill=o)
-    d.rectangle((4, 4, 11, 10), fill=paper)
-    d.line((5, 5, 10, 5), fill=red)
-    d.line((5, 7, 10, 7), fill=t["lo"])
-    d.line((5, 9, 8, 9), fill=t["lo"])
-    d.rectangle((1, 2, 14, 3), fill=gold)
-    d.rectangle((1, 11, 14, 12), fill=gold)
-    d.point((2, 2), fill=hi)
-
-
-def draw_map(d, t, kind):
-    o = t["edge"]
-    gold = t["gold"]
-    hi = t["hi"]
-    d.rectangle((1, 2, 14, 13), fill=o)
-    d.rectangle((2, 3, 13, 12), fill=gold)
-    d.rectangle((3, 4, 12, 11), fill="#88B7C1")
-    d.polygon([(3, 10), (7, 5), (10, 10)], fill="#4F6D43")
-    d.polygon([(7, 10), (10, 7), (12, 10)], fill="#739B59")
-    d.rectangle((5, 10, 11, 11), fill="#D9BB72")
-    d.point((11, 5), fill=hi)
-
-
-def draw_direction(d, t, kind):
-    o = t["edge"]
-    gold = t["gold"]
-    paper = t["paper"]
-    if kind == "sent":
-        d.rectangle((1, 6, 10, 13), fill=o)
-        d.rectangle((2, 7, 9, 12), fill=paper)
-        d.line([(2, 7), (6, 10), (9, 7)], fill=t["lo"])
-        d.line([(7, 3), (14, 3), (11, 0)], fill=gold, width=2)
-        d.line([(14, 3), (11, 6)], fill=gold, width=2)
-    else:
-        pts = [(11, 3), (6, 7), (11, 11)] if kind == "back" else [(5, 3), (10, 7), (5, 11)]
-        d.line(pts, fill=gold, width=3)
-
-
-def draw_decision(d, t, kind):
-    red = t["accent"]
-    if kind == "check":
-        d.line([(2, 8), (6, 12), (14, 3)], fill="#69B982", width=3)
-        d.line([(2, 7), (6, 11), (13, 3)], fill="#BAF4A5", width=1)
-    else:
-        d.line((4, 4, 11, 11), fill=red, width=3)
-        d.line((11, 4, 4, 11), fill=red, width=3)
-
-
-def draw_settings(d, t, kind):
-    o = t["edge"]
-    gold = t["gold"]
-    d.rectangle((3, 3, 12, 12), fill=gold)
-    d.rectangle((6, 1, 9, 14), fill=gold)
-    d.rectangle((1, 6, 14, 9), fill=gold)
-    d.rectangle((5, 5, 10, 10), fill=o)
-    d.rectangle((6, 6, 9, 9), fill=t["slotHi"])
-
-
-def draw_seal(d, t, kind):
-    o = t["edge"]
-    hi = t["hi"]
-    red = t["accent"]
-    d.polygon([(4, 1), (11, 1), (14, 5), (14, 10), (10, 14), (4, 14), (1, 10), (1, 5)], fill=o)
-    d.polygon([(5, 2), (10, 2), (13, 5), (13, 10), (10, 13), (5, 13), (2, 10), (2, 5)], fill=red)
-    d.line((5, 4, 10, 4), fill="#E58A65")
-    d.line((5, 6, 9, 6), fill=hi)
-    d.line((5, 6, 5, 10), fill=hi)
-    d.line((5, 8, 8, 8), fill=hi)
-    d.line((5, 10, 10, 10), fill=hi)
-
-
-def sprite(kind, t):
-    im = Image.new("RGBA", (16, 16))
-    painter = {
-        "letter": draw_letter,
-        "read": draw_letter,
-        "package": draw_package,
-        "announcement": draw_announcement,
-        "map": draw_map,
-        "museum": draw_map,
-        "sent": draw_direction,
-        "back": draw_direction,
-        "next": draw_direction,
-        "check": draw_decision,
-        "close": draw_decision,
-        "settings": draw_settings,
-        "seal": draw_seal,
-    }.get(kind)
-    if painter is not None:
-        painter(ImageDraw.Draw(im), t, kind)
-    return im
-
-
-def icon(im, kind, x, y, t):
-    im.alpha_composite(sprite(kind, t), (x, y))
-
-
 def card(im, box, label, t, cream=False):
     bevel(
         im,
@@ -343,7 +210,7 @@ def base(t, rows, title):
         for col in range(9):
             bevel(im, (7 + col * 18, 17 + row * 18, 24 + col * 18, 34 + row * 18), t["slot"], t)
     invy = 31 + 18 * rows
-    d.rectangle((4, invy - 13, 171, invy - 5), fill=t["cream"])
+    d.rectangle((4, invy - 13, 171, invy + 1), fill=t["cream"])
     d.line((4, invy - 13, 171, invy - 13), fill=t["hi"])
     for row in range(3):
         for col in range(9):
@@ -414,39 +281,16 @@ for name, im in backgrounds.items():
     padded = Image.new("RGBA", (256, 256))
     padded.alpha_composite(im, (0, 0))
     padded.save(tex / ("bg-" + name + ".png"))
-icons = (
-    "letter",
-    "read",
-    "package",
-    "announcement",
-    "museum",
-    "map",
-    "sent",
-    "settings",
-    "seal",
-    "check",
-    "close",
-    "back",
-    "next",
-)
-for name in icons:
-    sprite(name, t).save(tex / (name + ".png"))
-blank = Image.new("RGBA", (16, 16))
-blank.save(tex / "blank.png")
-for baseicon in ("letter", "package", "announcement"):
-    im = sprite(baseicon, t)
-    d = ImageDraw.Draw(im)
-    d.rectangle((0, 0, 15, 15), outline=t["gold"])
-    d.rectangle((1, 1, 14, 14), outline=t["hi"])
-    im.save(tex / (baseicon + "-selected.png"))
+# Only the transparent support item is generated; visible icons belong to the private pack.
+Image.new("RGBA", (16, 16)).save(tex / "blank.png")
+
 glyph_configs = []
 banner = Image.new("RGBA", (176, 42), t["bg"])
 d = ImageDraw.Draw(banner)
 d.rectangle((1, 1, 174, 40), outline=t["gold"])
 card(banner, (5, 5, 170, 36), "", t, True)
-icon(banner, "seal", 12, 12, t)
-text(banner, "Enthusia Express", 33, 12, t["ink"])
-tiny(banner, "HANDLE WITH CARE.", 33, 24, t["accent"])
+text(banner, "Enthusia Express", (176 - width("Enthusia Express")) // 2, 12, t["ink"])
+tiny(banner, "HANDLE WITH CARE.", 88, 24, t["accent"], True)
 banner.save(tex / "bg-banner.png")
 glyph_configs.append(
     "ee_postoffice_banner:\n  texture: enthusiaexpress:postoffice/bg-banner\n  font: enthusiaexpress:menus\n  height: 42\n  ascent: 7\n  is_emoji: false\n"
@@ -458,16 +302,13 @@ for name in backgrounds:
     )
 (OUT / "glyphs/enthusiaexpress").mkdir(parents=True, exist_ok=True)
 (OUT / "glyphs/enthusiaexpress/postoffice.yml").write_text("\n".join(glyph_configs), encoding="utf-8", newline="\n")
-itemnames = list(icons) + ["blank", "letter-selected", "package-selected", "announcement-selected"]
 (OUT / "items").mkdir(exist_ok=True)
-items = []
-for name in itemnames:
-    itemid = "ee_postoffice_" + name.replace("-", "_")
-    items.append(
-        f"{itemid}:\n  material: PAPER\n  excludeFromInventory: true\n  Pack:\n"
-        f"    parent_model: item/generated\n    texture: enthusiaexpress:postoffice/{name}\n"
-    )
-(OUT / "items/enthusiaexpress_postoffice.yml").write_text("\n".join(items), encoding="utf-8", newline="\n")
+(OUT / "items/enthusiaexpress_postoffice.yml").write_text(
+    "ee_postoffice_blank:\n  material: PAPER\n  excludeFromInventory: true\n  Pack:\n"
+    "    parent_model: item/generated\n    texture: enthusiaexpress:postoffice/blank\n",
+    encoding="utf-8", newline="\n")
+sources = json.loads((OUT / "icon-sources.json").read_text(encoding="utf-8"))["icons"]
+
 bindings = {
     "chrome.blank": "blank",
     "mailbox.packages": "package",
@@ -483,7 +324,7 @@ bindings = {
     "mailbox.page": "map",
     "mailbox.summary": "blank",
     "mailbox.mark-all-read": "check",
-    "mailbox.refresh": "settings",
+    "mailbox.refresh": "refresh",
     "mailbox.close": "close",
     "mailbox.entry.package": "package",
     "mailbox.entry.letter": "letter",
@@ -494,7 +335,7 @@ bindings = {
     "shipping.recipient": "letter",
     "shipping.quote": "sent",
     "shipping.confirm": "check",
-    "shipping.placeholder": "seal",
+    "shipping.placeholder": "package",
 }
 for key, name in [
     ("packages", "package"),
@@ -516,7 +357,9 @@ profile = {"gui.nexo.enabled": True, "gui.nexo.post-office": True}
 profile.update(
     {"gui.nexo.titles." + name: f"<shift:-8><glyph:ee_postoffice_{name}:shadow:#00000000>" for name in backgrounds}
 )
-profile.update({"gui.nexo.icons." + key: "ee_postoffice_" + value.replace("-", "_") for key, value in bindings.items()})
+profile.update({"gui.nexo.icons." + key:
+    "ee_postoffice_blank" if value == "blank" else sources[value.removesuffix("-selected")]["id"]
+    for key, value in bindings.items()})
 (OUT / "express-profile.json").write_text(json.dumps(profile, indent=2) + "\n", encoding="utf-8", newline="\n")
 manifest = {
     str(p.relative_to(OUT)).replace("\\", "/"): __import__("hashlib").sha256(p.read_bytes()).hexdigest()
@@ -524,4 +367,4 @@ manifest = {
     if p.is_file() and p.name != "manifest.json"
 }
 (OUT / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
-print(f"Generated {len(backgrounds)} background glyphs and {len(itemnames)} original item textures.")
+print(f"Generated {len(backgrounds)} inventory backgrounds, a banner and transparent chrome; existing pack icon IDs retained.")

@@ -82,7 +82,14 @@ class GuiTheme @JvmOverloads constructor(private val plugin: JavaPlugin, private
             if (built == null || built.type.isAir) {
                 warn(id, "item is missing or not loaded")
                 ItemStack(material)
-            } else built.clone().also { it.amount = 1 }
+            } else built.clone().also {
+                it.amount = 1
+                if (key.endsWith("-selected") && postOffice) {
+                    val meta = it.itemMeta!!
+                    meta.setEnchantmentGlintOverride(true)
+                    it.itemMeta = meta
+                }
+            }
         } catch (error: ReflectiveOperationException) {
             warn(id, error.javaClass.simpleName)
             ItemStack(material)

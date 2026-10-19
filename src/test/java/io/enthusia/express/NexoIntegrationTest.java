@@ -19,6 +19,31 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.junit.jupiter.api.Test;
 
 public class NexoIntegrationTest {
+  @Test void selectedSharedIconGlintsOnlyOnTheViewerCopy() {
+    try(var bukkit=mockStatic(Bukkit.class)) {
+      JavaPlugin plugin=configuredPlugin();Plugin nexo=install(bukkit);
+      plugin.getConfig().set("gui.nexo.post-office",true);
+      plugin.getConfig().set("gui.nexo.icons.chrome.blank","ee_blank");
+      plugin.getConfig().set("gui.nexo.icons.mailbox.packages-selected","lg_vault");
+      var player=mock(org.bukkit.entity.Player.class);when(player.hasResourcePack()).thenReturn(true);
+      var source=mock(NexoItemSource.class);
+      var template=mock(ItemStack.class);var copy=mock(ItemStack.class);
+      var meta=mock(org.bukkit.inventory.meta.ItemMeta.class);
+      when(template.getType()).thenReturn(mock(Material.class));when(template.clone()).thenReturn(copy);
+      when(copy.getItemMeta()).thenReturn(meta);
+      when(source.build(eq(nexo),anyString())).thenReturn(template);
+      var glyphs=mock(NexoGlyphSource.class);
+      when(glyphs.component(eq(nexo),anyString())).thenReturn(net.kyori.adventure.text.Component.empty());
+      var theme=new GuiTheme(plugin,source,player,glyphs);
+      assertSame(copy,theme.item("mailbox.packages-selected",Material.CHEST));
+      verify(meta).setEnchantmentGlintOverride(true);
+      verify(template,never()).setItemMeta(any());
+      clearInvocations(meta);
+      theme.item("mailbox.packages",Material.CHEST);
+      verify(meta,never()).setEnchantmentGlintOverride(any());
+    }
+  }
+
   /** A title glyph is never sent to a viewer who has not loaded the Java pack. */
   @Test void declinedPackKeepsVanillaTitleAndControls() {
     try (var bukkit=mockStatic(Bukkit.class);
