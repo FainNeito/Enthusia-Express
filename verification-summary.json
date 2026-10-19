@@ -3,10 +3,11 @@
   "baseCommit": "a650216c6e795f900988b05d788de68b9d4a9866",
   "localServerProbe": {
     "paper": "26.2.129",
-    "pass": false,
+    "pass": true,
     "scope": "Real dialog builders and plugin startup; synthetic Player; no client or provider interactions",
-    "run": "repeat-required-after-static-refinement",
-    "marker": "EXPRESS_DIALOG_PROBE_PASS"
+    "run": "20261019T042649Z-3ac98eeb1c",
+    "marker": "EXPRESS_DIALOG_PROBE_PASS",
+    "sourceCommit": "19332f9f72e494de6b667b6489265da113701870"
   },
   "previewScope": "Owner-private illustrative simulation; hosted deployment succeeded; fresh browser/device QA unavailable",
   "earsPassed": true,
@@ -30,7 +31,7 @@
       "scope": "Actual Java21 baseline shaded JAR on final API fixtures / Java25"
     }
   },
-  "remoteChecks": "Initial six Paper jobs passed; exact refined-head analysis required. See docs/static-review.md.",
+  "remoteChecks": "Initial six API jobs passed. Final exact-head CI/Codacy status must be checked on PR12.",
   "status": "unmerged local testing only",
   "sqliteJdbc": "3.51.3.0",
   "gradle": "9.7.1",

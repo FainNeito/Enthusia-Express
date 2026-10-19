@@ -22,7 +22,7 @@ Durable review history is separate from recipient notifications. Accepted, needs
 
 ## Interfaces and compatibility
 
-`gui.dialogs.enabled` enables modern Java dialogs; older Java clients and unavailable APIs retain chest/command fallbacks. The optional ViaVersion API is consulted for the original client protocol. Bedrock players use optional Floodgate/Cumulus forms when installed on this backend; Java dialog translation is not assumed. Without a usable forms API the same chest/command fallback is retained. The adapters use runtime public API discovery and do not bundle Paper, ViaVersion, Geyser or Floodgate.
+`gui.dialogs.enabled` enables modern Java dialogs; older Java clients and unavailable APIs retain chest/command fallbacks. The optional ViaVersion API is consulted for the original client protocol. Bedrock players use optional Floodgate/Cumulus forms when installed on this backend; Java dialog translation is not assumed. If a detected Floodgate player cannot receive a form, the same chest/command fallback is retained. Reliable Bedrock detection requires Floodgate on this backend; a proxy-only installation cannot be identified from Java protocol numbers alone. Keep gui.dialogs.enabled disabled on that configuration until backend routing is verified. The adapters use runtime public API discovery and do not bundle Paper, ViaVersion, Geyser or Floodgate.
 
 Dialogs are navigation and text input, never a substitute for cargo slots. Deposited items remain owned by ShippingService; no dialog is opened over a charged or deposited shipment. Public menu callbacks are owner-bound, single-use and expiring, return to the server thread and revalidate live permissions/combat/session before mutation. Closing an input form submits nothing.
 

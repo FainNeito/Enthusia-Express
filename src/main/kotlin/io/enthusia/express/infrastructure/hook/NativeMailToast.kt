@@ -12,7 +12,7 @@ import org.bukkit.entity.Player
 import org.bukkit.plugin.java.JavaPlugin
 import org.bukkit.scheduler.BukkitTask
 
-/** Sends transient client packets; never registers or awards a server advancement. */
+
 private const val NATIVE_MODE = "native"
 private const val TOAST_MODE = "notifications.toast.mode"
 

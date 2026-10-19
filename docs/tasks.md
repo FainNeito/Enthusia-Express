@@ -459,10 +459,14 @@ Status: verified for automated scope; live acceptance pending.
 Review refinement: dialog-cargo-red.log reproduced missing closeInventory before opening input. DialogMenus now closes through the existing inventory lifecycle before native/form/fallback input. The regression and final 243-test baseline suite pass, including all eleven older API compilation targets. Final Paper26.3 uses the same baseline JAR on Java25. The isolated Paper26.2 probe resolves actual dialog builders without a real client. Preview publication is separate from fresh browser/device QA, which was unavailable.
 
 INFRA-059 result: final profile, artifact packaging assertion and CI matrix updated; repository EARS and twelve helper regressions pass. Canonical Tags PR26 head111154b is green (254 tests, Codacy, artifact and verify); the current credential has pull-only upstream access, so maintainer merge and subsequent fork/network reconciliation remain blocked. No production deployment/activation or claim of client acceptance.
+
 ## INFRA-060 — Refine exact-head Codacy findings
 
 References: REQ-051 through REQ-059; implementation.md Layer Dependency Rules.
 Evidence: Codacy analysis of3d93ba6 reports100 added issues. Most path warnings concern trusted local CLI/SPEAR fixtures, not plugin inputs; retain validation and narrowly document only genuine false positives. Refactor museum presentation/audit ownership, split long handlers, extract literals and retain compatibility method signatures. No new feature, schema or expected behavior is introduced; behavioral prove/engine steps do not apply to this refinement. The existing243 regressions, all API profiles, no-cycle/layer checks and isolated probe remain the correctness oracle.
-Status: spec.
+Status: local verification complete; exact-head hosted checks and live acceptance tracked separately.
 
 INFRA-060 local refinement: menu ownership/input/commands and audit SQL separated; pure review policy retained. Atomic Java-facing command signatures, stale-result lambda returns, required reflection varargs and trusted local CLI/test paths have narrow documented exceptions (static-review.md). No global rule/gate was disabled. Baseline243 tests, eleven API compilation targets, EARS and twelve helper tests pass after refactor; no compiled call cycles or layer regressions. Final refined-head26.3/probe and hosted Codacy checks are being repeated. Current Tags release-fork PR12 at16a70aa passes verify, artifact, Codacy and codacy-gate with289 local tests; no merge or network pin is implied.
+
+
+INFRA-060 final local evidence: final Paper26.3 baseline-JAR run repeats243 passing tests; isolated Paper26.2 probe20261019T042649Z-3ac98eeb1c passes at19332f9 with artifact SHA256 f51db8c287afa96e9d662db9f29532247e3a36fb773987d427e472ffa257b55b. Codacy reduced100 findings to2 style-only findings; the misplaced constant comment and missing heading spacing are corrected. Final exact-head status must be verified after push. No real client, production or network-pin acceptance is inferred.
