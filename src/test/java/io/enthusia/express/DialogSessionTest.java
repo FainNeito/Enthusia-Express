@@ -1,5 +1,9 @@
 package io.enthusia.express;
 
+import io.enthusia.express.application.DialogSessions;
+
+import io.enthusia.express.infrastructure.gui.DialogMenus;
+
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -10,7 +14,7 @@ class DialogSessionTest {
         var config=new org.bukkit.configuration.file.YamlConfiguration();
         config.set("gui.dialogs.enabled",false);
         org.mockito.Mockito.when(plugin.getConfig()).thenReturn(config);
-        assertFalse(new io.enthusia.express.infrastructure.gui.DialogMenus(plugin)
+        assertFalse(new DialogMenus(plugin)
             .show(player,"Input","Details",java.util.List.of(),java.util.List.of()));
         org.mockito.Mockito.verify(player).closeInventory();
     }
@@ -21,7 +25,7 @@ class DialogSessionTest {
     }
 
     @Test void aMenuActionIsOwnerBoundOneShotExpiringAndInvalidatedByReopen() {
-        var gate=new io.enthusia.express.application.DialogSessions();
+        var gate=new DialogSessions();
         var owner=java.util.UUID.randomUUID(); var stranger=java.util.UUID.randomUUID();
         var first=gate.open(owner,100);
         assertFalse(gate.accept(stranger,first,101));

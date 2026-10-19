@@ -13,6 +13,10 @@ import org.bukkit.plugin.java.JavaPlugin
 import org.bukkit.scheduler.BukkitTask
 
 /** Sends transient client packets; never registers or awards a server advancement. */
+private const val NATIVE_MODE = "native"
+private const val TOAST_MODE = "notifications.toast.mode"
+
+/** Sends transient client packets; never registers or awards a server advancement. */
 class NativeMailToast(private val plugin: JavaPlugin) : BiConsumer<Player, MailNotification> {
     private data class Visible(val player: Player, val key: Any, val cleanup: BukkitTask)
     private val visible = HashMap<UUID, Visible>()
@@ -22,7 +26,7 @@ class NativeMailToast(private val plugin: JavaPlugin) : BiConsumer<Player, MailN
     override fun accept(player: Player, notice: MailNotification) {
         if (notice.count <= 0 || !player.isOnline) return
         val text=message(notice)
-        when(plugin.config.getString("notifications.toast.mode","native")) {
+        when(plugin.config.getString(TOAST_MODE,NATIVE_MODE)) {
             "actionbar" -> { player.sendActionBar(Component.text(text.replace('\n',' ')));return }
             "chat" -> { player.sendMessage(Component.text(text.replace('\n',' ')));return }
         }
@@ -78,7 +82,7 @@ class NativeMailToast(private val plugin: JavaPlugin) : BiConsumer<Player, MailN
 
     private fun connect(): NativeToastPackets? {
         if (!plugin.config.getBoolean("notifications.toast.enabled", true)) return null
-        if(plugin.config.getString("notifications.toast.mode","native")!="native") return null
+        if(plugin.config.getString(TOAST_MODE,NATIVE_MODE)!=NATIVE_MODE) return null
         return try { NativeToastPackets() }
         catch (error: ReflectiveOperationException) { warn(error); null }
         catch (error: LinkageError) { warn(error); null }

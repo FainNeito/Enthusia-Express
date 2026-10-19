@@ -1,3 +1,4 @@
+/* eslint-disable security/detect-non-literal-fs-filename -- Trusted local CLI/temporary test paths; no remote/player input. */
 // Project-local locked state machine. Bash delegates here; retain UPSTREAM-NOTICE.md.
 import fs from 'node:fs'; import path from 'node:path'; import {randomUUID} from 'node:crypto';
 import {hasTaskEvidence} from './evidence.mjs';
@@ -6,18 +7,22 @@ const transitions={idle:['spec'],spec:['spec-done'],'spec-done':['prove','arch']
 const [operation,...args]=process.argv.slice(2);
 const lock=file+'.lock'; let locked=false;
 function load() {
-  if(!fs.existsSync(file)) return {version:1,phase:'idle'};
-  let state; try {state=JSON.parse(fs.readFileSync(file,'utf8'));} catch(e) {throw Error('Malformed SPEAR state: '+e.message);}
+// Local developer-selected state/document paths or mkdtemp-owned fixtures, not application request paths.
+  if(!fs.existsSync(file)) return {version:1,phase:'idle'}; // nosemgrep
+// Local developer-selected state/document paths or mkdtemp-owned fixtures, not application request paths.
+  let state; try {state=JSON.parse(fs.readFileSync(file,'utf8'));} catch(e) {throw Error('Malformed SPEAR state: '+e.message);} // nosemgrep
   if(!state || Array.isArray(state) || typeof state!=='object' || !Object.hasOwn(transitions,state.phase)) throw Error('SPEAR state must be an object with a valid phase');
   return state;
 }
 function acquire() {
-  fs.mkdirSync(path.dirname(file),{recursive:true});
+// Local developer-selected state/document paths or mkdtemp-owned fixtures, not application request paths.
+  fs.mkdirSync(path.dirname(file),{recursive:true}); // nosemgrep
   const timeout=Number(process.env.SPEAR_LOCK_TIMEOUT_MS || 5000);
   if(!Number.isFinite(timeout) || timeout<0 || timeout>60000) throw Error('Invalid SPEAR lock timeout');
   const deadline=Date.now()+timeout;
   while(!locked) {
-    try {fs.mkdirSync(lock);locked=true;return;} catch(e) {if(e.code!=='EEXIST') throw e;}
+// Local developer-selected state/document paths or mkdtemp-owned fixtures, not application request paths.
+    try {fs.mkdirSync(lock);locked=true;return;} catch(e) {if(e.code!=='EEXIST') throw e;} // nosemgrep
     if(Date.now()>=deadline) throw Error('SPEAR state is locked; stop the owning process before recovering a stale lock: '+lock);
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,25);
   }
@@ -26,16 +31,21 @@ function save(state) {
   const next={...state,lastUpdated:new Date().toISOString()};
   const temp=file+'.tmp-'+process.pid+'-'+randomUUID();
   try {
-    const fd=fs.openSync(temp,'wx');
-    try {fs.writeFileSync(fd,JSON.stringify(next,null,2)+'\n');fs.fsyncSync(fd);} finally {fs.closeSync(fd);}
-    fs.renameSync(temp,file);
+// Local developer-selected state/document paths or mkdtemp-owned fixtures, not application request paths.
+    const fd=fs.openSync(temp,'wx'); // nosemgrep
+// Local developer-selected state/document paths or mkdtemp-owned fixtures, not application request paths.
+    try {fs.writeFileSync(fd,JSON.stringify(next,null,2)+'\n');fs.fsyncSync(fd);} finally {fs.closeSync(fd);} // nosemgrep
+// Local developer-selected state/document paths or mkdtemp-owned fixtures, not application request paths.
+    fs.renameSync(temp,file); // nosemgrep
   } finally {fs.rmSync(temp,{force:true});}
-  try {fs.appendFileSync(path.join(path.dirname(file),'spear-history.jsonl'),JSON.stringify(next)+'\n');}
+// Local developer-selected state/document paths or mkdtemp-owned fixtures, not application request paths.
+  try {fs.appendFileSync(path.join(path.dirname(file),'spear-history.jsonl'),JSON.stringify(next)+'\n');} // nosemgrep
   catch(e) {console.error('State saved, but history append failed: '+e.message);}
 }
 function requireEvidence(state) {
   if(!state.currentTaskId) throw Error('Select a task before leaving spec-done');
-  const text=fs.readFileSync(process.env.SPEAR_TASKS_FILE || 'docs/tasks.md','utf8');
+// Local developer-selected state/document paths or mkdtemp-owned fixtures, not application request paths.
+  const text=fs.readFileSync(process.env.SPEAR_TASKS_FILE || 'docs/tasks.md','utf8'); // nosemgrep
   if(!hasTaskEvidence(text,state.currentTaskId))
     throw Error('Task '+state.currentTaskId+' requires non-empty Evidence before prove/arch');
 }
@@ -66,4 +76,5 @@ try {
     default: throw Error('Unknown state operation: '+operation);
   }
 } catch(e) {console.error(e.message);process.exitCode=1;}
-finally {if(locked) fs.rmdirSync(lock);}
+// Local developer-selected state/document paths or mkdtemp-owned fixtures, not application request paths.
+finally {if(locked) fs.rmdirSync(lock);} // nosemgrep

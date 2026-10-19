@@ -1,3 +1,4 @@
+/* eslint-disable security/detect-non-literal-fs-filename -- Trusted local CLI/temporary test paths; no remote/player input. */
 // Project-local adaptation of the MIT-licensed SPEAR EARS validator; see UPSTREAM-NOTICE.md.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -55,7 +56,8 @@ export function validate(text, filename) {
 if(process.argv[1] && import.meta.url===pathToFileURL(path.resolve(process.argv[1])).href) {
   try {
     if(!process.argv[2]) throw Error('Usage: node ears.mjs PATH');
-    const result=validate(fs.readFileSync(process.argv[2],'utf8'),process.argv[2]);
+// Local developer-selected state/document paths or mkdtemp-owned fixtures, not application request paths.
+    const result=validate(fs.readFileSync(process.argv[2],'utf8'),process.argv[2]); // nosemgrep
     for(const e of result.errors) console.error(e.file+':'+e.line+': '+e.id+': '+e.reason);
     process.exitCode=result.ok?0:1;
   } catch(e) {console.error(e.message);process.exitCode=1;}

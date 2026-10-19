@@ -63,7 +63,7 @@ class EnthusiaExpressPlugin : JavaPlugin() {
         mailbox.museumDetails={ player,id -> museum.detail(player,id) }
         val museumNotices=io.enthusia.express.infrastructure.mail.MuseumNotifications(this,repository,main)
         museumNoticeTask=Bukkit.getScheduler().runTaskTimer(this,Runnable { museumNotices.poll() },40L,100L)
-        Bukkit.getPluginManager().registerEvents(museum,this)
+        Bukkit.getPluginManager().registerEvents(museum.listener,this)
         val command = MailCommand(this, shipping, mailbox, combatHook, BookMailService(this, repository, combatHook, main, sounds), main,
             io.enthusia.express.infrastructure.mail.MailBlockService(this, repository, main),museum)
         getCommand("mail")!!.setExecutor(command)

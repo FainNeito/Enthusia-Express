@@ -19,7 +19,7 @@ class MuseumWorkflowTest {
 
     @Test void artworkRetainsAllTilesCreditAndOwnerScopedHistoryAfterRestart() {
         UUID donor=UUID.randomUUID(); long id;
-        try(varScope scope=new varScope(open())) {
+        try(RepositoryScope scope=new RepositoryScope(open())) {
             var repo=scope.repo;
             var details=new MuseumDetails("Castle","Original Artist",2,1,"A two-map artwork");
             id=repo.submitArtwork(donor,"Donor",new byte[]{1,2},details,Map.of(42,1,43,1),UUID.randomUUID(),false).join();
@@ -31,15 +31,16 @@ class MuseumWorkflowTest {
             assertEquals(0,row.getSubmission().getMail().payload().length);
             assertTrue(repo.listArtwork(0,new MuseumFilter(UUID.randomUUID())).join().isEmpty());
         }
-        try(varScope scope=new varScope(open())) {
+        try(RepositoryScope scope=new RepositoryScope(open())) {
             assertEquals(2,scope.repo.artwork(id).join().getTiles().size());
             assertArrayEquals(new byte[]{1,2},scope.repo.get(id).join().payload());
         }
     }
 
     @Test void reviewIsRevisionGuardedAndCannotDisplayBeforeConfirmedDelivery() {
-        try(varScope scope=new varScope(open())) {
-            var repo=scope.repo; UUID donor=UUID.randomUUID(), manager=UUID.randomUUID();
+        try(RepositoryScope scope=new RepositoryScope(open())) {
+            var repo=scope.repo; UUID donor=UUID.randomUUID();
+            UUID manager=UUID.randomUUID();
             long id=repo.submitArtwork(donor,"Donor",new byte[]{1},new MuseumDetails("Landscape","Artist",1,1,""),Map.of(7,1),UUID.randomUUID(),false).join();
             assertFalse(repo.claimMapart(repo.get(id).join(),manager,"Curator").join());
             assertFalse(repo.reviewArtwork(id,0,MuseumState.DISPLAYED,manager,"Curator","").join());
@@ -65,8 +66,8 @@ class MuseumWorkflowTest {
     }
 
     @Test void duplicateMapAdmissionIsAtomicAndTokensCannotCrossDonors() {
-        try(varScope scope=new varScope(open())) {
-            var repo=scope.repo; UUID donor=UUID.randomUUID(),token=UUID.randomUUID();
+        try(RepositoryScope scope=new RepositoryScope(open())) {
+            var repo=scope.repo; UUID donor=UUID.randomUUID(); UUID token=UUID.randomUUID();
             var details=new MuseumDetails("Art","Artist",1,1,"");
             long id=repo.submitArtwork(donor,"Donor",new byte[]{1},details,Map.of(5,1),token,false).join();
             assertEquals(id,repo.submitArtwork(donor,"Donor",new byte[]{1},details,Map.of(5,1),token,false).join());
@@ -79,8 +80,8 @@ class MuseumWorkflowTest {
     }
 
     @Test void assignmentAndFiltersAreBoundedAndCannotLeakAnotherDonorHistory() {
-        try(varScope scope=new varScope(open())) {
-            var repo=scope.repo; UUID donor=UUID.randomUUID(),manager=UUID.randomUUID();
+        try(RepositoryScope scope=new RepositoryScope(open())) {
+            var repo=scope.repo; UUID donor=UUID.randomUUID(); UUID manager=UUID.randomUUID();
             long id=repo.submitArtwork(donor,"Donor",new byte[]{1},new MuseumDetails("Castle","Painter",1,1,""),Map.of(8,1),UUID.randomUUID(),false).join();
             assertTrue(repo.assignArtwork(id,0,manager,"Curator").join());
             assertFalse(repo.assignArtwork(id,0,UUID.randomUUID(),"Other").join());
@@ -92,9 +93,9 @@ class MuseumWorkflowTest {
         }
     }
 
-    private static final class varScope implements AutoCloseable {
+    private static final class RepositoryScope implements AutoCloseable {
         private final MailRepository repo;
-        varScope(MailRepository repo) { this.repo=repo; }
+        RepositoryScope(MailRepository repo) { this.repo=repo; }
         public void close() { repo.close(); }
     }
 

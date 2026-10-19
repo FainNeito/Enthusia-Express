@@ -25,6 +25,7 @@ export function hasTaskEvidence(text, taskId) {
   const lines = taskLines(text, taskId);
   const index = lines.findIndex(line => /^\s*Evidence:/.test(line));
   if (index < 0) return false;
+  // eslint-disable-next-line security/detect-object-injection -- index is the locally computed findIndex into this array, checked above.
   const inline = lines[index].replace(/^\s*Evidence:\s*/, '');
   if (inline.replace(/[\x60\s]/g, '')) return true;
   return hasEvidenceBullet(lines.slice(index + 1));

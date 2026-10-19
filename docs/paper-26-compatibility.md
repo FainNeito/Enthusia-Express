@@ -6,11 +6,11 @@ Reproduce final-target verification after copying the Java21 shaded JAR outside 
 
 ---
 
-# Historical September verification
+## Historical September verification
 
 The remainder is retained historical evidence; it does not describe the current final-target status.
 
-# Paper 26 compatibility
+## Paper 26 compatibility
 
 Verified API artifacts (2026-09-13):
 

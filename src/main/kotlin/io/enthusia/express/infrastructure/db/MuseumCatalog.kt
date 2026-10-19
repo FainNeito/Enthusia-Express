@@ -2,6 +2,7 @@
 
 package io.enthusia.express.infrastructure.db
 
+import io.enthusia.express.domain.mayReviewAs
 import io.enthusia.express.domain.MailStatus
 import io.enthusia.express.domain.MapartSubmission
 import io.enthusia.express.domain.MuseumDetails
@@ -15,6 +16,7 @@ import java.util.UUID
 
 /** Called only by MailRepository's serialized worker, inside the caller's transaction for mutations. */
 internal class MuseumCatalog(private val connection: () -> Connection) {
+    val audit = MuseumAudit(connection)
     fun initialize() {
         connection().createStatement().use { st ->
             st.execute(
@@ -68,7 +70,7 @@ internal class MuseumCatalog(private val connection: () -> Connection) {
             }
             ps.executeBatch()
         }
-        history(id, if (state == MuseumState.AWAITING_REVIEW) "Submitted" else "Legacy import", "System", "")
+        audit.history(id, if (state == MuseumState.AWAITING_REVIEW) "Submitted" else "Legacy import", "System", "")
     }
 
     fun duplicates(ids: Set<Int>): Set<Int> {
@@ -76,8 +78,7 @@ internal class MuseumCatalog(private val connection: () -> Connection) {
         val result = mutableSetOf<Int>()
         connection().prepareStatement("SELECT 1 FROM museum_tiles WHERE map_id=? LIMIT 1").use { ps ->
             ids.forEach { id ->
-                ps.setInt(1, id)
-                ps.executeQuery().use { if (it.next()) result.add(id) }
+                if (existingMap(ps, id)) result.add(id)
             }
         }
         return result.toSet()
@@ -117,7 +118,7 @@ internal class MuseumCatalog(private val connection: () -> Connection) {
                     rs.getString(
                         "curator_uuid",
                     )?.let(UUID::fromString),
-                    rs.getString("curator_name"), rs.getString("feedback"), tiles(id), history(id),
+                    rs.getString("curator_name"), rs.getString("feedback"), tiles(id), audit.history(id),
                 )
             }
         }
@@ -138,7 +139,7 @@ internal class MuseumCatalog(private val connection: () -> Connection) {
         return connection().prepareStatement(sql).use { ps ->
             ps.setString(1, filter.owner?.toString())
             ps.setString(2, filter.owner?.toString())
-            (3..5).forEach { ps.setString(it, filter.query) }
+            for (index in 3..5) ps.setString(index, filter.query)
             ps.setString(6, filter.state?.name)
             ps.setString(7, filter.state?.name)
             ps.setString(8, filter.curator?.toString())
@@ -149,6 +150,7 @@ internal class MuseumCatalog(private val connection: () -> Connection) {
         }
     }
 
+    @Suppress("LongParameterList") // Same atomic actor/revision command as MuseumStore.
     fun review(
         entry: MuseumEntry,
         revision: Long,
@@ -160,15 +162,7 @@ internal class MuseumCatalog(private val connection: () -> Connection) {
         require(
             feedback.length <= 500 && feedback.none { it.code < 32 || it == '§' },
         ) { "Feedback must be plain text up to 500 characters" }
-        val waiting = entry.submission.mail.status == MailStatus.UNCLAIMED && !entry.submission.deliveryPending
-        val allowed =
-            when (state) {
-                MuseumState.ACCEPTED -> waiting && entry.state in setOf(MuseumState.AWAITING_REVIEW, MuseumState.NEEDS_CHANGES)
-                MuseumState.NEEDS_CHANGES -> waiting && entry.state in setOf(MuseumState.AWAITING_REVIEW, MuseumState.ACCEPTED) && feedback.isNotBlank()
-                MuseumState.DISPLAYED -> entry.state == MuseumState.COLLECTED && !entry.submission.deliveryPending
-                else -> false
-            }
-        if (!allowed) return false
+        if (!entry.mayReviewAs(state, feedback)) return false
         val changed =
             connection().prepareStatement(
                 "UPDATE museum_artworks SET state=?,feedback=?,revision=revision+1 WHERE mail_id=? AND revision=?",
@@ -181,7 +175,7 @@ internal class MuseumCatalog(private val connection: () -> Connection) {
                 ps.executeUpdate() == 1
             }
         if (changed) {
-            history(entry.submission.mail.id, state.name, name, feedback)
+            audit.history(entry.submission.mail.id, state.name, name, feedback)
             if (state == MuseumState.DISPLAYED) {
                 connection().prepareStatement("UPDATE mapart_submissions SET processed_at=?,processed_by=? WHERE mail_id=?").use {
                         ps ->
@@ -191,7 +185,7 @@ internal class MuseumCatalog(private val connection: () -> Connection) {
                     ps.executeUpdate()
                 }
             }
-            notify(
+            audit.notify(
                 entry,
                 "${entry.details.title}: ${state.name.lowercase().replace(
                     '_',
@@ -219,7 +213,7 @@ internal class MuseumCatalog(private val connection: () -> Connection) {
                 ps.setLong(4, revision)
                 ps.executeUpdate() == 1
             }
-        if (changed) history(entry.submission.mail.id, "Assigned curator", name, "")
+        if (changed) audit.history(entry.submission.mail.id, "Assigned curator", name, "")
         return changed
     }
 
@@ -244,21 +238,8 @@ internal class MuseumCatalog(private val connection: () -> Connection) {
                 ps.setLong(7, revision)
                 ps.executeUpdate() == 1
             }
-        if (changed) history(entry.submission.mail.id, "Revised and resubmitted", entry.submission.mail.senderName, "")
+        if (changed) audit.history(entry.submission.mail.id, "Revised and resubmitted", entry.submission.mail.senderName, "")
         return changed
-    }
-
-    fun notify(
-        entry: MuseumEntry,
-        text: String,
-    ) {
-        val recipient = entry.submission.mail.sender ?: return
-        connection().prepareStatement("INSERT INTO museum_updates(recipient,message) VALUES(?,?)").use {
-                ps ->
-            ps.setString(1, recipient.toString())
-            ps.setString(2, text)
-            ps.executeUpdate()
-        }
     }
 
     fun collected(entry: MuseumEntry) {
@@ -271,57 +252,14 @@ internal class MuseumCatalog(private val connection: () -> Connection) {
                 ps.executeUpdate() == 1
             }
         if (changed) {
-            history(entry.submission.mail.id, "Collected", entry.submission.mail.recipientName, "")
-            notify(entry, "${entry.details.title}: collected by ${entry.submission.mail.recipientName}; awaiting museum display.")
+            audit.history(entry.submission.mail.id, "Collected", entry.submission.mail.recipientName, "")
+            audit.notify(entry, "${entry.details.title}: collected by ${entry.submission.mail.recipientName}; awaiting museum display.")
         }
     }
 
-    private fun history(
-        id: Long,
-        event: String,
-        actor: String,
-        note: String,
-    ) {
-        connection().prepareStatement("INSERT INTO museum_history(mail_id,event,actor,note,created_at) VALUES(?,?,?,?,?)").use { ps ->
-            ps.setLong(1, id)
-            ps.setString(2, event)
-            ps.setString(3, actor.take(64))
-            ps.setString(4, note)
-            ps.setLong(5, System.currentTimeMillis())
-            ps.executeUpdate()
-        }
-    }
+}
 
-    private fun history(id: Long): List<MuseumHistory> =
-        connection().prepareStatement(
-            "SELECT event,actor,note,created_at FROM museum_history WHERE mail_id=? ORDER BY id DESC LIMIT 20",
-        ).use {
-                ps ->
-            ps.setLong(1, id)
-            ps.executeQuery().use {
-                    rs ->
-                buildList { while (rs.next()) add(MuseumHistory(rs.getString(1), rs.getString(2), rs.getString(3), rs.getLong(4))) }
-            }.reversed()
-        }
-
-    fun notices(owner: UUID): List<MuseumNotice> =
-        connection().prepareStatement("SELECT id,message FROM museum_updates WHERE recipient=? ORDER BY id LIMIT 10").use { ps ->
-            ps.setString(1, owner.toString())
-            ps.executeQuery().use {
-                    rs ->
-                buildList { while (rs.next()) add(MuseumNotice(rs.getLong(1), owner, rs.getString(2))) }
-            }
-        }
-
-    fun acknowledge(
-        id: Long,
-        owner: UUID,
-    ): Boolean =
-        connection().prepareStatement(
-            "DELETE FROM museum_updates WHERE id=? AND recipient=?",
-        ).use { ps ->
-            ps.setLong(1, id)
-            ps.setString(2, owner.toString())
-            ps.executeUpdate() == 1
-        }
+private fun existingMap(statement: java.sql.PreparedStatement, id: Int): Boolean {
+    statement.setInt(1, id)
+    return statement.executeQuery().use { it.next() }
 }

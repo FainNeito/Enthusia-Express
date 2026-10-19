@@ -1,5 +1,7 @@
 package io.enthusia.express;
 
+import io.enthusia.express.domain.MuseumDetails;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static org.mockito.AdditionalMatchers.aryEq;
@@ -25,7 +27,7 @@ class MapartPostageTest {
       f.scanner.when(()->ContainerScanner.countMapartItems(f.packageItem,8)).thenReturn(1);
       f.scanner.when(()->ContainerScanner.mapartManifest(f.packageItem,8)).thenReturn(java.util.Map.of(42,1));
       when(f.repository.duplicateMaps(java.util.Set.of(42))).thenReturn(CompletableFuture.completedFuture(java.util.Set.of(42)));
-      f.service.openArtwork(f.sender,new io.enthusia.express.domain.MuseumDetails("Art","Artist",1,1,""),false);
+      f.service.openArtwork(f.sender,new MuseumDetails("Art","Artist",1,1,""),false);
       f.top.setItem(13,f.packageItem);
       f.confirm();
       assertSame(f.packageItem,f.top.getItem(13));
@@ -40,7 +42,7 @@ class MapartPostageTest {
       f.bukkit.when(()->Bukkit.getOfflinePlayer(MapartQueue.ID)).thenReturn(f.target);
       f.scanner.when(()->ContainerScanner.countMapartItems(f.packageItem,8)).thenReturn(1);
       f.scanner.when(()->ContainerScanner.mapartManifest(f.packageItem,8)).thenReturn(java.util.Map.of(42,1));
-      f.service.openArtwork(f.sender,new io.enthusia.express.domain.MuseumDetails("Art","Artist",2,1,""),false);
+      f.service.openArtwork(f.sender,new MuseumDetails("Art","Artist",2,1,""),false);
       f.top.setItem(13,f.packageItem);f.confirm();
       assertSame(f.packageItem,f.top.getItem(13));
       verify(economy,never()).withdrawPlayer(any(OfflinePlayer.class),anyDouble());

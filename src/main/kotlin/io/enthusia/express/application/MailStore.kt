@@ -13,12 +13,14 @@ const val MAIL_PAGE_SIZE = 27
 interface MailStore : MailQueries, MailWrites, MailClaims, MailLifecycle, MailBlocks, MapartStore, EventDeliveries, MuseumStore
 
 interface MuseumStore {
+    @Suppress("LongParameterList") // One atomic asynchronous museum command; retain Java-facing signatures.
     fun submitArtwork(sender: UUID, senderName: String, payload: ByteArray,
         details: io.enthusia.express.domain.MuseumDetails, tiles: Map<Int, Int>, token: UUID,
         duplicateOverride: Boolean): CompletableFuture<Long>
     fun listArtwork(page: Int, filter: io.enthusia.express.domain.MuseumFilter): CompletableFuture<List<io.enthusia.express.domain.MuseumEntry>>
     fun artwork(id: Long): CompletableFuture<io.enthusia.express.domain.MuseumEntry?>
     fun duplicateMaps(ids: Set<Int>): CompletableFuture<Set<Int>>
+    @Suppress("LongParameterList") // One atomic asynchronous museum command; retain Java-facing signatures.
     fun reviewArtwork(id: Long, revision: Long, state: io.enthusia.express.domain.MuseumState,
         manager: UUID, managerName: String, feedback: String): CompletableFuture<Boolean>
     fun assignArtwork(id: Long, revision: Long, manager: UUID, managerName: String): CompletableFuture<Boolean>

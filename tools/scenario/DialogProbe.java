@@ -1,6 +1,7 @@
+package io.enthusia.express.scenario;
+
 import java.lang.reflect.Proxy;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -19,18 +20,7 @@ public final class DialogProbe extends JavaPlugin {
             Object input=field.getConstructor(String.class,String.class,String.class,int.class).newInstance("title","Artwork title","Sample",80);
             Object button=choice.getConstructor(String.class,function).newInstance("Continue",action);
             int[] shown={0};
-            Player fake=(Player)Proxy.newProxyInstance(Player.class.getClassLoader(),new Class<?>[]{Player.class},(proxy,method,args)->{
-                switch(method.getName()) {
-                    case "getUniqueId": return UUID.fromString("00000000-0000-0000-0000-000000000099");
-                    case "getProtocolVersion": return 776;
-                    case "isOnline": return true;
-                    case "showDialog": shown[0]++; return null;
-                    case "hashCode": return System.identityHashCode(proxy);
-                    case "equals": return proxy==args[0];
-                    case "toString": return "Isolated dialog target";
-                    default: return null;
-                }
-            });
+            Player fake=target(shown);
             Class<?> menus=Class.forName("io.enthusia.express.infrastructure.gui.DialogMenus",true,loader);
             Object renderer=menus.getConstructor(JavaPlugin.class).newInstance(express);
             Object result=menus.getMethod("show",Player.class,String.class,String.class,List.class,List.class)
@@ -41,5 +31,20 @@ public final class DialogProbe extends JavaPlugin {
             getLogger().severe("EXPRESS_DIALOG_PROBE_FAIL: "+error);
             error.printStackTrace();
         }
+    }
+
+    private static Player target(int[] shown) {
+        return (Player)Proxy.newProxyInstance(Player.class.getClassLoader(),new Class<?>[]{Player.class},(proxy,method,args)->{
+            switch(method.getName()) {
+                case "getUniqueId": return UUID.fromString("00000000-0000-0000-0000-000000000099");
+                case "getProtocolVersion": return 776;
+                case "isOnline": return true;
+                case "showDialog": shown[0]++; return null;
+                case "hashCode": return System.identityHashCode(proxy);
+                case "equals": return proxy==args[0];
+                case "toString": return "Isolated dialog target";
+                default: return null;
+            }
+        });
     }
 }

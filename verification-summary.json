@@ -3,9 +3,9 @@
   "baseCommit": "a650216c6e795f900988b05d788de68b9d4a9866",
   "localServerProbe": {
     "paper": "26.2.129",
-    "pass": true,
+    "pass": false,
     "scope": "Real dialog builders and plugin startup; synthetic Player; no client or provider interactions",
-    "run": "20261019T040315Z-ef05469a1b",
+    "run": "repeat-required-after-static-refinement",
     "marker": "EXPRESS_DIALOG_PROBE_PASS"
   },
   "previewScope": "Owner-private illustrative simulation; hosted deployment succeeded; fresh browser/device QA unavailable",
@@ -30,7 +30,7 @@
       "scope": "Actual Java21 baseline shaded JAR on final API fixtures / Java25"
     }
   },
-  "remoteChecks": "Inspect the exact final PR head separately",
+  "remoteChecks": "Initial six Paper jobs passed; exact refined-head analysis required. See docs/static-review.md.",
   "status": "unmerged local testing only",
   "sqliteJdbc": "3.51.3.0",
   "gradle": "9.7.1",
@@ -55,5 +55,5 @@
   "final26_3Api": "26.3.build.205-stable",
   "java": 21,
   "version": "1.3.0-SNAPSHOT",
-  "jarSha256": "3fa01eeccc8c9ed1eb8d2b916f5df18e9fa6e6e598144177a58eec973d8e6e79"
+  "jarSha256": "f51db8c287afa96e9d662db9f29532247e3a36fb773987d427e472ffa257b55b"
 }

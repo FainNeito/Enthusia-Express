@@ -22,11 +22,11 @@ The current artifact hash and precise verification scope are in verification-sum
 
 ---
 
-# Historical 1.2.1 evidence (superseded snapshot)
+## Historical 1.2.1 evidence (superseded snapshot)
 
 The remainder preserves the earlier safety audit. Its versions, counts and prerelease limitations describe that historical snapshot, not the current branch.
 
-# Enthusia Express 1.2.1 verification
+## Enthusia Express 1.2.1 verification
 
 ## Release candidate review — 2026-10-01
 

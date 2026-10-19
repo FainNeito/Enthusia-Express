@@ -214,8 +214,8 @@ class MailRepository(
         inTransaction { artworkNow(id)?.let { museum.revise(it,revision,sender,details) } ?: false }
     }
 
-    override fun museumNotices(recipient: UUID) = supply { museum.notices(recipient) }
-    override fun acknowledgeMuseumNotice(id: Long, recipient: UUID) = supply { museum.acknowledge(id,recipient) }
+    override fun museumNotices(recipient: UUID) = supply { museum.audit.notices(recipient) }
+    override fun acknowledgeMuseumNotice(id: Long, recipient: UUID) = supply { museum.audit.acknowledge(id,recipient) }
 
     /** Token-idempotent system package that retention never touches (REQ-050). */
     override fun insertEventPackage(recipient: UUID, recipientName: String, senderName: String,
