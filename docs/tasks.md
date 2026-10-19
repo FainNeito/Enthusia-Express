@@ -13,7 +13,7 @@ Result: native-overload-red.log reproduced the same UUID-to-player ClassCastExce
 Tag: INFRA
 References: REQ-060, REQ-061; implementation.md Optional Post Office presentation and Thread ownership.
 Evidence: GitHub Actions passes all six runtime profiles at c08a09f. Codacy reports31 style/complexity annotations in the original asset generator and presentation adapter. Actual Dawn26.3 TEST screenshot02-home-review proves that the three lower home-card icons overlap their baked labels; shifting those visible icons to the first slot preserves every protected route. Existing PostOfficeLayoutTest, NexoIntegrationTest and PostOfficeAssetsTest remain the regression oracle. No domain, cargo, payment or persistence change is intended. Behavioral prove/engine steps do not apply to formatting, decomposition and icon placement; the actual client defect is recorded rather than fabricating an automated historical red test.
-Status: refining exact-head findings and live presentation.
+Status: original31 Codacy annotations and subsequent method-count/file-size findings addressed through decomposition, named constants, imports, readable generation code and removal of unused palettes. Generated artwork remains unchanged; deterministic LF output aligns the manifest with Git assets.251 automated regressions and live presentation evidence are retained. Exact final-head hosted review and native dialog client acceptance remain separate checks.
 
 ## TDD-061 — Protected Post Office navigation and viewer fallback
 

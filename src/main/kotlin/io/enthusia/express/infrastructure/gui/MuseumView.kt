@@ -65,24 +65,6 @@ internal class MuseumView(val plugin: JavaPlugin, private val allowed: (Player) 
         player.openInventory(inv)
     }
 
-    private fun renderChoices(inv: Inventory, skin: GuiTheme, screen: MuseumScreen, slots: Map<Int, Int>, rich: Boolean) {
-        val anchors = mapOf("Packages" to 10,"Letters" to 13,"Announcements" to 16,
-            "Sent mail" to 36,"Mail settings & help" to 39,"Submit museum artwork" to 42,
-            "My submissions" to 46,"Curator queue" to 52)
-        slots.forEach { (slot, index) ->
-            val choice = screen.actions[index]
-            val hidden = rich && screen.kind == "home" && anchors[choice.label] != slot
-            val item = if (hidden) skin.quiet(Material.PAPER)
-                else skin.item(if (rich) "museum." + PostOfficeLayout.icon(choice.label) else "museum.control", Material.PAPER)
-            val meta = item.itemMeta!!
-            meta.setDisplayName(choice.label.take(70))
-            meta.lore = screen.body.lines().flatMap { it.chunked(44) }.take(20)
-            item.itemMeta = meta
-            inv.setItem(slot, item)
-        }
-    }
-
-
     @EventHandler fun click(event: InventoryClickEvent) {
         val player = event.whoClicked as? Player ?: return
         val chest = chests[player.uniqueId]?.takeIf { it.inventory === event.view.topInventory } ?: return
@@ -135,5 +117,22 @@ private fun choiceSlots(screen: MuseumScreen, rich: Boolean): Map<Int, Int> {
         "home" -> PostOfficeLayout.home(bounded.map { it.label })
         "catalog" -> PostOfficeLayout.catalog(bounded.map { it.label })
         else -> bounded.indices.associateWith { it }
+    }
+}
+
+private fun renderChoices(inv: Inventory, skin: GuiTheme, screen: MuseumScreen, slots: Map<Int, Int>, rich: Boolean) {
+    val anchors = mapOf("Packages" to 10,"Letters" to 13,"Announcements" to 16,
+        "Sent mail" to 36,"Mail settings & help" to 39,"Submit museum artwork" to 42,
+        "My submissions" to 46,"Curator queue" to 52)
+    slots.forEach { (slot, index) ->
+        val choice = screen.actions[index]
+        val hidden = rich && screen.kind == "home" && anchors[choice.label] != slot
+        val item = if (hidden) skin.quiet(Material.PAPER)
+            else skin.item(if (rich) "museum." + PostOfficeLayout.icon(choice.label) else "museum.control", Material.PAPER)
+        val meta = item.itemMeta!!
+        meta.setDisplayName(choice.label.take(70))
+        meta.lore = screen.body.lines().flatMap { it.chunked(44) }.take(20)
+        item.itemMeta = meta
+        inv.setItem(slot, item)
     }
 }
