@@ -61,7 +61,7 @@ class MuseumMenus(
                 } else {
                     emptyList()
                 }
-        view.show(player, "Enthusia Express", "Choose a mailbox or museum service. Packages still use your inventory.", emptyList(), choices, "home")
+        view.navigation(player, "Enthusia Express", "Choose a mailbox or museum service. Packages still use your inventory.", choices, "home")
     }
 
     fun command(player: Player, args: Array<String>): Boolean = commands.command(player, args)
@@ -83,11 +83,10 @@ class MuseumMenus(
                 return@complete
             }
             val actions = museumPageChoices(entries, scoped, page) { run(player, it) }
-            view.show(
+            view.navigation(
                 player,
                 if (scoped.owner != null) "My museum submissions" else "Museum curator queue",
                 "Page ${page + 1} · ${entries.size} entries. ${if (entries.isEmpty()) "No matching artwork." else "Choose an artwork for credit, map IDs and review history."}",
-                emptyList(),
                 actions,
                 "catalog",
             )

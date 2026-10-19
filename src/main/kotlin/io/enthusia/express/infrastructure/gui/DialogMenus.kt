@@ -97,7 +97,9 @@ class DialogMenus(private val plugin: JavaPlugin) {
     private fun unavailable(error: Throwable) {
         if (!warned) {
             warned = true
-            plugin.logger.info("Express dialogs unavailable; retaining chest/command fallback: ${error.message}")
+            val cause = (error as? java.lang.reflect.InvocationTargetException)?.targetException ?: error
+            plugin.logger.log(java.util.logging.Level.INFO,
+                "Express dialogs unavailable; retaining chest/command fallback: ${cause.javaClass.simpleName}: ${cause.message}", cause)
         }
     }
 

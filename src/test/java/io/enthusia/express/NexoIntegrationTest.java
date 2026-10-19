@@ -6,6 +6,7 @@ import static org.mockito.Mockito.*;
 
 import io.enthusia.express.infrastructure.gui.GuiTheme;
 import io.enthusia.express.infrastructure.gui.NexoItemSource;
+import io.enthusia.express.infrastructure.gui.NexoGlyphSource;
 import io.enthusia.express.infrastructure.gui.ReflectiveNexoItems;
 import java.util.logging.Logger;
 import org.bukkit.Bukkit;
@@ -46,7 +47,7 @@ public class NexoIntegrationTest {
       var source=mock(NexoItemSource.class);
       var template=mock(ItemStack.class);when(template.getType()).thenReturn(mock(Material.class));
       when(source.build(nexo,"ee_blank")).thenReturn(template);
-      var glyphs=mock(io.enthusia.express.infrastructure.gui.NexoGlyphSource.class);
+      var glyphs=mock(NexoGlyphSource.class);
       when(glyphs.component(eq(nexo),anyString())).thenReturn(net.kyori.adventure.text.Component.empty());
       assertTrue(new GuiTheme(plugin,source,player,glyphs).getPostOffice());
       when(glyphs.component(nexo,"ee_postoffice_shipping")).thenReturn(null);

@@ -11,6 +11,8 @@ import org.bukkit.inventory.ItemStack
 import org.bukkit.plugin.Plugin
 import org.bukkit.plugin.java.JavaPlugin
 
+private const val POST_OFFICE_CONFIG = "gui.nexo.post-office"
+
 /** Isolates optional Nexo calls from normal inventory controls. */
 fun interface NexoItemSource {
     /** Build an item by its Nexo registry identifier without transferring it to a player. */
@@ -37,7 +39,7 @@ class GuiTheme @JvmOverloads constructor(private val plugin: JavaPlugin, private
 
     /** Rich hit targets require the explicit profile, accepted Java pack and loaded blank item. */
     val postOffice: Boolean by lazy {
-        if (viewer == null || !plugin.config.getBoolean("gui.nexo.post-office", false)) false
+        if (viewer == null || !plugin.config.getBoolean(POST_OFFICE_CONFIG, false)) false
         else {
             val id = plugin.config.getString("gui.nexo.icons.chrome.blank")
             val nexo = available()
@@ -65,14 +67,14 @@ class GuiTheme @JvmOverloads constructor(private val plugin: JavaPlugin, private
     /** Return a configured Nexo glyph title only when the optional integration is enabled. */
     fun title(menu: String, fallback: String): String {
         if (available() == null) return fallback
-        if (viewer != null && plugin.config.getBoolean("gui.nexo.post-office", false) && !postOffice) return fallback
+        if (viewer != null && plugin.config.getBoolean(POST_OFFICE_CONFIG, false) && !postOffice) return fallback
         return plugin.config.getString("gui.nexo.titles.$menu")?.takeIf { it.isNotBlank() }?.let(Text::color) ?: fallback
     }
 
     /** Copy a custom registry item and fall back to the requested vanilla material on any integration failure. */
     @Suppress("TooGenericExceptionCaught") // Optional third-party builders may throw unchecked failures.
     fun item(key: String, material: Material): ItemStack {
-        if (viewer != null && plugin.config.getBoolean("gui.nexo.post-office", false) && !postOffice) return ItemStack(material)
+        if (viewer != null && plugin.config.getBoolean(POST_OFFICE_CONFIG, false) && !postOffice) return ItemStack(material)
         val id = plugin.config.getString("gui.nexo.icons.$key")?.takeIf { it.isNotBlank() } ?: return ItemStack(material)
         val nexo = available() ?: return ItemStack(material)
         return try {
