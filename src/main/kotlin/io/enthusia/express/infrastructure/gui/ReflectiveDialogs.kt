@@ -21,12 +21,16 @@ internal fun dialogInvoke(
     args: Array<out Any?>,
 ): Any {
     val method =
-        Class.forName(type).methods.firstOrNull { method ->
+        Class.forName(type).methods.filter { method ->
             method.name == name && method.parameterCount == args.size &&
                 method.parameterTypes.withIndex().all {
                         (index, p) ->
                     argumentMatches(p, args[index])
                 }
+        }.maxByOrNull { method ->
+            // ViaAPI also exposes an erased T-player overload accepting Object.
+            // A UUID must select the UUID overload before that generic bridge.
+            method.parameterTypes.withIndex().count { (index, parameter) -> parameter == args[index]?.javaClass }
         }
             ?: throw NoSuchMethodException("$type.$name/${args.size}")
     return method.invoke(owner, *args) ?: Unit

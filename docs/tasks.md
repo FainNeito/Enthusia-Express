@@ -1,5 +1,13 @@
 # SPEAR migration tasks
 
+## TDD-064 — Resolve typed protocol overloads
+
+Tag: TDD
+References: REQ-056, REQ-060; implementation.md Thread ownership and optional dialog adapters.
+Evidence: actual TEST Paper26.2.128 with ViaVersion5.12.1 and Dawn26.3 logs ClassCastException UUID-to-Player at BukkitViaAPI.getPlayerProtocolVersion, reached from ReflectiveDialogs.dialogInvoke and DialogMenus.supportsDialog. ViaAPI exposes erased generic player and UUID overloads; the first-compatible reflection search selects the wrong one. java.lang.Class/reflect.Method, java.util.UUID and existing JUnit Assertions/Test are standard existing dependencies. A minimal interface/implementation fixture reproduces the same generic bridge without bundling a companion API. Prefer exact argument types among compatible methods, retaining optional loading, primitive compatibility, fallback and callback guards.
+Status: automated regression complete; native client retest pending.
+Result: native-overload-red.log reproduced the same UUID-to-player ClassCastException. Exact-match preference passes the regression and full251-test suite, all11 older API compilation targets and architecture/no-call-cycle gates. TEST stays at573a72c until the committed fix is installed; no native client success is claimed yet.
+
 ## INFRA-063 — Exact-head review and client presentation refinement
 
 Tag: INFRA

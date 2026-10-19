@@ -15,14 +15,16 @@ import org.bukkit.inventory.Inventory
 import org.bukkit.plugin.java.JavaPlugin
 import java.util.UUID
 
+private data class MuseumScreen(val title: String, val body: String, val fields: List<MenuField>,
+        val actions: List<MenuChoice>, val kind: String = "museum")
+
 /** Platform presentation owns only its protected navigation inventory. */
 internal class MuseumView(val plugin: JavaPlugin, private val allowed: (Player) -> Boolean,
     private val onQuit: (UUID) -> Unit) : Listener {
     val dialogs = DialogMenus(plugin)
     private val theme = GuiTheme(plugin)
     private data class Chest(val inventory: Inventory, val actions: Map<Int, MenuChoice>, val closeSlot: Int? = null)
-    private data class Screen(val title: String, val body: String, val fields: List<MenuField>,
-        val actions: List<MenuChoice>, val kind: String = "museum")
+
     private val chests = HashMap<UUID, Chest>()
     fun show(
         player: Player,
@@ -30,12 +32,12 @@ internal class MuseumView(val plugin: JavaPlugin, private val allowed: (Player) 
         body: String,
         fields: List<MenuField>,
         actions: List<MenuChoice>,
-    ) = open(player, Screen(title, body, fields, actions))
+    ) = open(player, MuseumScreen(title, body, fields, actions))
 
     fun navigation(player: Player, title: String, body: String, actions: List<MenuChoice>, kind: String) =
-        open(player, Screen(title, body, emptyList(), actions, kind))
+        open(player, MuseumScreen(title, body, emptyList(), actions, kind))
 
-    private fun open(player: Player, screen: Screen) {
+    private fun open(player: Player, screen: MuseumScreen) {
         if (!allowed(player)) return
         val skin = theme.forViewer(player)
         val navigation = screen.fields.isEmpty() && skin.postOffice && screen.kind in setOf("home", "catalog")
@@ -43,7 +45,7 @@ internal class MuseumView(val plugin: JavaPlugin, private val allowed: (Player) 
         showChest(player, screen, skin)
     }
 
-    private fun showChest(player: Player, screen: Screen, skin: GuiTheme) {
+    private fun showChest(player: Player, screen: MuseumScreen, skin: GuiTheme) {
         val rich = screen.fields.isEmpty() && skin.postOffice
         player.closeInventory()
         val inv = Bukkit.createInventory(null, 54, skin.title(if (rich) screen.kind else "museum", screen.title.take(32)))
@@ -63,17 +65,7 @@ internal class MuseumView(val plugin: JavaPlugin, private val allowed: (Player) 
         player.openInventory(inv)
     }
 
-    private fun choiceSlots(screen: Screen, rich: Boolean): Map<Int, Int> {
-        val bounded = screen.actions.take(45)
-        if (!rich) return bounded.indices.associateWith { it }
-        return when (screen.kind) {
-            "home" -> PostOfficeLayout.home(bounded.map { it.label })
-            "catalog" -> PostOfficeLayout.catalog(bounded.map { it.label })
-            else -> bounded.indices.associateWith { it }
-        }
-    }
-
-    private fun renderChoices(inv: Inventory, skin: GuiTheme, screen: Screen, slots: Map<Int, Int>, rich: Boolean) {
+    private fun renderChoices(inv: Inventory, skin: GuiTheme, screen: MuseumScreen, slots: Map<Int, Int>, rich: Boolean) {
         val anchors = mapOf("Packages" to 10,"Letters" to 13,"Announcements" to 16,
             "Sent mail" to 36,"Mail settings & help" to 39,"Submit museum artwork" to 42,
             "My submissions" to 46,"Curator queue" to 52)
@@ -134,4 +126,14 @@ internal class MuseumView(val plugin: JavaPlugin, private val allowed: (Player) 
 
 
     fun shutdown() { dialogs.close(); chests.clear() }
+}
+
+private fun choiceSlots(screen: MuseumScreen, rich: Boolean): Map<Int, Int> {
+    val bounded = screen.actions.take(45)
+    if (!rich) return bounded.indices.associateWith { it }
+    return when (screen.kind) {
+        "home" -> PostOfficeLayout.home(bounded.map { it.label })
+        "catalog" -> PostOfficeLayout.catalog(bounded.map { it.label })
+        else -> bounded.indices.associateWith { it }
+    }
 }
