@@ -219,7 +219,7 @@ backgrounds["museum"] = base(t, 6, "Express - Details")
 shipping = base(t, 3, "Express - Postage")
 card(shipping, (7, 17, 168, 34), "", t, True)
 label(shipping, "To", (18, 22, 39, 29), t["ink"])
-label(shipping, "Hover for details", (76, 22, 165, 29), t["ink"])
+label(shipping, "Details", (101, 22, 165, 29), t["ink"])
 for slot in (11, 13, 15):
     x = 7 + (slot % 9) * 18
     bevel(shipping, (x, 35, x + 17, 52), t["cream"], t, t["paper"], t["lo"])
