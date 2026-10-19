@@ -1,5 +1,9 @@
 # Enthusia Express requirements
 
+## REQ-063 — Consistent Minecraft typography
+
+WHEN the Post Office assets are generated THE SYSTEM SHALL render all baked labels with the unscaled default Minecraft bitmap font, fit those labels within their panels without covering icon slots and preserve the existing pack icon bindings and menu actions.
+
 ## REQ-062 — Reuse pack icons and preserve label clearance
 
 WHEN the Post Office profile is generated THE SYSTEM SHALL reference the existing Enthusia Pack icon registry, retain a visible selected-category cue and reserve clear space for home-card text and the vanilla inventory label without redistributing private icon artwork.

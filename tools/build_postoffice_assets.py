@@ -76,65 +76,13 @@ def wrap(t, limit):
     return lines
 
 
-FONT = {
-    "A": "010101111101101",
-    "B": "110101110101110",
-    "C": "011100100100011",
-    "D": "110101101101110",
-    "E": "111100110100111",
-    "F": "111100110100100",
-    "G": "011100101101011",
-    "H": "101101111101101",
-    "I": "111010010010111",
-    "J": "001001001101010",
-    "K": "101101110101101",
-    "L": "100100100100111",
-    "M": "101111111101101",
-    "N": "101111111111101",
-    "O": "010101101101010",
-    "P": "110101110100100",
-    "Q": "010101101111011",
-    "R": "110101110101101",
-    "S": "011100010001110",
-    "T": "111010010010010",
-    "U": "101101101101111",
-    "V": "101101101101010",
-    "W": "101101111111101",
-    "X": "101101010101101",
-    "Y": "101101010010010",
-    "Z": "111001010100111",
-    "0": "111101101101111",
-    "1": "010110010010111",
-    "2": "110001010100111",
-    "3": "110001010001110",
-    "4": "101101111001001",
-    "5": "111100110001110",
-    "6": "011100111101111",
-    "7": "111001010010010",
-    "8": "111101111101111",
-    "9": "111101111001110",
-    " ": "000000000000000",
-    ".": "000000000000010",
-    ":": "000010000010000",
-    "-": "000000111000000",
-    "/": "001001010100100",
-    "!": "010010010000010",
-    "+": "000010111010000",
-    "'": "010010000000000",
-    "?": "110001010000010",
-}
-
-
-def tiny(im, s, x, y, c, center=False):
-    s = s.upper()
-    x = int(x - ((len(s) * 4 - 1) // 2 if center else 0))
-    d = ImageDraw.Draw(im)
-    for ch in s:
-        bits = FONT.get(ch, FONT["?"])
-        for i, bit in enumerate(bits):
-            if bit == "1":
-                d.point((x + i % 3, y + i // 3), fill=c)
-        x += 4
+def label(im, value, box, color):
+    """Draw unscaled vanilla glyphs only when their ink fits the reserved panel."""
+    left, top, right, bottom = box
+    ink_width = width(value) - 1
+    if ink_width > right - left + 1 or bottom - top + 1 < 8:
+        raise ValueError(f"Label {value!r} exceeds reserved panel {box}")
+    text(im, value, left + (right - left + 1 - ink_width) // 2, top, color)
 
 
 THEMES = [
@@ -185,7 +133,7 @@ def fret(im, x, y, t, flipx=False, flipy=False):
     im.alpha_composite(art, (x, y))
 
 
-def card(im, box, label, t, cream=False):
+def card(im, box, caption, t, cream=False):
     bevel(
         im,
         box,
@@ -194,8 +142,9 @@ def card(im, box, label, t, cream=False):
         t["paper"] if cream else t["slotHi"],
         t["lo"] if cream else t["slotLo"],
     )
-    if label:
-        tiny(im, label, (box[0] + box[2]) // 2, box[1] + 6, t["ink"] if cream else t["hi"], True)
+    if caption:
+        text_color = t["ink"] if cream else t["hi"]
+        label(im, caption, (box[0] + 3, box[1] + 5, box[2] - 3, box[1] + 12), text_color)
 
 
 def base(t, rows, title):
@@ -240,42 +189,42 @@ tex.mkdir(parents=True, exist_ok=True)
 t = THEMES[0]
 backgrounds = {}
 home = base(t, 6, "Enthusia Express")
-card(home, (7, 17, 168, 34), "YOUR POST OFFICE", t, True)
-for i, label in enumerate(("PACKAGES", "LETTERS", "NEWS")):
+card(home, (7, 17, 168, 34), "Your post office", t, True)
+for i, caption in enumerate(("Packages", "Letters", "News")):
     x = 7 + i * 54
     card(home, (x, 35, x + 53, 70), "", t, True)
-    tiny(home, label, x + 27, 60, t["ink"], True)
-card(home, (7, 71, 168, 88), "HANDLE WITH CARE.", t, True)
-for i, label in enumerate(("SENT", "HELP", "MUSEUM")):
+    label(home, caption, (x + 3, 59, x + 50, 66), t["ink"])
+card(home, (7, 71, 168, 88), "Handle with care.", t, True)
+for i, caption in enumerate(("Sent", "Help", "Museum")):
     x = 7 + i * 54
     card(home, (x, 89, x + 53, 106), "", t)
-    tiny(home, label, x + 35, 96, t["hi"], True)
+    label(home, caption, (x + 18, 94, x + 52, 101), t["hi"])
 card(home, (7, 107, 132, 124), "", t, True)
-tiny(home, "MY SUBMISSIONS", 49, 114, t["ink"])
+label(home, "My submissions", (49, 112, 129, 119), t["ink"])
 backgrounds["home"] = home
 for name, title in [("mailbox", "Express - Inbox"), ("sent", "Express - Sent")]:
     im = base(t, 6, title)
     for i in range(3):
         card(im, (7 + i * 54, 17, 60 + i * 54, 34), "", t)
     card(im, (7, 35, 168, 52), "", t, True)
-    for i, label in enumerate(("PACKAGES", "LETTERS", "NEWS")):
-        tiny(im, label, 34 + i * 54, 37, t["ink"], True)
-    tiny(im, "HOVER FOR COUNTS AND PAGE", 88, 46, t["accent"], True)
+    for i, caption in enumerate(("Packages", "Letters", "News")):
+        label(im, caption, (10 + i * 54, 36, 57 + i * 54, 43), t["ink"])
+    label(im, "Hover for counts and page", (10, 44, 165, 51), t["accent"])
     backgrounds[name] = im
 catalog = base(t, 6, "Mapart Museum")
-card(catalog, (7, 17, 168, 34), "ARTWORK AND REVIEW", t, True)
-card(catalog, (7, 35, 168, 52), "HOVER FOR CREDIT AND STATUS", t, True)
+card(catalog, (7, 17, 168, 34), "Artwork and review", t, True)
+card(catalog, (7, 35, 168, 52), "Hover for credit and status", t, True)
 backgrounds["catalog"] = catalog
 backgrounds["museum"] = base(t, 6, "Express - Details")
 shipping = base(t, 3, "Express - Postage")
 card(shipping, (7, 17, 168, 34), "", t, True)
-tiny(shipping, "TO", 18, 24, t["ink"])
-tiny(shipping, "HOVER FOR DETAILS", 132, 24, t["ink"], True)
+label(shipping, "To", (18, 22, 39, 29), t["ink"])
+label(shipping, "Hover for details", (76, 22, 165, 29), t["ink"])
 for slot in (11, 13, 15):
     x = 7 + (slot % 9) * 18
     bevel(shipping, (x, 35, x + 17, 52), t["cream"], t, t["paper"], t["lo"])
-for label, x in [("CANCEL", 52), ("PLACE HERE", 88), ("CONFIRM", 124)]:
-    tiny(shipping, label, x, 57, t["hi"], True)
+for caption, x in [("Cancel", 52), ("Item", 88), ("Confirm", 124)]:
+    label(shipping, caption, (x - 18, 56, x + 18, 63), t["hi"])
 backgrounds["shipping"] = shipping
 for name, im in backgrounds.items():
     padded = Image.new("RGBA", (256, 256))
@@ -290,7 +239,7 @@ d = ImageDraw.Draw(banner)
 d.rectangle((1, 1, 174, 40), outline=t["gold"])
 card(banner, (5, 5, 170, 36), "", t, True)
 text(banner, "Enthusia Express", (176 - width("Enthusia Express")) // 2, 12, t["ink"])
-tiny(banner, "HANDLE WITH CARE.", 88, 24, t["accent"], True)
+label(banner, "Handle with care.", (8, 24, 167, 31), t["accent"])
 banner.save(tex / "bg-banner.png")
 glyph_configs.append(
     "ee_postoffice_banner:\n  texture: enthusiaexpress:postoffice/bg-banner\n  font: enthusiaexpress:menus\n  height: 42\n  ascent: 7\n  is_emoji: false\n"

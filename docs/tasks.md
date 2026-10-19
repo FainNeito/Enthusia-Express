@@ -1,5 +1,13 @@
 # SPEAR migration tasks
 
+## INFRA-067 — Default Minecraft font for Post Office labels
+
+Tag: INFRA
+References: REQ-063, REQ-062; implementation.md Optional Post Office presentation.
+Evidence: tools/build_postoffice_assets.py loads the official client default bitmap providers for text(), but its tiny() helper uses a separate 3x5 alphabet. Replace the latter with the existing unscaled renderer and measure labels before drawing. Home card widths are54 pixels; the shipping control centers are36 pixels apart. Shorten helper copy and retain full action names in existing item tooltips. Assets only: no runtime engine, domain/application, persistence, permission, API or dependency changes; behavioral prove/engine steps do not apply. Check generated typography bounds, existing asset tests and visual previews, with real client acceptance recorded separately.
+Status: [x] source and automated scope complete; TEST/client acceptance recorded separately.
+Result: regenerated all seven backgrounds with default bitmap glyphs and per-label width/height guards. Removed the custom 3x5 alphabet. Existing254 tests and asset, architecture and runtime call-cycle checks pass in font-label-build.log. EARS and twelve state/helper checks pass. No Kotlin source, registry IDs, glyph geometry or cargo/payment behavior changes. No historical red/green is claimed for this asset-only task.
+
 ## INFRA-066 — Normalize shared-icon provenance digest
 
 Tag: INFRA
