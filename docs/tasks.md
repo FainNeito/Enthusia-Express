@@ -1,5 +1,12 @@
 # SPEAR migration tasks
 
+## INFRA-066 — Normalize shared-icon provenance digest
+
+Tag: INFRA
+References: REQ-062; implementation.md Optional Post Office presentation.
+Evidence: Git normalizes JSON assets to LF. The new icon-sources.json was initially written with Windows CRLF, so its generated manifest digest represented local bytes rather than the committed LF bytes. Normalize before hashing and compare all declared manifest entries to the Git index blobs. This changes only delivery metadata, not engine behavior or imports; no behavioral red/green steps apply.
+Status: metadata corrected; final index digest and build checks recorded with delivery evidence.
+
 ## TDD-065 — Existing pack icons and label clearance
 
 Tag: TDD
