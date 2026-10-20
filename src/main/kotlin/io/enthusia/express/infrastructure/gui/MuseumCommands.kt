@@ -38,6 +38,9 @@ internal class MuseumCommands(
 
     private fun dispatch(player: Player, args: Array<String>, action: String) {
         when (action) {
+            "preview" -> menus.preview(player, requireNotNull(args.getOrNull(2)?.toLongOrNull()),
+                if (args.size > 3) requireNotNull(args[3].toIntOrNull()) else 0)
+            "preview-close" -> menus.dismissPreview(player)
             "submit" -> input.submission(player)
             "settings" -> settings(player)
             "draft", "override" -> input.openCargo(player, input.parseDetails(args.drop(2).joinToString(" ")), action == "override")

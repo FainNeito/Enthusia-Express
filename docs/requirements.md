@@ -1,5 +1,9 @@
 # Enthusia Express requirements
 
+## REQ-064 — Read-only museum map preview
+
+WHEN an authorized artist or museum reviewer previews a submission THE SYSTEM SHALL show its existing map tiles through a private temporary client display with bounded tile navigation and return controls, without claiming cargo, charging postage, changing review state or replacing real inventory items, and restore the normal display on exit, timeout, disconnect, changed permissions or combat.
+
 ## REQ-063 — Consistent Minecraft typography
 
 WHEN the Post Office assets are generated THE SYSTEM SHALL render all baked labels with the unscaled default Minecraft bitmap font, fit those labels within their panels without covering icon slots and preserve the existing pack icon bindings and menu actions.

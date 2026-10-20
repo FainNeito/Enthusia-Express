@@ -25,7 +25,10 @@ internal fun museumPageChoices(entries: List<MuseumEntry>, filter: MuseumFilter,
 /** Command controls still pass through the command adapter's current actor/revision gates. */
 internal fun museumDetailChoices(player: Player, entry: MuseumEntry, run: (String) -> Unit, collect: () -> Unit): List<MenuChoice> {
     val id = entry.submission.mail.id
-    val choices = mutableListOf(MenuChoice("Full map manifest") { run("mail mapart maps $id") })
+    val choices = mutableListOf(
+        MenuChoice("Preview artwork") { run("mail mapart preview $id") },
+        MenuChoice("Full map manifest") { run("mail mapart maps $id") },
+    )
     if (player.hasPermission(MANAGE_PERMISSION)) choices.addAll(curatorChoices(entry, run, collect))
     if (entry.submission.mail.sender == player.uniqueId && entry.state == MuseumState.NEEDS_CHANGES) {
         choices.add(MenuChoice("Correct submission details") { run("mail mapart edit $id") })

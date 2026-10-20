@@ -56,6 +56,7 @@ class MailCommand @JvmOverloads constructor(
     private val resolving = HashSet<UUID>()
     /** Validate the player command context and dispatch one supported mail action. */
     override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<String>): Boolean {
+        if (sender is Player) museum?.dismissPreview(sender)
         if (sender !is Player) sender.sendMessage("Players only.")
         else if (validateAccess(sender)) dispatch(sender, args)
         return true
@@ -168,7 +169,7 @@ class MailCommand @JvmOverloads constructor(
     private fun argumentSuggestions(sender: CommandSender, args: Array<String>): List<String> {
         if (args[0].lowercase(Locale.ROOT) in listOf(INBOX, SENT)) return listOf("packages", "letters", "announcements")
             .filter { it.startsWith(args[1], ignoreCase = true) }
-        if (args[0].equals(MAPART, true)) return listOf("submit", "mine", "inbox", "processed", "search", "assigned", "unassigned", "view")
+        if (args[0].equals(MAPART, true)) return listOf("submit", "mine", "inbox", "processed", "search", "assigned", "unassigned", "view", "preview")
             .filter { it.startsWith(args[1], ignoreCase = true) }
         val action = SendAction.entries.firstOrNull { it.key.equals(args[0], true) } ?: return emptyList()
         if (!sender.hasPermission(action.permission)) return emptyList()

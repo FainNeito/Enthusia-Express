@@ -1,5 +1,9 @@
 # Enthusia Express implementation
 
+## Read-only museum preview
+
+Preview controls load the selected artwork through the same submitter-or-manager scope as review details. Map identifiers select existing MapViews on the server thread; tile order is ascending map ID and is not claimed to be the artwork's spatial arrangement. Copy counts do not duplicate preview pages. No cargo payload is decoded or claimed. A temporary self-only equipment display presents a filled map and clears the displayed offhand while leaving the authoritative inventory untouched; sendMap sends the selected tile. Exit and interruption restore the real inventory display. No world entities, blocks, maps, renderers, database rows, inventory items or external packet libraries are created for preview ownership. Automated interaction tests are bounded evidence; native Java/Bedrock rendering needs separately authorized client acceptance.
+
 ## Optional Post Office presentation
 
 The original red/gold/cream assets are source-controlled under assets/nexo-postoffice and independent of Nexo's full server pack. GuiTheme creates viewer-bound adapters; the Post Office profile requires an accepted Java pack, six resolvable inventory glyphs and the transparent control item. Backend Floodgate identity failures refuse the custom profile. Missing optional assets retain vanilla controls. Native input/review dialogs retain normal widgets and use a glyph banner only when available.

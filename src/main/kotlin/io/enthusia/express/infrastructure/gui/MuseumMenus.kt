@@ -27,6 +27,8 @@ class MuseumMenus(
     private val mailbox: MailboxService,
 ) {
     private val requests = HashMap<UUID, UUID>()
+    private val preview = MuseumPreview(plugin) { allowed(it) }
+    val previewListener: Listener = MuseumPreviewEvents(preview) { requests.remove(it) }
     private val view = MuseumView(plugin, { allowed(it) }, { requests.remove(it) })
     private val input = MuseumInput(plugin, store, main, shipping, view) { allowed(it) }
     private val commands = MuseumCommands(this, input, store, main, { player, manager -> allowed(player, manager) }, view)
@@ -41,6 +43,7 @@ class MuseumMenus(
             (!manager || player.hasPermission(MANAGE_PERMISSION)) && combat.mayUseMail(player)
 
     fun home(player: Player) {
+        dismissPreview(player)
         if (!allowed(player)) return
         val choices =
             listOf(
@@ -64,7 +67,32 @@ class MuseumMenus(
         view.navigation(player, "Enthusia Express", "Choose a mailbox or museum service. Packages still use your inventory.", choices, "home")
     }
 
-    fun command(player: Player, args: Array<String>): Boolean = commands.command(player, args)
+    fun command(player: Player, args: Array<String>): Boolean {
+        dismissPreview(player)
+        return commands.command(player, args)
+    }
+
+    fun dismissPreview(player: Player) {
+        requests.remove(player.uniqueId)
+        preview.close(player)
+    }
+
+    @Suppress("LabeledExpression") // A delayed lookup cannot display another actor's artwork or replace newer navigation.
+    internal fun preview(player: Player, id: Long, page: Int) {
+        if (!allowed(player) || page !in 0..1023) return
+        val request = UUID.randomUUID()
+        requests[player.uniqueId] = request
+        val inventory = player.openInventory.topInventory
+        main.complete(store.artwork(id)) { entry, error ->
+            if (!allowed(player) || requests[player.uniqueId] != request || player.openInventory.topInventory !== inventory) return@complete
+            requests.remove(player.uniqueId)
+            if (error != null || entry == null || !canView(player, entry)) {
+                player.sendMessage("§cArtwork is unavailable.")
+                return@complete
+            }
+            preview.show(player, entry, page)
+        }
+    }
 
     @Suppress("LabeledExpression") // Ignore stale/unauthorized asynchronous results before presenting anything.
     fun browse(
@@ -72,6 +100,7 @@ class MuseumMenus(
         filter: MuseumFilter,
         page: Int = 0,
     ) {
+        dismissPreview(player)
         if (!allowed(player)) return
         val scoped = if (player.hasPermission(MANAGE_PERMISSION)) filter else filter.copy(owner = player.uniqueId)
         val request = UUID.randomUUID()
@@ -152,6 +181,7 @@ class MuseumMenus(
         player: Player,
         id: Long,
     ) {
+        dismissPreview(player)
         if (!allowed(player)) return
         val request = UUID.randomUUID()
         requests[player.uniqueId] = request
@@ -197,6 +227,7 @@ class MuseumMenus(
     }
 
     fun shutdown() {
+        preview.shutdown()
         view.shutdown()
         requests.clear()
     }
