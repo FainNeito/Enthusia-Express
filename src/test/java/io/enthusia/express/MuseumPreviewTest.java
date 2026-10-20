@@ -5,6 +5,8 @@ import io.enthusia.express.domain.*;
 import io.enthusia.express.infrastructure.gui.*;
 import io.enthusia.express.infrastructure.hook.CombatLogXHook;
 import io.enthusia.express.infrastructure.util.MainThread;
+import io.enthusia.express.infrastructure.util.ItemCodec;
+import io.enthusia.express.infrastructure.util.ContainerScanner;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -23,12 +25,12 @@ import static org.mockito.Mockito.*;
 
 class MuseumPreviewTest {
     @Test void legacyContainerUsesReadOnlyPayloadManifestWithoutClaiming() {
-        try (var f = new Fixture(); var codec = mockStatic(io.enthusia.express.infrastructure.util.ItemCodec.class);
-             var scanner = mockStatic(io.enthusia.express.infrastructure.util.ContainerScanner.class)) {
+        try (var f = new Fixture(); var codec = mockStatic(ItemCodec.class);
+             var scanner = mockStatic(ContainerScanner.class)) {
             byte[] payload = {1, 2, 3}; var cargo = mock(ItemStack.class);
             when(f.entry.getTiles()).thenReturn(Map.of()); when(f.mail.payload()).thenReturn(payload);
-            codec.when(() -> io.enthusia.express.infrastructure.util.ItemCodec.decode(payload)).thenReturn(cargo);
-            scanner.when(() -> io.enthusia.express.infrastructure.util.ContainerScanner.mapartManifest(cargo, 8)).thenReturn(Map.of(7, 2, 11, 1));
+            codec.when(() -> ItemCodec.decode(payload)).thenReturn(cargo);
+            scanner.when(() -> ContainerScanner.mapartManifest(cargo, 8)).thenReturn(Map.of(7, 2, 11, 1));
             f.command("preview", "42", "1");
             verify(f.player).sendMap(f.map);
             f.bukkit.verify(() -> Bukkit.getMap(11));
@@ -38,7 +40,7 @@ class MuseumPreviewTest {
     }
 
     @Test void legacyDecodeRespectsPayloadLimitAndAuthorization() {
-        try (var f = new Fixture(); var codec = mockStatic(io.enthusia.express.infrastructure.util.ItemCodec.class)) {
+        try (var f = new Fixture(); var codec = mockStatic(ItemCodec.class)) {
             when(f.entry.getTiles()).thenReturn(Map.of()); when(f.mail.payload()).thenReturn(new byte[262145]);
             f.command("preview", "42");
             when(f.mail.payload()).thenReturn(new byte[]{1});
@@ -49,11 +51,11 @@ class MuseumPreviewTest {
     }
 
     @Test void invalidLegacyBytesDoNotChangeInventoryOrClaimCargo() {
-        try (var f = new Fixture(); var codec = mockStatic(io.enthusia.express.infrastructure.util.ItemCodec.class)) {
+        try (var f = new Fixture(); var codec = mockStatic(ItemCodec.class)) {
             when(f.entry.getTiles()).thenReturn(Map.of()); byte[] payload = {1}; when(f.mail.payload()).thenReturn(payload);
-            codec.when(() -> io.enthusia.express.infrastructure.util.ItemCodec.decode(payload)).thenThrow(new IllegalArgumentException("Invalid bytes"));
+            codec.when(() -> ItemCodec.decode(payload)).thenThrow(new IllegalArgumentException("Invalid bytes"));
             f.command("preview", "42");
-            codec.verify(() -> io.enthusia.express.infrastructure.util.ItemCodec.decode(payload));
+            codec.verify(() -> ItemCodec.decode(payload));
             verify(f.player, never()).sendMap(any()); verifyNoInteractions(f.inventory, f.mailbox, f.shipping);
         }
     }

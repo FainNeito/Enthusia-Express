@@ -1,5 +1,13 @@
 # SPEAR migration tasks
 
+## INFRA-071 — Normalize legacy preview test imports
+
+Tag: INFRA
+References: REQ-065; implementation.md Layer Dependency Rules.
+Evidence: Exact-head Codacy3a4b45e reports seven notices solely for fully qualified ItemCodec/ContainerScanner names in MuseumPreviewTest. Add explicit imports of the already existing io.enthusia.express.infrastructure.util.ItemCodec and io.enthusia.express.infrastructure.util.ContainerScanner; production source/resources remain unchanged. Behavioral prove/engine steps do not apply to import-only test cleanup. Repeat the existing267 tests and compare the distributable hash to the deployed3a4b45e candidate.
+Status: [x] local checks complete; exact-head hosted checks tracked separately.
+Result: legacy-preview-imports.log passes267 tests with zero failures/errors/skips. EARS and twelve helper regressions pass. Distributable SHA256 c6afbcf7a4d5572834f9b8a639b833dfa3aef46fb610dfc14e7b115fa78d5197 is byte-identical to the3a4b45e TEST candidate; no additional restart is needed for this test-import-only cleanup.
+
 ## TDD-070 — Preview legacy museum cargo
 
 Tag: TDD
