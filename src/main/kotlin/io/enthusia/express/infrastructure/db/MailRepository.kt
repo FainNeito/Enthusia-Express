@@ -42,6 +42,7 @@ class MailRepository(
     private val PAGE_COLUMNS = "id,sender_uuid,sender_name,recipient_uuid,recipient_name,type,status," +
         "X'' AS payload,packed_item_count,created_at,updated_at,unread,return_delivery,claim_generation," +
         "delivery_pending,original_recipient_name"
+    private val maxPackagePayloadBytes = plugin?.config?.getInt("mail.max-package-payload-bytes", 262144) ?: 262144
     private val executor = ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS,
         ArrayBlockingQueue<Runnable>(plugin?.config?.getInt("database.max-queued-operations", 256) ?: 256),
         { runnable -> Thread(runnable, "EnthusiaExpress-SQLite").apply { isDaemon = true } },
@@ -217,6 +218,19 @@ class MailRepository(
     override fun museumNotices(recipient: UUID) = supply { museum.audit.notices(recipient) }
     override fun acknowledgeMuseumNotice(id: Long, recipient: UUID) = supply { museum.audit.acknowledge(id,recipient) }
 
+    /** Read after earlier queued operations; a recipient conflict never proves absence of stored cargo. */
+    override fun findEventDelivery(recipient: UUID, token: UUID): CompletableFuture<OptionalLong> = supply {
+        connection.prepareStatement("SELECT mail_id,recipient_uuid FROM event_deliveries WHERE token=?").use { ps ->
+            ps.setString(1, token.toString())
+            ps.executeQuery().use { rs ->
+                if (!rs.next()) OptionalLong.empty() else {
+                    check(rs.getString(2) == recipient.toString()) { "Event delivery token belongs to another recipient" }
+                    OptionalLong.of(rs.getLong(1))
+                }
+            }
+        }
+    }
+
     /** Token-idempotent system package that retention never touches (REQ-050). */
     override fun insertEventPackage(recipient: UUID, recipientName: String, senderName: String,
                                     payload: ByteArray, packedCount: Int, token: UUID): CompletableFuture<io.enthusia.express.domain.EventDeliveryRecord> {
@@ -234,6 +248,10 @@ class MailRepository(
                     require(existing.second == recipient.toString()) { "Event delivery token already used for another recipient" }
                     io.enthusia.express.domain.EventDeliveryRecord(existing.first, false)
                 } else {
+                    // A stored token remains authoritative even if the payload limit was later reduced.
+                    require(copy.size <= maxPackagePayloadBytes) {
+                        "Event package exceeds the mailbox payload limit of $maxPackagePayloadBytes bytes"
+                    }
                     val id = insert(InsertData(null, senderName, recipient, recipientName, MailType.PACKAGE, copy, packedCount, false), false)
                     connection.prepareStatement("INSERT INTO event_deliveries(token,mail_id,recipient_uuid,delivered_at) VALUES(?,?,?,?)").use { ps ->
                         ps.setString(1, token.toString())

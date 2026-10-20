@@ -31,6 +31,14 @@ interface MuseumStore {
 
 interface EventDeliveries {
     /**
+     * Reconcile a delivery token on the storage executor, including already claimed mail.
+     * Return empty only after a successful lookup; conflicts and unavailable storage must fail.
+     * Alternate stores without durable lookup support conservatively retain caller ownership.
+     */
+    fun findEventDelivery(recipient: UUID, token: UUID): CompletableFuture<OptionalLong> =
+        CompletableFuture.failedFuture(IllegalStateException("Event delivery reconciliation is unavailable"))
+
+    /**
      * Store one system package for [recipient] (REQ-050): no postage, limits or blocks, never expired.
      * [token] makes retries idempotent; reusing it for another recipient fails.
      */
