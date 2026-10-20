@@ -57,7 +57,7 @@ internal class MuseumCommands(
             "maps" -> menus.manifest(player, requireNotNull(args.getOrNull(2)?.toLongOrNull()), args.getOrNull(3)?.toIntOrNull() ?: 0)
             "list", "filters" -> {
                 val filter = parseFilter(args)
-                if (action == "list") menus.browse(player, filter, args.getOrNull(7)?.toIntOrNull() ?: 0) else menus.filters(player, filter)
+                if (action == "list") menus.browse(player, filter, args.getOrNull(7)?.toIntOrNull() ?: 0) else menus.filters.show(player, filter)
             }
             else -> player.sendMessage("§e/mail mapart submit|mine|queue|processed|search|assigned|unassigned|view <id>")
         }
