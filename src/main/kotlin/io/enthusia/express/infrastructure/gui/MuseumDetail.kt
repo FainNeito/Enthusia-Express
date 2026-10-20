@@ -65,8 +65,11 @@ internal fun museumDetailText(entry: MuseumEntry): String {
     val details = entry.details
     val history = entry.history.takeLast(6).joinToString("\n") { "${it.event}: ${it.actor}" }
     val pending = if (entry.submission.deliveryPending) "Inventory delivery acknowledgment is pending." else ""
+    val dimensions = if (entry.tiles.isEmpty()) "Legacy submission" else "${details.width} × ${details.height} maps"
+    val maps = if (entry.tiles.isEmpty()) "Legacy map cargo · preview to inspect tiles"
+        else "${entry.tiles.size} unique map IDs · ${entry.tiles.values.sum()} physical maps"
     return "${details.title}\nArtist: ${details.artist}\nSubmitted by: ${entry.submission.mail.senderName}\n" +
-        "${details.width} × ${details.height} maps · ${label(entry.state)}\nCurator: ${entry.curatorName ?: "Unassigned"}\n" +
-        "${details.description}\n${entry.tiles.size} unique map IDs · ${entry.tiles.values.sum()} physical maps\n" +
+        "$dimensions · ${label(entry.state)}\nCurator: ${entry.curatorName ?: "Unassigned"}\n" +
+        "${details.description}\n$maps\n" +
         "${entry.feedback}\nRecent history:\n$history\n$pending"
 }

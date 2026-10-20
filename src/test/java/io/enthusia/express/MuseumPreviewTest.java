@@ -22,6 +22,42 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class MuseumPreviewTest {
+    @Test void legacyContainerUsesReadOnlyPayloadManifestWithoutClaiming() {
+        try (var f = new Fixture(); var codec = mockStatic(io.enthusia.express.infrastructure.util.ItemCodec.class);
+             var scanner = mockStatic(io.enthusia.express.infrastructure.util.ContainerScanner.class)) {
+            byte[] payload = {1, 2, 3}; var cargo = mock(ItemStack.class);
+            when(f.entry.getTiles()).thenReturn(Map.of()); when(f.mail.payload()).thenReturn(payload);
+            codec.when(() -> io.enthusia.express.infrastructure.util.ItemCodec.decode(payload)).thenReturn(cargo);
+            scanner.when(() -> io.enthusia.express.infrastructure.util.ContainerScanner.mapartManifest(cargo, 8)).thenReturn(Map.of(7, 2, 11, 1));
+            f.command("preview", "42", "1");
+            verify(f.player).sendMap(f.map);
+            f.bukkit.verify(() -> Bukkit.getMap(11));
+            verifyNoInteractions(f.inventory, f.mailbox, f.shipping);
+            verify(f.store, never()).claimMapart(any(), any(), anyString());
+        }
+    }
+
+    @Test void legacyDecodeRespectsPayloadLimitAndAuthorization() {
+        try (var f = new Fixture(); var codec = mockStatic(io.enthusia.express.infrastructure.util.ItemCodec.class)) {
+            when(f.entry.getTiles()).thenReturn(Map.of()); when(f.mail.payload()).thenReturn(new byte[262145]);
+            f.command("preview", "42");
+            when(f.mail.payload()).thenReturn(new byte[]{1});
+            when(f.player.hasPermission("enthusiaexpress.mapart.manage")).thenReturn(false);
+            f.command("preview", "42");
+            codec.verifyNoInteractions(); verify(f.player, never()).sendMap(any());
+        }
+    }
+
+    @Test void invalidLegacyBytesDoNotChangeInventoryOrClaimCargo() {
+        try (var f = new Fixture(); var codec = mockStatic(io.enthusia.express.infrastructure.util.ItemCodec.class)) {
+            when(f.entry.getTiles()).thenReturn(Map.of()); byte[] payload = {1}; when(f.mail.payload()).thenReturn(payload);
+            codec.when(() -> io.enthusia.express.infrastructure.util.ItemCodec.decode(payload)).thenThrow(new IllegalArgumentException("Invalid bytes"));
+            f.command("preview", "42");
+            codec.verify(() -> io.enthusia.express.infrastructure.util.ItemCodec.decode(payload));
+            verify(f.player, never()).sendMap(any()); verifyNoInteractions(f.inventory, f.mailbox, f.shipping);
+        }
+    }
+
     @Test void reviewerSeesExistingMapWithoutClaimingOrChangingInventory() {
         try (var f = new Fixture()) {
             f.command("preview", "42");

@@ -163,7 +163,8 @@ class MuseumMenus(
                 player,
                 "Artwork map manifest",
                 "Page ${page + 1}\n" + 
-                    maps.drop(start).take(20).joinToString("\n") {
+                    if (maps.isEmpty()) "Legacy tile IDs were not indexed. Use Preview artwork to inspect the retained maps."
+                    else maps.drop(start).take(20).joinToString("\n") {
                         "Map ${it.key}: ${it.value} copies"
                     },
                 emptyList(),

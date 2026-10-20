@@ -1,5 +1,9 @@
 # Enthusia Express requirements
 
+## REQ-065 — Legacy museum preview
+
+WHEN an authorized viewer previews legacy artwork without a stored tile manifest THE SYSTEM SHALL derive a bounded read-only manifest from its retained map cargo without claiming, rewriting or migrating that cargo and refuse unavailable, oversized or invalid payloads before displaying a preview.
+
 ## REQ-064 — Read-only museum map preview
 
 WHEN an authorized artist or museum reviewer previews a submission THE SYSTEM SHALL show its existing map tiles through a private temporary client display with bounded tile navigation and return controls, without claiming cargo, charging postage, changing review state or replacing real inventory items, and restore the normal display on exit, timeout, disconnect, changed permissions or combat.

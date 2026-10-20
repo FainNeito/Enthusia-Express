@@ -27,7 +27,13 @@ internal class MuseumPreview(private val plugin: JavaPlugin, private val allowed
 
     fun show(player: Player, entry: MuseumEntry, page: Int) {
         if (!allowed(player) || !canView(player, entry.submission.mail.sender)) return
-        val tiles = entry.tiles.entries.sortedBy { it.key }
+        val manifest = try {
+            MuseumPreviewTiles.read(entry, plugin.config)
+        } catch (error: IllegalArgumentException) {
+            player.sendMessage("§cThat artwork cannot be previewed from its retained map data. Nothing was collected.")
+            return
+        }
+        val tiles = manifest.entries.sortedBy { it.key }
         val tile = tiles.getOrNull(page)
         if (tile == null) {
             player.sendMessage("§cThat artwork preview page is unavailable.")
@@ -66,7 +72,7 @@ internal class MuseumPreview(private val plugin: JavaPlugin, private val allowed
     private fun controls(player: Player, entry: MuseumEntry, page: Int, total: Int, copies: Int) {
         val id = entry.submission.mail.id
         player.sendMessage("§e${entry.details.title} §7· Map ${page + 1}/$total · $copies ${if (copies == 1) "copy" else "copies"}")
-        player.sendMessage("§7Preview only. Sneak to close; expires after 60 seconds. Tiles are ordered by map ID, not artwork position.")
+        player.sendMessage("§7Look down to inspect. Sneak to close; expires after 60 seconds. Tiles are ordered by map ID, not artwork position.")
         var controls = Component.empty()
         if (page > 0) controls = controls.append(link("[Previous] ", "mail mapart preview $id ${page - 1}"))
         if (page + 1 < total) controls = controls.append(link("[Next] ", "mail mapart preview $id ${page + 1}"))
