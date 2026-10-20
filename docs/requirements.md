@@ -1,5 +1,9 @@
 # Enthusia Express requirements
 
+## REQ-067 — Event delivery bounds and uncertain retry recovery
+
+WHEN a package is submitted with a new event-delivery token THE SYSTEM SHALL reject a serialized package above the configured package-payload byte limit before inserting either the mail row or its token, accepting a payload exactly equal to the limit. WHEN an event-delivery retry fails validation, packaging or storage THE SYSTEM SHALL reconcile the token through the serialized repository queue and resolve an existing matching delivery to its original mail ID, including already-claimed mail. IF reconciliation proves the token absent THEN THE SYSTEM SHALL preserve the original failure and its classification; IF the lookup is unavailable or the token belongs to another recipient THEN THE SYSTEM SHALL report an uncertain failure rather than a permanent pre-storage rejection. WHILE a token is in flight THE SYSTEM SHALL share its private outcome with same-recipient callers, reject a different recipient conservatively and prevent any caller's cancellation or manual future completion from changing operation ownership. THE SYSTEM SHALL keep Bukkit item validation and packaging on the caller's server thread and retain the public EventDelivery method signature and existing schema.
+
 ## REQ-066 — Approved postal sound defaults
 
 WHEN a mail sound setting has no explicit configured value THE SYSTEM SHALL use the approved postal profile for that setting while preserving explicit operator settings, the global sound toggle and success-only playback.
@@ -243,3 +247,4 @@ WHEN a recipient is hidden from the sender by Paper visibility THE SYSTEM SHALL 
 ## REQ-050 — Event delivery API
 
 WHEN an integrating plugin (EnthusiaHolidays) requests an event delivery through the public `EventDelivery` service THE SYSTEM SHALL wrap the supplied items (1–27 non-empty stacks within the configured nesting limit) in one shulker-box package from the given display sender and store it for the recipient without postage, outstanding-mail limits or sender blocks. Event packages SHALL never be returned, expired or purged by retention, and SHALL be claimed through the normal mailbox with the existing claim/acknowledgment safety. A caller-supplied delivery token SHALL make retries idempotent: the same token always resolves to the first package without storing another, and a token reused for a different recipient SHALL be rejected. The service SHALL use only JDK and Bukkit types and SHALL be registered in Bukkit's ServicesManager.
+

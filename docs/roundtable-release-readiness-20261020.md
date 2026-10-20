@@ -1,6 +1,26 @@
 # EnthusiaExpress release readiness — 20 October 2026
 
-## Scope and outcome
+## Current disposition after the continuation
+
+The [Java acceptance ledger](roundtable-java-acceptance-20261020.md) supersedes the dated open items below. The recovery candidate's final native clean build passed **285 tests with zero failures/errors/skips at 21:55:22.406465 UTC**, with EARS and all 12 SPEAR helper tests passing. Source commit: `e7bc6109e66a89c08f40c9e3aa6bbe48bb1322f1`. Its 16,783,743-byte JAR has SHA-256 `d0a20f4eb2c22ff13dd09ce2536f8f4ef76a62ff344eee4d1d80cd3b13b8bf5d` and remains uninstalled; the sound config remains unapplied. The earlier `ddb27dc` 267-test build and hosted checks are historical, and the new commit's hosted verification has passed. Tags composition `a38a0c1` passed its combined verification and shaded-artifact checks. Java uninterrupted expiry, per-page lifetime reset and available legacy rendering passed on the installed `c6afbcf7` build. The four-cue audition is user-confirmed. The exact Express rollback binary is retained.
+
+The per-page commands were 48.901931 seconds apart. Page 1 survived page 0's old nominal deadline; separate checkpoints record map visibility at 21:23:19.245158 UTC and compass restoration at 21:23:19.745098 UTC. The measurements are command-relative, with first-display frames recorded separately; approximately 20 TPS supports consistency with the 1,200-tick implementation without proving an exact tick count. The silent 110-second video covers the switch and old deadline, not the later expiry. Inventory, selected slot, database/WAL, config and submission state remained unchanged. SHARED 612 released claim 600 at **21:25 UTC**.
+
+The published source identity is confirmed. The [native evidence](evidence/event-delivery-recovery-20261020.json) records the source tree, 145 verified baseline inputs and seven final file hashes/Git blobs, actual suites and artifacts. At the coordinator's 22:05:42 UTC verification, [run 39505007021](https://github.com/FainNeito/Enthusia-Express/actions/runs/39505007021) had completed all six jobs successfully, including all eleven API compilation targets; the baseline clean-build step passed (the exact 285-test XML count above is from the native run). Codacy check `118912063119` passed with zero annotations. Controlled profile activation, actual mail actions and joint Holidays provider acceptance remain pending. Native compute claim 644 was released in SHARED 659 at 22:01:38 UTC, with no Gradle/Kotlin process remaining and SPEAR idle.
+
+SHARED 641 records Market's reviewed host-request draft as complete and unsubmitted; SHARED-02 remains technically unverified. Market 654 separately reports owner authorization for one graceful TEST restart during 21:59–22:11 UTC, with Market as sole executor and no Express JAR/config swap. This authorized restart is distinct from resolving recovery evidence. Express activation needs fresh scope/claim, and actual recipient workflows retain their specific gate disposition. Market 664 subsequently reports the single restart completed and released at 22:05:18 UTC. The fresh plugin receipt still identifies Express c6afbcf7; Staff storage is ACTIVE, while per-player restoration evidence remains unverified.
+
+Holidays PR 35 at `ba2fcf1471e5674e377b0df697f5dd87b63d20a6` is source-compatible according to independent review, draft and uninstalled. Holiday 657 reports canonical CI passing 327 tests in each of three Paper jobs and all eleven API compilation targets. The run/jobs and source tree were independently checked; independent XML-count verification remains pending. Canonical integration and joint actual-provider acceptance remain pending. Bedrock is deferred. Release-network pinning/canonical merges remain separate release decisions; neither inspected network tree has an Express gitlink.
+
+### Conditional defect and locally verified reconciliation
+
+[TDD-073](tasks.md) / [REQ-067](requirements.md) records a source-proven conditional exposure: `ddb27dc` validates and packages before resolving an existing delivery token. A committed package followed by a lost reply, restart and stricter container policy can make a retry raise `IllegalArgumentException`, which the Holidays consumer treats as definite pre-storage rejection. The event insert also lacks the configured payload-size bound. No runtime incident is claimed. Earlier TDD-047 / REQ-050 completion does not establish coverage of these newly identified conditions.
+
+The seven-file source/test patch is independently reviewed. Serialized token reconciliation, private in-flight ownership and a bound applied only to new tokens preserve the public API and schema. Actual tests-first RED on unchanged `ddb27dc` production source ran 20 tests with 10 behavioral failures and zero errors/skips. Focused GREEN passed 30 tests with zero failures/errors/skips; the final full native build passed 285. EARS and 12 SPEAR helper tests also passed. These results supersede the former execution-pending state, without reassigning `ddb27dc`'s historical 267 tests or hosted results. The patch is published, and its six hosted jobs and eleven API compilation targets have passed. Activation and joint provider acceptance require a fresh acknowledged scope/window and the applicable recovery-gate disposition.
+
+## Historical review snapshot — approximately 18:30 UTC
+
+### Scope and outcome
 
 Roundtable task **EXPRESS-04** reviews the remaining release dependencies from Codex session `01a0722f-a583-7823-9304-6b8865eb8cab`. GitHub observations were refreshed on 20 October 2026 at approximately 18:30 UTC. This is a release and dependency review, not production approval or new client acceptance.
 
@@ -8,7 +28,7 @@ The inspected Express snapshot is commit `49dec87c2e03a1c28b27ae43df8bb66ee20ca5
 
 **The actionable dependency gap is Tags composition:** the unique-mail release branch predates the merged Pumpkin Patcher additions. Existing green checks do not validate a combined artifact containing both. Express also retains explicit client acceptance gaps. None of these findings requires an immediate production change.
 
-## Current review and verification evidence
+### Review and verification evidence at the 18:30 UTC snapshot
 
 | Component | Exact reviewed source | Current evidence | Remaining gate |
 |---|---|---|---|
@@ -21,7 +41,7 @@ The submitted-review endpoints returned **no reviews** for these three PRs. Expr
 
 The Express checks are Paper 1.21/Java 21, 1.21.8/Java 21, 1.21.11/Java 21, 26.2/Java 25, 26.3-pre-2/Java 25 and 26.3/Java 25. The retained **267-test** result and eleven compilation targets are prior source/session evidence, not tests executed by this review worker. No builds or tests were run here.
 
-## Unique-mail and holiday preservation
+### Unique-mail and holiday preservation
 
 The canonical and fork PRs contain byte-identical `ExpressStatsReader.java`, Git blob `e40c5b04a0297a2b041ecc7236b34fe7e15531f9`:
 
@@ -34,7 +54,7 @@ The reviewed changes count distinct case-normalized correspondents by mail type 
 
 The release fork's [companion manifest](https://github.com/FainNeito/EnthusiaTags/blob/a2d7d9e1f2cd5e5732717a8bc35de56baf1be3da/tools/ci/companions.json) still selects renderer `01fac426152737c76cd4d2e570e07a33dde99798`, version `1.0.0-pilot.6-watcher-brackets-test.6`. A combined build must retain and verify this declared pairing. The historical 254-test canonical and 289-test unique-mail-fork counts do not establish that current-main composition passed.
 
-## Network source and pin distinction
+### Network source and pin distinction
 
 | Network source | Current main observed | Tags gitlink and repository | Renderer gitlink |
 |---|---|---|---|
@@ -49,7 +69,7 @@ The retained network document lists historical standalone Holidays `d07390924de3
 
 Separately attributed update: the Holiday coordinator's SHARED `resource-coordination` message, sequence 178 at 2026-10-20 18:27:19 UTC, reports Holiday PR 34 at `6d3747b3efbac3a24de080f87b4e0a324aba8103`, all three hosted matrices/all eleven profiles passing with 310 tests each, and testing JAR SHA-256 `27a257e6ffe7d5b40ed97f4ac8b4db37c31da8e581a86d0e09e5b54f3e8cbe89`. That testing artifact is reported retained on Entity and not installed; no shared resource is held, and HOLIDAY-05/06 remain BACKLOG. This is coordinator-reported evidence, not an independent GitHub/API or artifact verification by this worker. Current deployed Holiday identity remains unverified. Independently confirm the source/dependency pairing and artifact during coordinated acceptance.
 
-## Acceptance evidence and remaining gates
+### Acceptance evidence and remaining gates at the 18:30 UTC snapshot
 
 The recovered session supersedes older broad “pending” statements in `docs/tasks.md`: Java museum workflows, recipient behavior, ordinary-player permission checks, the four old sound captures and CombatLogX rejection have later acceptance evidence. Java preview rendering, page navigation, Close/sneak/combat restoration and unchanged inventory have evidence through the session recorded at 03:15 UTC on 20 October. This review carries those results forward without claiming a retest.
 
@@ -68,3 +88,4 @@ The remaining acceptance matrix must distinguish:
 Express's [EventDelivery API](../src/main/kotlin/io/enthusia/express/api/EventDelivery.kt) remains `deliverPackage(UUID, String, String, List<ItemStack>, UUID): CompletableFuture<Long>`. Its contract requires a server-thread call, caller ownership until successful completion and one package per stable token, rejecting token reuse for another recipient. Existing event-service/repository tests and REQ-050 support the API contract; `docs/tasks.md` explicitly leaves real shulker serialization/delivery acceptance with Holidays separate. No event, payout or live mail was performed by this review.
 
 Shared TEST, desktop and client use remains coordinator-owned and requires the current acknowledged resource window. This document claims no reservation. It changes no source implementation, Tags/Holidays/network repository, GitHub state, credentials, server, player, inventory or production artifact.
+

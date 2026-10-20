@@ -1,5 +1,21 @@
 # Museum preview acceptance readiness — 2026-10-20
 
+## Current acceptance status
+
+See the [Java acceptance ledger](roundtable-java-acceptance-20261020.md) for exact installed-build identity and dated evidence.
+
+| Case | Current status |
+| --- | --- |
+| Java uninterrupted lifetime and restoration | PASS, 19:46:43 UTC start; unchanged inventory/database/configuration. |
+| Existing legacy artwork with saved pixels | PASS, submission 66 at 20:07:33 UTC; map 0, 64 copies, unchanged claim/review state. |
+| Per-page lifetime reset | PASS on installed `c6afbcf7`; commands 48.901931 seconds apart, correct second page survives the old nominal deadline and later expires with the compass restored. Inventory/database/configuration and submission state unchanged; SHARED 612 released claim 600 at 21:25 UTC. |
+| Missing legacy pixels | Submission 70/map 444 remains a separate safe-unavailable case; no replacement pixels were created. |
+| Bedrock | Deferred by the user's current instruction. |
+
+The per-page command times were 21:21:30.342570 and 21:22:19.244501 UTC. First successful captured displays began at 21:21:30.750 and 21:22:19.752 UTC; they are observations, not exact server display callbacks. The checkpoint log records the second map at 21:23:19.245158 UTC and the restored compass at 21:23:19.745098 UTC, respectively 60.000657 and 60.500597 seconds after the second command. Approximately 20 TPS is consistent with the 1,200-tick implementation; no independent tick count or exact wall-clock deadline is claimed. The silent 110-second video covers the page switch and old deadline only; separate checkpoints establish the later expiry. The ledger records the full timing and integrity limits, including visual confirmation of the main-hand compass without a distinct offhand fixture.
+
+The source analysis and procedures below are retained. Their original pending observations refer to the earlier snapshot; use the current status table above.
+
 ## Scope and disposition
 
 Roundtable EXPRESS-03 inspected the tracked source snapshot at
@@ -51,7 +67,7 @@ Its safe unavailable message is valid missing-data evidence, not a successful
 legacy rendering result. Do not generate replacement pixels, alter the donation,
 or reuse that case as a successful-rendering fixture.
 
-## Remaining live acceptance matrix
+## Procedure matrix — apply current statuses above
 
 The coordinator must reserve the shared TEST server and client before running
 these cases. This document performs or authorizes no server/client action. Record
@@ -87,10 +103,27 @@ map rendering as separate observations.
 ## Closure criteria
 
 The coordinator can close the readiness-document task after incorporating this
-file and its existing evidence into the combined review. Live preview acceptance
-remains open until the relevant Java timeout, Bedrock and available-legacy rows
-have dated evidence with explicit PASS, FAIL or BLOCKED results. A failed real
+file and its existing evidence into the combined review. Java uninterrupted
+expiry, per-page lifetime reset and available legacy rendering now have dated
+PASS evidence on the installed preview build. Bedrock is deferred by the user and
+remains unaccepted for the broader platform scope. A failed real
 client case should first be reduced to a concrete defect before starting a new
 SPEAR source change. No additional source test run is requested solely for this
-document; the coordinator's already planned combined suite includes all 13
-existing preview tests.
+document. The coordinator's final native build for `e7bc6109e66a89c08f40c9e3aa6bbe48bb1322f1`
+passed 285 tests with zero failures/errors/skips at 21:55:22.406465 UTC, with
+EARS and all 12 SPEAR helper tests passing. The separate TDD-073 / REQ-067
+recovery work has actual RED evidence on unchanged `ddb27dc` production source
+(20 tests, 10 behavioral failures, zero errors/skips) and focused GREEN evidence
+(30 tests, zero failures/errors/skips). The earlier 267-test result and hosted
+checks remain attributed to `ddb27dc`. The published recovery source and actual
+native suites are recorded in the [recovery evidence](evidence/event-delivery-recovery-20261020.json).
+At the coordinator's 22:05:42 UTC verification, recovery run 39505007021 had
+completed all six jobs successfully, including all eleven API compilation
+targets; the baseline clean-build step passed (the exact 285-test XML count above is from the native run). Exact-commit Codacy
+check 118912063119 passed with zero annotations.
+The recovery candidate remains uninstalled and the sound config unapplied.
+Preview acceptance applies to the installed build and does not establish
+candidate activation or joint actual-provider acceptance. See the current
+[Java acceptance ledger](roundtable-java-acceptance-20261020.md) for the retained
+Staff recovery, Holidays integration and release gates.
+
