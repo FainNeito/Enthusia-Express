@@ -27,3 +27,16 @@ The temporary display uses Paper's `sendEquipmentChange`, `sendMap` and `updateI
 - `map-preview-reviewed.log`: after the three initial Codacy findings, lifecycle and interaction adapters are separated and display failures clean up through `finally` before MainThread logs them. The full264-test build and all eleven API compilation targets pass again. Hosted checks must be read for the final source head.
 
 These logs are local evidence, separate from exact-head hosted checks and client acceptance. No server upload, reload, restart or activation was performed.
+
+
+## Authorized Java client validation — 2026-10-19
+
+User authorized TEST deployment and their client. Source3a4b45e was activated on SMP Test (Paper26.2-128, Java25, Dawn26.3) with the installed Currency1.4.4, CombatLogX11.6.0.0.1286 and Nexo1.29.1. The subsequent64e5cdc test-import-only build has the identical distributable SHA256 c6afbcf7a4d5572834f9b8a639b833dfa3aef46fb610dfc14e7b115fa78d5197. Offline coherent backups precede both TEST updates. Authenticated upload size and17 extracted relevant archive entries matched; expired storage TLS prevented full remote-JAR SHA verification and was not bypassed.
+
+A labelled bundle submission81 contains map0 twice and map14 once. Actual client rendering, two unique pages with2/1 copy counts, Next, Previous, Artwork details, explicit Close, sneak exit and real CombatLogX interruption passed. Server Inventory NBT digests match before/during paging/after combat/final cleanup. The submission remains awaiting review and unclaimed; postage was quoted and charged once. No config or permission changes were made. No Express error was found in the post-start log; one root JAR and an empty update folder were verified.
+
+Legacy submission70 (The Eve) safely reports unavailable. Read-only diagnostic copies show its371-byte retained filled-map payload references map444; world/data/map_444.dat is absent on TEST. This is not accepted as successful legacy artwork rendering. Do not invent a new map or modify the donation to mask missing world data. Legacy fallback with valid cargo is covered by automated tests; actual legacy rendering with available saved pixels remains pending.
+
+Bedrock,60-second timeout and recipient-side delivery were not exercised in this viewer session. The client's initial location/camera were restored and its combat tag removed. Existing resource-pack download and staff handoff warnings are independent limitations. Production and monorepo pins remain unchanged; PR12 is unmerged.
+
+[Private interactive preview and actual Java captures](https://express-museum-dialogs-preview-20261018.awareyak.chatgpt.site/map-preview.html). Illustration and client evidence are explicitly separated.
