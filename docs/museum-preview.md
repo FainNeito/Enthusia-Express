@@ -28,7 +28,6 @@ The temporary display uses Paper's `sendEquipmentChange`, `sendMap` and `updateI
 
 These logs are local evidence, separate from exact-head hosted checks and client acceptance. No server upload, reload, restart or activation was performed.
 
-
 ## Authorized Java client validation — 2026-10-19
 
 User authorized TEST deployment and their client. Source3a4b45e was activated on SMP Test (Paper26.2-128, Java25, Dawn26.3) with the installed Currency1.4.4, CombatLogX11.6.0.0.1286 and Nexo1.29.1. The subsequent64e5cdc test-import-only build has the identical distributable SHA256 c6afbcf7a4d5572834f9b8a639b833dfa3aef46fb610dfc14e7b115fa78d5197. Offline coherent backups precede both TEST updates. Authenticated upload size and17 extracted relevant archive entries matched; expired storage TLS prevented full remote-JAR SHA verification and was not bypassed.
