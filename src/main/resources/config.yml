@@ -57,20 +57,20 @@ sounds:
   # Names must be namespaced; volume >= 0; pitch must be between 0.5 and 2.0.
   enabled: true
   package-send:
-    sound: "minecraft:block.note_block.pling"
-    volume: 1.0
+    sound: "minecraft:block.wooden_button.click_on"
+    volume: 0.6
     pitch: 1.0
   package-claim:
     sound: "minecraft:entity.item.pickup"
-    volume: 1.0
+    volume: 0.5
     pitch: 1.0
   letter-send:
-    sound: "minecraft:item.book.page_turn"
-    volume: 1.0
-    pitch: 1.0
+    sound: "minecraft:item.book.put"
+    volume: 0.6
+    pitch: 1.1
   letter-open:
     sound: "minecraft:item.book.page_turn"
-    volume: 1.0
+    volume: 0.5
     pitch: 1.0
 payments:
   # auto: use EnthusiaCurrency through Vault; use physical Raw Gold only when EnthusiaCurrency is absent.

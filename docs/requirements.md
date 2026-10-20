@@ -1,5 +1,11 @@
 # Enthusia Express requirements
 
+## REQ-066 — Approved postal sound defaults
+
+WHEN a mail sound setting has no explicit configured value THE SYSTEM SHALL use the approved postal profile for that setting while preserving explicit operator settings, the global sound toggle and success-only playback.
+
+The approved defaults are package-send minecraft:block.wooden_button.click_on at volume 0.6/pitch 1.0; package-claim minecraft:entity.item.pickup at 0.5/1.0; letter-send minecraft:item.book.put at 0.6/1.1; and letter-open minecraft:item.book.page_turn at 0.5/1.0. Existing server configuration is updated only through a scoped operator change; upgrading the JAR must not overwrite it.
+
 ## REQ-065 — Legacy museum preview
 
 WHEN an authorized viewer previews legacy artwork without a stored tile manifest THE SYSTEM SHALL derive a bounded read-only manifest from its retained map cargo without claiming, rewriting or migrating that cargo and refuse unavailable, oversized or invalid payloads before displaying a preview.

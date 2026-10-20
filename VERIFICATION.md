@@ -1,8 +1,30 @@
-# Verification: 1.3.0-SNAPSHOT museum and hybrid menus
+# Verification: 1.3.0-SNAPSHOT museum, hybrid menus and approved sounds
+
+## Current continuation evidence - 20 October 2026
+
+The Roundtable continuation starts from PR 12 source `49dec87c2e03a1c28b27ae43df8bb66ee20ca5cc`, with canonical main `a650216c6e795f900988b05d788de68b9d4a9866` as an ancestor. It changes the approved mail sound defaults and missing-setting fallbacks, preserves explicit operator settings and success-only playback, and records source and release readiness. This remains an unmerged testing candidate.
+
+- A fresh isolated Java 21/Paper 1.21 `clean build` passes **267 tests**, with zero failures, errors or skips. The suite includes sound/transaction regressions, architecture and compiled call-cycle checks, real SQLite/packaging checks, and all 13 existing museum preview cases.
+- EARS validation and all 12 SPEAR helper tests pass. An independent worker source review found no actionable defect in the sound patch. No new API, import, persistence path or playback call site is introduced.
+- This local run uses one Gradle worker, an in-process Kotlin compiler and bounded JVM memory. It does not repeat every Paper profile; the existing hosted matrix verifies those profiles on the final pushed commit.
+- The prior 49dec87 head had successful Codacy and six Paper/Java checks. Those results are historical for this continuation; inspect the exact final commit in [PR 12](https://github.com/FainNeito/Enthusia-Express/pull/12). A bot status does not imply an independent approval.
+- Testing JAR SHA-256: `3bc3651c993515f3be8546bd9c98c5fc4051f04f1b4f1fe1e38f162604533d75`. The JAR is retained outside server plugin directories and has not been installed. `verification-summary.json` records current local results and preserves the older 243-test snapshot as explicitly historical evidence.
+
+The [approved sound profile](docs/roundtable-sound-profile-20261020.md) documents the twelve existing-installation leaf settings. Replacing the JAR does not intentionally overwrite a running server's custom configuration. Earlier recordings exercised the old profile; real listening to this candidate remains pending.
+
+The recovered session retains successful Java artwork/page navigation, Close/sneak/combat restoration and authoritative inventory preservation, as well as earlier recipient, permission and mail behavior evidence. These are carried forward without claiming a retest. [Preview readiness](docs/roundtable-preview-readiness-20261020.md) specifies the remaining 1,200-server-tick per-page expiry, actual Bedrock navigation/rendering/restoration, and legacy artwork with available saved pixels. The Eve/map 444 remains missing-data evidence.
+
+[Release readiness](docs/roundtable-release-readiness-20261020.md) records the distinct canonical and release-fork Tags/network sources. The unique-mail fork must preserve newer Pumpkin Patcher and existing holiday presentation before combined validation. Neither inspected network tree currently has an Express or Holidays gitlink. Current deployed artifact identity, matching Holiday dependencies and shared TEST/client prerequisites remain explicit acceptance gates. No production action or canonical merge occurred in this continuation.
+
+---
+
+## Historical 1.3.0-SNAPSHOT evidence before this continuation
+
+The following record predates the completed museum-preview work and approved-sound continuation. Its counts, artifact, probe and broad pending-client wording describe that earlier snapshot; the current evidence above and linked readiness documents supersede it.
 
 This unmerged testing branch starts at canonical Express main a650216c6e795f900988b05d788de68b9d4a9866. It is not a production release or live client acceptance.
 
-## Current automated proof
+### Automated proof at that snapshot
 
 - Gradle 9.7.1 / Kotlin 2.4.20, Java 21 baseline: clean build and all eleven 1.21 API compilation targets pass.
 - 243 tests pass without failures, errors or skips, including architecture, compiled call-cycle inspection, real SQLite migration/concurrency/recovery, postage and bundled-driver packaging.
@@ -12,7 +34,7 @@ This unmerged testing branch starts at canonical Express main a650216c6e795f9009
 
 Actual red evidence: missing catalog schema (museum-red.log), missing owner/expiry gate (dialog-session-red.log), unconfigured action-bar delivery (notification-red.log), and missing inventory closure before form transitions (dialog-cargo-red.log). Corresponding regressions and the retained safety suite now pass. Logs and raw XML reports remain local evidence, not repository artifacts.
 
-## Delivery and remaining gates
+### Delivery and gates at that snapshot
 
 [Workflow, additive migration, permissions and acceptance](docs/museum-dialogs.md) records the implemented scope and rollback boundaries. [Interactive preview](https://express-museum-dialogs-preview-20261018.awareyak.chatgpt.site) is an owner-private illustrative simulation. The hosted Site reports a successful deployment; fresh browser/device QA was unavailable in this session. Native client layout, Floodgate/Cumulus responses, actual currency/Nexo configuration and coordinated recovery rehearsals remain staging gates. Prior CombatLogX confirmation is not fresh acceptance of every new path.
 

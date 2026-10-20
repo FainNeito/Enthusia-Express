@@ -1,5 +1,14 @@
 # SPEAR migration tasks
 
+## INFRA-072 — Apply the approved postal sound profile
+
+Tag: INFRA
+References: REQ-015, REQ-066; implementation.md Behavioral compatibility and Thread ownership.
+Evidence: User sound selection in Codex session 01a0722f-a583-7823-9304-6b8865eb8cab culminated in the approved wooden package click on 2026-10-19; the other three recommended cues were retained. Current SoundFeedback(private val plugin: org.bukkit.plugin.java.JavaPlugin) defines Cue(key, defaultSound), play(org.bukkit.entity.Player,Cue) and settings(Cue); settings reads explicit configuration before fallback. Existing infrastructure imports java.util.Locale, org.bukkit.entity.Player and org.bukkit.plugin.java.JavaPlugin are unchanged. src/main/resources/config.yml defines the four existing sound paths. NotificationAndSoundTest verifies explicit overrides, disabled feedback and invalid values; CombatLogXHookTest verifies shipped settings; CurrencyShippingTest, ShippingServiceTest and MailboxServiceTest cover successful dispatch and failure silence. This is an approved configuration/default profile adjustment with existing behavioral coverage; no synthetic historical red/green is claimed. The baseline main a650216 is an ancestor of PR12 head49dec87. No new dependency, payment/cargo state, schema, permission or client interface is required.
+Status: [x] source implementation, independent review and local refinement complete; hosted checks and live acceptance remain separate.
+Result: the approved four sound tuples match both shipped YAML and cue-specific fallbacks. Existing overrides, sounds.enabled and success-trigger call sites are preserved; the independent preview worker found no actionable defect in its sound-source review. The isolated Java21/Paper1.21 clean build passes all267 tests with zero failures/errors/skips, including sound/transaction, architecture, compiled call-cycle and13 preview regressions. EARS and12 SPEAR helper tests pass. No new dependency or architecture crossing was introduced; no synthetic red/green is asserted for this INFRA task. Testing JAR SHA256 3bc3651c993515f3be8546bd9c98c5fc4051f04f1b4f1fe1e38f162604533d75. The three Roundtable readiness documents retain previous Java client evidence and precisely separate new-sound audibility,1200-tick expiry, Bedrock and valid-legacy acceptance from source proof. No live configuration, server, inventory or production change occurred. Verification-summary records this candidate separately from older243-test snapshots.
+Acceptance: exact approved defaults and fallback; explicit existing configuration preserved; existing sound/transaction/architecture regression suite passes; exact minimal live configuration keys documented separately from application to TEST or production.
+
 ## INFRA-071 — Normalize legacy preview test imports
 
 Tag: INFRA
