@@ -28,7 +28,9 @@ class MuseumMenus(
 ) {
     private val requests = HashMap<UUID, UUID>()
     private val preview = MuseumPreview(plugin) { allowed(it) }
-    val previewListener: Listener = MuseumPreviewEvents(preview) { requests.remove(it) }
+    private val previewEvents = MuseumPreviewEvents(preview) { requests.remove(it) }
+    val previewListener: Listener get() = previewEvents
+    val previewInteractionListener: Listener get() = previewEvents.interactions
     private val view = MuseumView(plugin, { allowed(it) }, { requests.remove(it) })
     private val input = MuseumInput(plugin, store, main, shipping, view) { allowed(it) }
     private val commands = MuseumCommands(this, input, store, main, { player, manager -> allowed(player, manager) }, view)
@@ -86,7 +88,7 @@ class MuseumMenus(
         main.complete(store.artwork(id)) { entry, error ->
             if (!allowed(player) || requests[player.uniqueId] != request || player.openInventory.topInventory !== inventory) return@complete
             requests.remove(player.uniqueId)
-            if (error != null || entry == null || !canView(player, entry)) {
+            if (error != null || entry == null || !canViewMuseum(player, entry)) {
                 player.sendMessage("§cArtwork is unavailable.")
                 return@complete
             }
@@ -187,7 +189,7 @@ class MuseumMenus(
         requests[player.uniqueId] = request
         main.complete(store.artwork(id)) { entry, error ->
             if (!allowed(player) || requests[player.uniqueId] != request) return@complete
-            if (error != null || entry == null || !canView(player, entry)) {
+            if (error != null || entry == null || !canViewMuseum(player, entry)) {
                 player.sendMessage("§cArtwork is unavailable.")
                 return@complete
             }
@@ -207,7 +209,7 @@ class MuseumMenus(
         if (!allowed(player) || page !in 0..1000) return
         main.complete(store.artwork(id)) { entry, error ->
             if (!allowed(player)) return@complete
-            if (error != null || entry == null || !canView(player, entry)) return@complete
+            if (error != null || entry == null || !canViewMuseum(player, entry)) return@complete
             val maps = entry.tiles.entries.toList()
             val start = page * 20
             val choices = mutableListOf(MenuChoice("Artwork details") { run(player, "mail mapart view $id") })
@@ -231,9 +233,6 @@ class MuseumMenus(
         view.shutdown()
         requests.clear()
     }
-
-    private fun canView(player: Player, entry: io.enthusia.express.domain.MuseumEntry): Boolean =
-        entry.submission.mail.sender == player.uniqueId || player.hasPermission(MANAGE_PERMISSION)
 
     private fun run(
         player: Player,

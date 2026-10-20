@@ -47,15 +47,19 @@ internal class MuseumPreview(private val plugin: JavaPlugin, private val allowed
         if (!allowed(player) || !canView(player, entry.submission.mail.sender)) return
         close(player)
         sessions[player.uniqueId] = Session(player, entry.submission.mail.sender)
+        var shown = false
         try {
             player.sendEquipmentChange(player, mapOf(EquipmentSlot.HAND to item, EquipmentSlot.OFF_HAND to ItemStack(Material.AIR)))
             player.sendMap(map)
             controls(player, entry, page, tiles.size, tile.value)
             if (task == null) task = Bukkit.getScheduler().runTaskTimer(plugin, Runnable { tick() }, 1L, 1L)
-        } catch (error: RuntimeException) {
-            close(player)
-            plugin.logger.log(java.util.logging.Level.WARNING, "Museum map preview failed", error)
-            player.sendMessage("§cThe map preview could not be displayed. Nothing was collected.")
+            shown = true
+        } finally {
+            // MainThread logs callback failures; cleanup also runs for third-party map renderer exceptions.
+            if (!shown) {
+                close(player)
+                player.sendMessage("§cThe map preview could not be displayed. Nothing was collected.")
+            }
         }
     }
 

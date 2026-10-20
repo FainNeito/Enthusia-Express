@@ -18,5 +18,6 @@ The temporary display uses Paper's `sendEquipmentChange`, `sendMap` and `updateI
 - `MuseumPreviewTest`: 10 focused cases cover reviewer/owner privacy, page bounds, unique IDs/copy counts, unavailable maps, no inventory/cargo changes, stale requests, permission loss/combat/timeout, explicit exit, interaction cancellation and interrupted/disconnected sessions.
 - Project EARS validator and twelve SPEAR helper tests passed.
 - `map-preview-26.3.log`: a clean pinned final Paper26.3/Java25 build tested the baseline Java21 JAR with the same 264 passing tests. Baseline JAR SHA-256: `5dcef4e3bde336ed47dafd75b08269aad1b1c052f3bc8005888cb11b530f3a2b` (unmerged/local verification artifact).
+- `map-preview-reviewed.log`: after the three initial Codacy findings, lifecycle and interaction adapters are separated and display failures clean up through `finally` before MainThread logs them. The full264-test build and all eleven API compilation targets pass again. Hosted checks must be read for the final source head.
 
 These logs are local evidence, separate from exact-head hosted checks and client acceptance. No server upload, reload, restart or activation was performed.

@@ -1,5 +1,13 @@
 # SPEAR migration tasks
 
+## INFRA-069 — Refine preview adapter ownership
+
+Tag: INFRA
+References: REQ-064, REQ-007; implementation.md Read-only museum preview.
+Evidence: Exact-head Codacy3b616a5 identifies method-count limits in MuseumMenus and MuseumPreviewEvents and a broad RuntimeException catch in MuseumPreview. Move the existing view-scope predicate to MuseumDetail, split lifecycle/navigation events from hidden-item interaction cancellation, and use finally for unconditional cosmetic cleanup while letting MainThread's existing isolated callback boundary log failures. This is behavior-preserving refinement of existing org.bukkit event adapters and local preview classes, with no new dependencies, permission, persistence or API behavior. Prove/engine steps do not apply; retain the ten focused preview tests and full264-test/API suite as the oracle.
+Status: [x] local refinement complete; exact-head hosted checks tracked separately.
+Result: map-preview-reviewed.log repeats the full264-test build and all eleven Paper API compilation targets with no failures. The existing ten preview regressions remain green; lifecycle and interaction adapters each stay below the method-count threshold. Failure cleanup uses finally and preserves MainThread's existing callback logging boundary. EARS, layer and compiled call-cycle checks pass. No TEST, production or client action was performed.
+
 ## TDD-068 — Read-only museum map preview
 
 Tag: TDD

@@ -11,6 +11,9 @@ internal const val MANAGE_PERMISSION = "enthusiaexpress.mapart.manage"
 internal const val SUBMIT_PERMISSION = "enthusiaexpress.mapart.submit"
 internal const val DUPLICATE_PERMISSION = "enthusiaexpress.mapart.duplicates"
 
+internal fun canViewMuseum(player: Player, entry: MuseumEntry): Boolean =
+    entry.submission.mail.sender == player.uniqueId || player.hasPermission(MANAGE_PERMISSION)
+
 internal fun museumPageChoices(entries: List<MuseumEntry>, filter: MuseumFilter, page: Int, run: (String) -> Unit): List<MenuChoice> {
     val choices = entries.map { entry ->
         MenuChoice("${entry.details.title.take(36)} · ${label(entry.state)}") { run("mail mapart view ${entry.submission.mail.id}") }

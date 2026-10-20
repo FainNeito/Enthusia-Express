@@ -125,7 +125,7 @@ class MuseumPreviewTest {
 
     @Test void usingOrDroppingHiddenRealItemsIsCancelledAndEndsPreview() {
         try (var f = new Fixture()) {
-            var events = (MuseumPreviewEvents) f.menus.getPreviewListener();
+            var events = (MuseumPreviewInteractions) f.menus.getPreviewInteractionListener();
             f.command("preview", "42");
             var drop = mock(org.bukkit.event.player.PlayerDropItemEvent.class);
             when(drop.getPlayer()).thenReturn(f.player);
