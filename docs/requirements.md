@@ -1,6 +1,52 @@
 # Enthusia Express requirements
 
+## REQ-067 — Event delivery bounds and uncertain retry recovery
+
+WHEN a package is submitted with a new event-delivery token THE SYSTEM SHALL reject a serialized package above the configured package-payload byte limit before inserting either the mail row or its token, accepting a payload exactly equal to the limit. WHEN an event-delivery retry fails validation, packaging or storage THE SYSTEM SHALL reconcile the token through the serialized repository queue and resolve an existing matching delivery to its original mail ID, including already-claimed mail. IF reconciliation proves the token absent THEN THE SYSTEM SHALL preserve the original failure and its classification; IF the lookup is unavailable or the token belongs to another recipient THEN THE SYSTEM SHALL report an uncertain failure rather than a permanent pre-storage rejection. WHILE a token is in flight THE SYSTEM SHALL share its private outcome with same-recipient callers, reject a different recipient conservatively and prevent any caller's cancellation or manual future completion from changing operation ownership. THE SYSTEM SHALL keep Bukkit item validation and packaging on the caller's server thread and retain the public EventDelivery method signature and existing schema.
+
+## REQ-066 — Approved postal sound defaults
+
+WHEN a mail sound setting has no explicit configured value THE SYSTEM SHALL use the approved postal profile for that setting while preserving explicit operator settings, the global sound toggle and success-only playback.
+
+The approved defaults are package-send minecraft:block.wooden_button.click_on at volume 0.6/pitch 1.0; package-claim minecraft:entity.item.pickup at 0.5/1.0; letter-send minecraft:item.book.put at 0.6/1.1; and letter-open minecraft:item.book.page_turn at 0.5/1.0. Existing server configuration is updated only through a scoped operator change; upgrading the JAR must not overwrite it.
+
+## REQ-065 — Legacy museum preview
+
+WHEN an authorized viewer previews legacy artwork without a stored tile manifest THE SYSTEM SHALL derive a bounded read-only manifest from its retained map cargo without claiming, rewriting or migrating that cargo and refuse unavailable, oversized or invalid payloads before displaying a preview.
+
+## REQ-064 — Read-only museum map preview
+
+WHEN an authorized artist or museum reviewer previews a submission THE SYSTEM SHALL show its existing map tiles through a private temporary client display with bounded tile navigation and return controls, without claiming cargo, charging postage, changing review state or replacing real inventory items, and restore the normal display on exit, timeout, disconnect, changed permissions or combat.
+
+## REQ-063 — Consistent Minecraft typography
+
+WHEN the Post Office assets are generated THE SYSTEM SHALL render all baked labels with the unscaled default Minecraft bitmap font, fit those labels within their panels without covering icon slots and preserve the existing pack icon bindings and menu actions.
+
+## REQ-062 — Reuse pack icons and preserve label clearance
+
+WHEN the Post Office profile is generated THE SYSTEM SHALL reference the existing Enthusia Pack icon registry, retain a visible selected-category cue and reserve clear space for home-card text and the vanilla inventory label without redistributing private icon artwork.
+
+## REQ-060 — Optional Post Office presentation
+
+WHEN a Java player with the accepted resource pack opens an enabled Post Office menu THE SYSTEM SHALL render the approved red, gold and cream navigation with protected slot routing, explicit mail states and unchanged cargo, postage and recovery ownership.
+
+## REQ-061 — Presentation fallback
+
+IF the optional Post Office assets or accepted Java resource pack are unavailable THEN THE SYSTEM SHALL retain usable vanilla controls or supported native forms without exposing decorative inventory items to players.
+
 Purpose: offline mail for Paper players and server administrators. This Kotlin migration preserves the merged 1.1.0 behavior, SQLite schema, configuration and permissions.
+
+## Museum and interface extension
+
+- REQ-051: WHEN an artist submits museum artwork THE SYSTEM SHALL persist a bounded title, credited artist, dimensions, description and every map identifier and copy count separately from submitter identity in the same transaction as recoverable cargo.
+- REQ-052: WHEN museum staff review a submission THE SYSTEM SHALL persist acceptance, needs-changes feedback, curator assignment and display completion with revision guards while keeping inventory delivery separate from review state.
+- REQ-053: WHEN a player views museum submissions THE SYSTEM SHALL expose only their own submission history unless they hold manager permission and provide bounded search, status and curator filters without reading cargo payloads.
+- REQ-054: WHEN submitted map identifiers overlap retained museum entries THE SYSTEM SHALL reject duplicate admission atomically unless the sender has an explicit duplicate-override permission and confirms the override before postage.
+- REQ-055: WHEN a museum review changes THE SYSTEM SHALL retain a recipient-scoped durable update for online or next-join notification without discarding it on a failed delivery callback.
+- REQ-056: WHEN a supported client opens Express THE SYSTEM SHALL offer dialog navigation, bounded metadata input and review details while retaining chest cargo controls, signed-book reading and command fallbacks for unsupported clients.
+- REQ-057: IF a dialog callback is stale, repeated, expired, disconnected or no longer authorized THEN THE SYSTEM SHALL refuse its mutation and preserve cargo and payment ownership.
+- REQ-058: WHEN cosmetic mail notifications are configured THE SYSTEM SHALL support configurable message templates and an optional action-bar display without claiming control over the vanilla advancement heading.
+- REQ-059: THE SYSTEM SHALL verify the baseline distributable against a pinned final-version Paper 26.3 API alongside the existing supported runtime profiles and distinguish automated proof from native client acceptance.
 
 ## REQ-001 — Kotlin implementation
 
@@ -88,19 +134,19 @@ THE SYSTEM SHALL preserve the tested mail transitions while separating validatio
 
 ## REQ-022
 
-When a transaction commits successfully and restoring auto-commit fails, the plugin shall preserve the successful mail result while recovering or retiring the damaged connection.
+WHEN a transaction commits successfully and restoring auto-commit fails THE SYSTEM SHALL preserve the successful mail result while recovering or retiring the damaged connection.
 
 ## REQ-023
 
-When an acknowledgment fails after package delivery, the plugin shall retain a durable retry receipt and retry acknowledgment without restoring or redelivering the package.
+WHEN an acknowledgment fails after package delivery THE SYSTEM SHALL retain a durable retry receipt and retry acknowledgment without restoring or redelivering the package.
 
 ## REQ-024
 
-When an enabled CombatLogX implementation implements its published API through a non-public class, the plugin shall apply the published combat status safely.
+WHEN an enabled CombatLogX implementation implements its published API through a non-public class THE SYSTEM SHALL apply the published combat status safely.
 
 ## REQ-025
 
-When EnthusiaCurrency rejects postage for insufficient funds, the plugin shall display the currency balance without truncating fractional units or describing it as physical Raw Gold.
+WHEN EnthusiaCurrency rejects postage for insufficient funds THE SYSTEM SHALL display the currency balance without truncating fractional units or describing it as physical Raw Gold.
 
 ## REQ-026
 
@@ -201,3 +247,4 @@ WHEN a recipient is hidden from the sender by Paper visibility THE SYSTEM SHALL 
 ## REQ-050 — Event delivery API
 
 WHEN an integrating plugin (EnthusiaHolidays) requests an event delivery through the public `EventDelivery` service THE SYSTEM SHALL wrap the supplied items (1–27 non-empty stacks within the configured nesting limit) in one shulker-box package from the given display sender and store it for the recipient without postage, outstanding-mail limits or sender blocks. Event packages SHALL never be returned, expired or purged by retention, and SHALL be claimed through the normal mailbox with the existing claim/acknowledgment safety. A caller-supplied delivery token SHALL make retries idempotent: the same token always resolves to the first package without storing another, and a token reused for a different recipient SHALL be rejected. The service SHALL use only JDK and Bukkit types and SHALL be registered in Bukkit's ServicesManager.
+

@@ -22,6 +22,18 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class MailToastTest {
+  @Test void actionBarModeUsesConfiguredMessageWithoutNativeBindings() {
+    var plugin=mock(JavaPlugin.class);var config=new YamlConfiguration();
+    config.set("notifications.toast.mode","actionbar");
+    config.set("notifications.toast.single-message","You've got mail! {type} from {sender}");
+    when(plugin.getConfig()).thenReturn(config);
+    when(plugin.getLogger()).thenReturn(java.util.logging.Logger.getAnonymousLogger());
+    var player=mock(Player.class);when(player.isOnline()).thenReturn(true);
+    var renderer=new NativeMailToast(plugin);
+    renderer.accept(player,new MailNotification(1,"Alex",MailType.PACKAGE,1));
+    verify(player).sendActionBar(net.kyori.adventure.text.Component.text("You've got mail! Package from Alex"));
+    verify(player,never()).sendMessage(any(net.kyori.adventure.text.Component.class));
+  }
   @TempDir Path directory;
 
   @Test void nativeToastsCleanUpOnlyTheirConnectedSession() throws Exception {

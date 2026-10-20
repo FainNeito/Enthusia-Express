@@ -1,0 +1,7 @@
+gradle.projectsEvaluated {
+    rootProject.tasks.register('dialogProbeClasspath') {
+        doLast {
+            new File(rootProject.projectDir, 'build/dialog-probe-classpath.txt').text = rootProject.configurations.testRuntimeClasspath.asPath
+        }
+    }
+}

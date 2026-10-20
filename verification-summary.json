@@ -1,55 +1,473 @@
 {
-  "version": "1.2.1",
+  "schemaVersion": 2,
+  "version": "1.3.0-SNAPSHOT",
+  "status": "unmerged independently reviewed recovery candidate; published, native and hosted verification passed, uninstalled",
+  "verifiedAt": "2026-10-20T21:55:22.406465Z",
+  "baseCommit": "a650216c6e795f900988b05d788de68b9d4a9866",
+  "sourceBaselineCommit": "ddb27dc69a9efd5eaa1fa3c5c6e9a256411bd08f",
+  "testedInputSha256": null,
+  "gradle": "9.7.1",
+  "kotlin": "2.4.20",
   "java": 21,
-  "kotlin": "2.3.21",
-  "gradle": "9.1.0",
+  "sqliteJdbc": "3.51.3.0",
+  "localCommand": "gradlew.bat --offline --no-daemon --max-workers=1 \"-Dorg.gradle.jvmargs=-Xmx768m -XX:MaxMetaspaceSize=512m\" -Pkotlin.compiler.execution.strategy=in-process --init-script bounded-test-memory.gradle clean build",
+  "testEnvironment": "Paper1.21 API fixtures and real local SQLite; not a running Minecraft server",
   "testResults": {
     "1.21": {
-      "tests": 149,
-      "failures": 0,
-      "errors": 0,
-      "skipped": 0
-    },
-    "26.2": {
-      "tests": 149,
-      "failures": 0,
-      "errors": 0,
-      "skipped": 0
-    },
-    "26.3-pre-2": {
-      "tests": 149,
+      "tests": 285,
       "failures": 0,
       "errors": 0,
       "skipped": 0
     }
   },
-  "paperCompilationTargets": [
-    "1.21",
-    "1.21.1",
-    "1.21.3",
-    "1.21.4",
-    "1.21.5",
-    "1.21.6",
-    "1.21.7",
-    "1.21.8",
-    "1.21.9",
-    "1.21.10",
-    "1.21.11",
-    "26.2.build.123-stable",
-    "26.3-pre-2.build.0-alpha"
-  ],
-  "productionKotlinFiles": 34,
-  "jarSha256": "686ad3c17955ca6f09e816cc4d5a0f5f3eb28b1f8cc6261c8794e098b0525b38",
-  "liveServerTested": false,
-  "remoteChecks": "Verify checks on the final PR commit; local evidence does not establish remote status.",
-  "focusedDetektFindings": 0,
-  "sqliteJdbc": "3.51.3.0",
-  "stagingStatus": "Pending access to actual server, plugins, configuration and resource pack",
-  "testJavaVersions": {
-    "1.21": 21,
-    "26.2": 25,
-    "26.3-pre-2": 25
+  "earsPassed": true,
+  "spearToolTests": 12,
+  "independentSourceReview": {
+    "result": "Seven-file event-delivery recovery patch independently reviewed",
+    "scope": "Source review plus separately recorded native RED/GREEN/full-build evidence; no hosted approval, activation or actual-provider acceptance implied"
   },
-  "newerApiRuntimeArtifact": "Baseline shaded JAR (Java 21 bytecode)",
-  "final26_3Tested": false
+  "artifact": {
+    "name": "EnthusiaExpress-1.3.0-SNAPSHOT.jar",
+    "bytes": 16783743,
+    "sha256": "d0a20f4eb2c22ff13dd09ce2536f8f4ef76a62ff344eee4d1d80cd3b13b8bf5d",
+    "installed": false,
+    "sourceCommit": "e7bc6109e66a89c08f40c9e3aa6bbe48bb1322f1"
+  },
+  "jarSha256": "d0a20f4eb2c22ff13dd09ce2536f8f4ef76a62ff344eee4d1d80cd3b13b8bf5d",
+  "hostedVerification": {
+    "currentHead": "e7bc6109e66a89c08f40c9e3aa6bbe48bb1322f1",
+    "currentRun": 39505007021,
+    "currentResult": "success: all six jobs, baseline clean build and all eleven API compilation targets passed; exact 285-test XML count is from the separate native run",
+    "scope": "Exact e7bc610 commit; completed success confirmed by coordinator at the stated observation. Earlier ddb27dc results remain historical.",
+    "url": "https://github.com/FainNeito/Enthusia-Express/actions/runs/39505007021",
+    "observedAt": "2026-10-20T22:05:42Z",
+    "successfulJobs": 6,
+    "totalJobs": 6,
+    "codacy": {
+      "checkId": 118912063119,
+      "conclusion": "success",
+      "annotations": 0,
+      "sourceCommit": "e7bc6109e66a89c08f40c9e3aa6bbe48bb1322f1"
+    },
+    "testMergeCheckout": "05205843ac87c94b691029efbb05cf7e47077037",
+    "verifiedCheckoutTree": "0ac7f8076071f4b52c5ca4e27455224506288ee8",
+    "checkoutTreeMatchesSource": true
+  },
+  "liveClientTested": false,
+  "liveClientScope": "Recovery candidate e7bc610 and its sound profile remain unactivated. Installed c6afbcf7 Java uninterrupted timeout, per-page lifetime reset and legacy rendering passed; cosmetic four-cue audition is user-confirmed. Actual new-profile mail dispatch remains pending.",
+  "priorJavaAcceptance": {
+    "session": "01a0722f-a583-7823-9304-6b8865eb8cab",
+    "latestSummaryUtc": "2026-10-20T03:15:20Z",
+    "reference": "docs/museum-preview.md",
+    "scope": "Java artwork/pages/Close/sneak/combat and inventory preservation; earlier recipient/permission/mail QA retained"
+  },
+  "liveIntegrationAccepted": false,
+  "productionDeployed": false,
+  "releaseBlockers": [
+    "Fresh acknowledged scope/claim for Express profile activation and actual letter send/open and package send/claim acceptance; Market 654 restart authorization contains no Express JAR/config swap",
+    "SHARED-02 still lacks verified complete per-player restoration evidence. Market 664 reports expected Staff code-source identity/storage ACTIVE and successful completion of the owner-authorized single restart; this does not certify restoration snapshots or authorize every recipient workflow. The reviewed host request remains unsubmitted.",
+    "Joint Holidays event-package provider and real shulker serialization/delivery acceptance; PR 35 ba2fcf1 is source-compatible by independent review but draft and uninstalled",
+    "Appropriate canonical integration, merged source and release-network pin decisions for a broader release",
+    "Actual Bedrock navigation/rendering/restoration (deferred by current user instruction)"
+  ],
+  "readinessDocuments": [
+    "docs/roundtable-sound-profile-20261020.md",
+    "docs/roundtable-preview-readiness-20261020.md",
+    "docs/roundtable-release-readiness-20261020.md",
+    "docs/roundtable-java-acceptance-20261020.md"
+  ],
+  "historicalSnapshots": [
+    {
+      "label": "Pre-continuation verification record retained from49dec87; counts, artifacts and probe scope below are historical",
+      "summary": {
+        "spearToolTests": 12,
+        "baseCommit": "a650216c6e795f900988b05d788de68b9d4a9866",
+        "localServerProbe": {
+          "paper": "26.2.129",
+          "pass": true,
+          "scope": "Real dialog builders and plugin startup; synthetic Player; no client or provider interactions",
+          "run": "20261019T042649Z-3ac98eeb1c",
+          "marker": "EXPRESS_DIALOG_PROBE_PASS",
+          "sourceCommit": "19332f9f72e494de6b667b6489265da113701870"
+        },
+        "previewScope": "Owner-private illustrative simulation; hosted deployment succeeded; fresh browser/device QA unavailable",
+        "earsPassed": true,
+        "liveClientTested": false,
+        "previewUrl": "https://express-museum-dialogs-preview-20261018.awareyak.chatgpt.site",
+        "kotlin": "2.4.20",
+        "liveIntegrationAccepted": false,
+        "productionDeployed": false,
+        "testResults": {
+          "1.21": {
+            "skipped": 0,
+            "failures": 0,
+            "errors": 0,
+            "tests": 243
+          },
+          "26.3": {
+            "skipped": 0,
+            "failures": 0,
+            "errors": 0,
+            "tests": 243,
+            "scope": "Actual Java21 baseline shaded JAR on final API fixtures / Java25"
+          }
+        },
+        "remoteChecks": "Initial six API jobs passed. Final exact-head CI/Codacy status must be checked on PR12.",
+        "status": "unmerged local testing only",
+        "sqliteJdbc": "3.51.3.0",
+        "gradle": "9.7.1",
+        "paperCompilationTargets": [
+          "1.21",
+          "1.21.1",
+          "1.21.3",
+          "1.21.4",
+          "1.21.5",
+          "1.21.6",
+          "1.21.7",
+          "1.21.8",
+          "1.21.9",
+          "1.21.10",
+          "1.21.11"
+        ],
+        "releaseBlockers": [
+          "Canonical Tags PR26 maintainer merge",
+          "Reconcile applicable Tags fork and network pin; combined build",
+          "Real Java/Bedrock UI, provider and resource-pack staging acceptance"
+        ],
+        "final26_3Api": "26.3.build.205-stable",
+        "java": 21,
+        "version": "1.3.0-SNAPSHOT",
+        "jarSha256": "f51db8c287afa96e9d662db9f29532247e3a36fb773987d427e472ffa257b55b"
+      }
+    },
+    {
+      "label": "Verified ddb27dc sound candidate before TDD-073 recovery changes",
+      "summary": {
+        "verifiedAt": "2026-10-20T18:37:44.585462+00:00",
+        "testedInputSha256": "94666e227193ebbb44bfc119d4da6eba8e2e785c402a41bc1945f31bd35caf46",
+        "localCommand": "gradlew.bat --offline --no-daemon --max-workers=1 -Dorg.gradle.jvmargs=\"-Xmx768m -XX:MaxMetaspaceSize=512m\" -Pkotlin.compiler.execution.strategy=in-process --init-script <untracked bounded test-memory init> clean build",
+        "testResults": {
+          "1.21": {
+            "tests": 267,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        "earsPassed": true,
+        "spearToolTests": 12,
+        "independentSourceReview": {
+          "worker": "/root/express_scope_review",
+          "result": "No actionable defect in approved sound changes",
+          "scope": "Source review; no hosted approval or client acceptance implied"
+        },
+        "artifact": {
+          "name": "EnthusiaExpress-1.3.0-SNAPSHOT.jar",
+          "bytes": 16777084,
+          "sha256": "3bc3651c993515f3be8546bd9c98c5fc4051f04f1b4f1fe1e38f162604533d75",
+          "installed": false,
+          "sourceCommit": "ddb27dc69a9efd5eaa1fa3c5c6e9a256411bd08f"
+        },
+        "hostedVerification": {
+          "previousHead": "49dec87c2e03a1c28b27ae43df8bb66ee20ca5cc",
+          "previousRun": 39363284062,
+          "previousResult": "Codacy and six Paper/Java checks successful",
+          "currentHead": "ddb27dc69a9efd5eaa1fa3c5c6e9a256411bd08f",
+          "url": "https://github.com/FainNeito/Enthusia-Express/actions/runs/39476819886",
+          "currentRun": 39476819886,
+          "currentResult": "success; six Paper/Java jobs and eleven API compilation targets",
+          "scope": "Exact ddb27dc sound-candidate code commit; later documentation and prepared TDD-073 recovery patch require separate checks. These results do not verify that patch."
+        },
+        "sourceCommit": "ddb27dc69a9efd5eaa1fa3c5c6e9a256411bd08f",
+        "scope": "Historical sound candidate; not hosted or artifact verification of the later event-delivery recovery candidate"
+      }
+    }
+  ],
+  "evidenceUpdatedAt": "2026-10-20T22:08:42Z",
+  "runtimeCodeCommit": "e7bc6109e66a89c08f40c9e3aa6bbe48bb1322f1",
+  "installedPreview": {
+    "jarSha256": "c6afbcf7a4d5572834f9b8a639b833dfa3aef46fb610dfc14e7b115fa78d5197",
+    "exactRollbackRetained": true,
+    "scope": "Code-source-file fingerprint with stated cache limitations, retained deployment metadata and exact local binary"
+  },
+  "completedLiveEvidence": {
+    "javaTimeout": {
+      "status": "PASS",
+      "startedAt": "2026-10-20T19:46:43Z",
+      "submission": 81,
+      "visibleAtSeconds": 59.5,
+      "restoredBySeconds": 60.5,
+      "approximately20Tps": true,
+      "inventoryAndPersistedStateUnchanged": true,
+      "release": 418
+    },
+    "legacyPreview": {
+      "status": "PASS",
+      "startedAt": "2026-10-20T20:07:33Z",
+      "closedAt": "2026-10-20T20:08:16Z",
+      "submission": 66,
+      "mapId": 0,
+      "copies": 64,
+      "inventoryAndPersistedStateUnchanged": true,
+      "release": 465
+    },
+    "soundAudition": {
+      "status": "USER_CONFIRMED_PASS",
+      "startedAt": "2026-10-20T20:46:25Z",
+      "userStatement": "The sounds work",
+      "recording": false,
+      "actualMailWorkflow": false,
+      "inventoryAndPersistedStateUnchanged": true,
+      "release": 539,
+      "confirmationMessages": [
+        556,
+        557
+      ]
+    },
+    "javaPerPageLifetime": {
+      "status": "PASS",
+      "scope": "Installed Express c6afbcf7 Java per-page preview lifetime; no actual mail workflow or new candidate activation",
+      "evidenceReference": "Private review set: java-page-reset-evidence/JAVA-PAGE-RESET-ACCEPTANCE.json; Entity runtime/page-reset-20261020 checkpoints and video",
+      "submission": 81,
+      "commands": [
+        {
+          "at": "2026-10-20T21:21:30.342570+00:00",
+          "command": "/mail mapart preview 81 0"
+        },
+        {
+          "at": "2026-10-20T21:22:19.244501+00:00",
+          "command": "/mail mapart preview 81 1"
+        }
+      ],
+      "actualCommandGapSeconds": 48.901931,
+      "plannedCommandGapSeconds": 20,
+      "gapReason": "Separate visual inspection of typed commands; actual timing retained",
+      "firstCapturedPage0DisplayAt": "2026-10-20T21:21:30.750+00:00",
+      "page1VisibleTransitionBracket": {
+        "precedingChatFrameBegin": "2026-10-20T21:22:19.252+00:00",
+        "precedingChatFrameEnd": "2026-10-20T21:22:19.259+00:00",
+        "firstMapFrameBegin": "2026-10-20T21:22:19.752+00:00",
+        "firstMapFrameEnd": "2026-10-20T21:22:19.758+00:00",
+        "scope": "Captured visible transition, not the exact server display callback"
+      },
+      "pastOldDeadline": {
+        "capturedAt": "2026-10-20T21:22:56.576504+00:00",
+        "secondsAfterPage0Command": 86.233934,
+        "secondsAfterPage1Command": 37.332003
+      },
+      "latestMapVisible": {
+        "capturedAt": "2026-10-20T21:23:19.245158+00:00",
+        "secondsAfterPage1Command": 60.000657,
+        "evidence": "Retained checkpoint-new-60 record; the five-image review set uses the earlier new-59p5 image"
+      },
+      "firstCompassRestored": {
+        "capturedAt": "2026-10-20T21:23:19.745098+00:00",
+        "secondsAfterPage1Command": 60.500597
+      },
+      "stillRestoredAt": "2026-10-20T21:23:24.245077+00:00",
+      "noFurtherInputUntilExpiry": true,
+      "approximately20Tps": true,
+      "independentTickCount": false,
+      "timingScope": "Command-relative durations and first-display captures remain distinct. Observations are consistent with the 1200-tick implementation; no exact display-relative wall-clock deadline is established.",
+      "mainHandCompassRestored": true,
+      "distinctOffhandFixtureDemonstrated": false,
+      "video": {
+        "seconds": 110,
+        "frames": 220,
+        "framesPerSecond": 2,
+        "audio": false,
+        "microphoneCaptured": false,
+        "scope": "Covers page switch and old deadline only; separate checkpoints cover second-page expiry. Fixed-rate duration alone is not wall-clock timing proof."
+      },
+      "integrity": {
+        "inventory": true,
+        "selectedSlot": true,
+        "files": true,
+        "mail81": true,
+        "artwork81": true,
+        "tiles81": true
+      },
+      "selectedSlot": 0,
+      "inventoryAndPersistedStateUnchanged": true,
+      "integrityEvidenceScope": "Coordinator-recorded before/after comparisons; documentation review verified imported screenshot sizes/hashes but did not repeat runtime inventory/database reads.",
+      "claim": 600,
+      "release": 612,
+      "releasedAt": "2026-10-20T21:25Z",
+      "releaseTimePrecision": "minute",
+      "evidencePackagedAt": "2026-10-20T21:27:31.024831+00:00",
+      "evidencePackagingIsReleaseTime": false,
+      "actualMailWorkflow": false,
+      "newCandidateActivated": false,
+      "transientOverlay": "Suspicious Input; cause unverified"
+    }
+  },
+  "preparedSoundConfig": {
+    "applied": false,
+    "verifiedLeafCount": 12,
+    "changedLeafCount": 7,
+    "beforeSha256": "ec02f2c22ffa712fea3aeb134c9ac5463720fae63de084cfe97fd3e7c0ded298",
+    "afterSha256": "c87f0c3fa10977d938c63509bc911296ae831cae8b7438a0761c2d00b2a9ca6b"
+  },
+  "tagsComposition": {
+    "head": "a38a0c1ca961adbc86fae3de7601b7ee262bb852",
+    "run": 39482446400,
+    "result": "success",
+    "jarSha256": "e1e9cacac9d8a587bffdcc5a6b030220e164c337958ee3a0ec575e0e3c104c01",
+    "rendererCommit": "01fac426152737c76cd4d2e570e07a33dde99798",
+    "installed": false,
+    "merged": false
+  },
+  "currentTaskScope": {
+    "bedrock": "deferred by user",
+    "sourceReview": "TDD-073 / REQ-067 recovery patch independently reviewed, published at e7bc610 and verified by actual RED 20/10 behavioral failures, GREEN 30/0 and full native 285/0 plus EARS/12 helpers. Coordinator verification at 22:05:42 UTC confirms all six hosted jobs and eleven API compilation targets passed, with Codacy success/zero annotations. Actual-provider acceptance remains pending.",
+    "roundtableCompletion": "Required native completion flags cannot be set through the current API; IN_REVIEW alone does not imply unimplemented source. Native and hosted TDD-073 verification have completed; runtime acceptance gates remain separate."
+  },
+  "testResultsSourceCommit": "e7bc6109e66a89c08f40c9e3aa6bbe48bb1322f1",
+  "runtimeCodeCommitScope": "Published recovery candidate with native RED/GREEN and 285-test clean-build evidence plus all six hosted jobs, eleven API compilation targets and Codacy passing; remains uninstalled.",
+  "conditionalDeliveryRecovery": {
+    "task": "TDD-073",
+    "requirement": "REQ-067",
+    "inspectedSourceCommit": "ddb27dc69a9efd5eaa1fa3c5c6e9a256411bd08f",
+    "condition": "An earlier committed package with a lost reply, followed by restart and stricter container policy, can fail validation/packing before token lookup. Holidays classifies the root IllegalArgumentException as definitely not stored. The event insert also omits the configured package-payload byte limit.",
+    "runtimeIncidentObserved": false,
+    "previousScope": "Completed TDD-047 / REQ-050 work does not close the newly identified conditions.",
+    "preparedSourceTestFiles": 7,
+    "independentlyReviewed": true,
+    "preparedBehavior": "Serialized token reconciliation, private in-flight ownership and a payload bound applied only to new tokens. Matching stored tokens resolve the original mail ID; absent tokens preserve the original failure; unavailable lookup or recipient conflict remains uncertain.",
+    "publicApiAndSchemaChanged": false,
+    "testsFirstRedExecuted": true,
+    "greenExecuted": true,
+    "fullVerificationExecuted": true,
+    "published": true,
+    "verifiedArtifactAssigned": true,
+    "scope": "Independently reviewed and natively verified source patch. Historical ddb27dc hosted checks and installed-preview client acceptance remain separate from new-commit CI and activation.",
+    "candidateSourceCommit": "e7bc6109e66a89c08f40c9e3aa6bbe48bb1322f1",
+    "red": {
+      "productionSourceCommit": "ddb27dc69a9efd5eaa1fa3c5c6e9a256411bd08f",
+      "tests": 20,
+      "failures": 10,
+      "errors": 0,
+      "skipped": 0,
+      "failureType": "behavioral regression failures against unchanged production source"
+    },
+    "green": {
+      "tests": 30,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "fullCleanBuild": {
+      "completedAt": "2026-10-20T21:55:22.406465Z",
+      "tests": 285,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "earsPassed": true,
+      "spearHelperTestsPassed": 12
+    },
+    "artifactSha256": "d0a20f4eb2c22ff13dd09ce2536f8f4ef76a62ff344eee4d1d80cd3b13b8bf5d",
+    "hostedVerification": "success verified at 22:05:42 UTC: all six jobs and eleven API compilation targets passed; Codacy success with zero annotations"
+  },
+  "staffRecovery": {
+    "coordinationMessage": 641,
+    "status": "Market owner reports reviewed host-request draft complete and unsubmitted",
+    "reviewedCorrection": "Retain sessions with missing snapshots and separately bounded detached-session metadata under reviewed TEST/two-player scope",
+    "externalSubmissionConfirmed": false,
+    "recoveryClearance": false,
+    "loadedRuntimeProvenanceStillRequired": false,
+    "scope": "SHARED-02 remains technically unverified; this is distinct from the separately owner-authorized restart in Market 654.",
+    "loadedRuntimeEvidence": {
+      "coordinationMessage": 664,
+      "reportedBy": "Market coordinator",
+      "codeSourceSha256": "1ff09cc178dc458fa2521e2a5276d15f573b99b4461c663b0271c797e49627bf",
+      "storage": "ACTIVE",
+      "scope": "Post-startup code-source fingerprint and operational mode, not JVM bytecode attestation or complete restoration evidence"
+    },
+    "reviewedDraft": {
+      "bytes": 9559,
+      "sha256": "5009e34e28e14da54ee7b826bb7ac91c9ec7d31e1c8fd494254b753a566e72cc",
+      "localCopyVerified": true,
+      "submitted": false
+    },
+    "reviewRecord": {
+      "bytes": 5027,
+      "sha256": "64858417e2abefba280e95d912c156363874dc2a373f09ff6a6bf22dd40f5dbb",
+      "localCopyVerified": true
+    }
+  },
+  "holidaysIntegration": {
+    "pullRequest": 35,
+    "sourceCommit": "ba2fcf1471e5674e377b0df697f5dd87b63d20a6",
+    "independentSourceCompatibilityReview": "source-compatible",
+    "draft": true,
+    "installed": false,
+    "runtimeActivationConfirmed": false,
+    "canonicalIntegrationAccepted": false,
+    "jointProviderAcceptance": false,
+    "hostedVerification": {
+      "coordinationMessage": 657,
+      "reportedBy": "Holiday coordinator",
+      "reportedResult": "PASS: 327 tests in each of three Paper jobs and eleven API compilation targets",
+      "independentlyVerifiedInThisUpdate": false,
+      "runId": 39503538581,
+      "attempt": 1,
+      "completedAt": "2026-10-20T21:54:43Z",
+      "independentRunAndJobReview": "success: three jobs and eleven Paper compilation tasks plus verifyPaperCompatibility verified in logs",
+      "checkoutCommit": "59cf069ad25c93a335b4d14b641c2dee4dd3e17c",
+      "verifiedTree": "432007bc7f704eee26119b250ebef8922d518b7e",
+      "treeMatchesPrHead": true,
+      "testCountSource": "327 tests per profile is attributed to Holiday PR evidence; report ZIP unavailable to independent reviewer",
+      "independentlyRecountedXml": false
+    },
+    "previousIdentity": {
+      "coordinationMessage": 636,
+      "nextStartupReplacementCommit": "97fb5dc7fdb9a35a6f0af30bab3d5f39529c23ca",
+      "scope": "Historical next-startup staging report; not proof PR 35 is running"
+    },
+    "currentInstalledCandidate": {
+      "commit": "97fb5dc7fdb9a35a6f0af30bab3d5f39529c23ca",
+      "coordinationMessage": 664,
+      "reportedBy": "Market coordinator",
+      "jarSha256": "968bb78c225f76982023ba8335036fa05e915520f87b73ae89998a933b77b32f",
+      "includesPr35Fix": false
+    }
+  },
+  "testedInputSha256Scope": "No canonical source-archive SHA is claimed. The public evidence records 145 baseline inputs verified against Git blobs and final seven native input SHA-256 hashes verified against their published Git blobs. Earlier sound-candidate archive digest remains historical.",
+  "localCommandScope": "Coordinator-confirmed actual native clean-build invocation; the bounded init script remains private operational configuration.",
+  "sharedRestartDisposition": {
+    "coordinationMessage": 654,
+    "reportedBy": "Market coordinator",
+    "ownerInstruction": "Disregard the inventory issue and restart",
+    "authorizedAction": "One graceful TEST restart",
+    "windowUtc": "2026-10-20 21:59\u201322:11 UTC",
+    "soleExecutor": "Market",
+    "expressJarSwapIncluded": false,
+    "expressConfigSwapIncluded": false,
+    "completionClaimedHere": true,
+    "shared02TechnicallyResolved": false,
+    "scope": "Authorization for this bounded restart is recorded separately from unresolved recovery evidence. Fresh scope/claim is required for Express activation; actual recipient workflow acceptance retains its specific gate disposition.",
+    "completionEvidence": {
+      "coordinationMessage": 664,
+      "reportedBy": "Market coordinator",
+      "powerRequests": 1,
+      "serverDoneAt": "2026-10-20T22:02:33Z",
+      "releasedAt": "2026-10-20T22:05:18Z",
+      "expressCodeSourceSha256": "c6afbcf7a4d5572834f9b8a639b833dfa3aef46fb610dfc14e7b115fa78d5197"
+    }
+  },
+  "nativeComputeReservation": {
+    "status": "RELEASED",
+    "coordinationMessage": 659,
+    "releasedAt": "2026-10-20T22:01:38.827005+00:00",
+    "coordinatorReports": "No Gradle/Kotlin process remains; SPEAR idle",
+    "claim": 644
+  },
+  "nativeEvidence": "docs/evidence/event-delivery-recovery-20261020.json",
+  "sourceInputVerification": {
+    "baselineBuildInputsVerified": 145,
+    "finalSourceTestFilesVerified": 7,
+    "sourceTree": "0ac7f8076071f4b52c5ca4e27455224506288ee8",
+    "evidence": "docs/evidence/event-delivery-recovery-20261020.json",
+    "scope": "Coordinator-verified Git blobs and native-input SHA-256; no canonical source-archive digest supplied"
+  }
 }

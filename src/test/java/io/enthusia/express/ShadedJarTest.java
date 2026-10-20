@@ -22,7 +22,7 @@ class ShadedJarTest {
           new String(
               archive.getInputStream(archive.getJarEntry("plugin.yml")).readAllBytes(),
               java.nio.charset.StandardCharsets.UTF_8);
-      assertTrue(metadata.contains("version: '1.2.1'"));
+      assertTrue(metadata.contains("version: '1.3.0-SNAPSHOT'"));
       assertTrue(metadata.contains("api-version: '1.21'"));
       assertNotNull(archive.getJarEntry("org/sqlite/native/Windows/x86_64/sqlitejdbc.dll"));
       assertNotNull(archive.getJarEntry("org/sqlite/native/Linux/x86_64/libsqlitejdbc.so"));

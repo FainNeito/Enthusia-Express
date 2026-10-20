@@ -38,6 +38,10 @@ announcements:
   cooldown-seconds: 10
 notifications:
   toast:
+    # native keeps the client's advancement heading; actionbar and chat have no fixed heading.
+    mode: native
+    single-message: "{type} from {sender}"
+    group-message: "You've got mail!\n{count} items received"
     # Transient vanilla advancement toasts; no additional plugin required.
     # Uses native server bindings; incompatible bindings use chat fallback.
     # Single mail: sender/type. Multiple mail: total mail count (not items inside packages).
@@ -53,20 +57,20 @@ sounds:
   # Names must be namespaced; volume >= 0; pitch must be between 0.5 and 2.0.
   enabled: true
   package-send:
-    sound: "minecraft:block.note_block.pling"
-    volume: 1.0
+    sound: "minecraft:block.wooden_button.click_on"
+    volume: 0.6
     pitch: 1.0
   package-claim:
     sound: "minecraft:entity.item.pickup"
-    volume: 1.0
+    volume: 0.5
     pitch: 1.0
   letter-send:
-    sound: "minecraft:item.book.page_turn"
-    volume: 1.0
-    pitch: 1.0
+    sound: "minecraft:item.book.put"
+    volume: 0.6
+    pitch: 1.1
   letter-open:
     sound: "minecraft:item.book.page_turn"
-    volume: 1.0
+    volume: 0.5
     pitch: 1.0
 payments:
   # auto: use EnthusiaCurrency through Vault; use physical Raw Gold only when EnthusiaCurrency is absent.
@@ -74,9 +78,16 @@ payments:
   # enthusia-currency: require that provider. physical: always use inventory Raw Gold.
   provider: auto
 gui:
+  dialogs:
+    # Dialogs for modern Java clients; Cumulus forms for Floodgate clients.
+    # Missing APIs retain chest menus and clickable command input suggestions.
+    enabled: true
   nexo:
     # Opt-in. Nexo supplies assets and its resource pack; absent/unloaded items use vanilla icons.
     enabled: false
+    # Opt-in Post Office layouts. Install assets/nexo-postoffice and its profile first.
+    # Java players must have accepted the pack. Backend Floodgate clients retain forms/vanilla controls.
+    post-office: false
     # Nexo glyph/shift tags require its inventory-title packet formatting.
     # The mailbox appends Inbox or Sent Mail to this base title; category switches reuse the same inventory.
     titles:

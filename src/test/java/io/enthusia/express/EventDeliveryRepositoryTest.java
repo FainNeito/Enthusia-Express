@@ -1,12 +1,15 @@
 package io.enthusia.express;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 import io.enthusia.express.domain.*;
 import io.enthusia.express.infrastructure.db.MailRepository;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.*;
+import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.plugin.java.JavaPlugin;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -31,6 +34,60 @@ class EventDeliveryRepositoryTest {
 
   EventDeliveryRecord deliver(UUID to, UUID key) {
     return repository.insertEventPackage(to, "Recipient", "Secret Santa", payload, 3, key).join();
+  }
+
+  /** Use the same existing configuration lookup as the production repository. */
+  void reopenWithPayloadLimit(int bytes) {
+    repository.close();
+    JavaPlugin plugin = mock(JavaPlugin.class);
+    YamlConfiguration config = new YamlConfiguration();
+    config.set("mail.max-package-payload-bytes", bytes);
+    when(plugin.getConfig()).thenReturn(config);
+    repository = new MailRepository(plugin, directory.resolve("mail.db").toFile(), 5000);
+    repository.initialize().join();
+  }
+
+  /** Rejection must leave neither an undeliverable row nor a reserved delivery token. */
+  @Test
+  void oversizedNewEventPackageFailsBeforeStorage() {
+    CompletableFuture<EventDeliveryRecord> result = assertDoesNotThrow(() -> repository.insertEventPackage(
+        recipient, "Recipient", "Santa", new byte[262145], 1, token));
+    CompletionException failure = assertThrows(CompletionException.class, result::join);
+    assertTrue(failure.getCause() instanceof IllegalArgumentException);
+    assertTrue(repository.listInbox(recipient, MailType.PACKAGE).join().isEmpty());
+    assertTrue(deliver(recipient, token).created());
+    assertEquals(1, repository.listInbox(recipient, MailType.PACKAGE).join().size());
+  }
+
+  /** A custom mailbox limit accepts equality and rejects the next byte before insertion. */
+  @Test
+  void configuredPayloadLimitIsInclusiveForNewTokens() {
+    reopenWithPayloadLimit(1024);
+    EventDeliveryRecord accepted = repository.insertEventPackage(
+        recipient, "Recipient", "Santa", new byte[1024], 1, token).join();
+    assertTrue(accepted.created());
+    assertEquals(1024, repository.get(accepted.mailId()).join().payload().length);
+    CompletionException failure = assertThrows(CompletionException.class, () -> repository.insertEventPackage(
+        recipient, "Recipient", "Santa", new byte[1025], 1, UUID.randomUUID()).join());
+    assertTrue(failure.getCause() instanceof IllegalArgumentException);
+    assertEquals(1, repository.listInbox(recipient, MailType.PACKAGE).join().size());
+  }
+
+  /** A tighter later policy cannot turn a known durable token into a new rejection. */
+  @Test
+  void existingEventTokenSurvivesLoweredPayloadLimit() {
+    byte[] original = new byte[2048];
+    long id = repository.insertEventPackage(recipient, "Recipient", "Santa", original, 1, token).join().mailId();
+    reopenWithPayloadLimit(1024);
+    EventDeliveryRecord retry = repository.insertEventPackage(
+        recipient, "Recipient", "Santa", original, 1, token).join();
+    assertFalse(retry.created());
+    assertEquals(id, retry.mailId());
+    assertArrayEquals(original, repository.get(id).join().payload());
+    CompletionException failure = assertThrows(CompletionException.class, () -> repository.insertEventPackage(
+        recipient, "Recipient", "Santa", original, 1, UUID.randomUUID()).join());
+    assertTrue(failure.getCause() instanceof IllegalArgumentException);
+    assertEquals(1, repository.listInbox(recipient, MailType.PACKAGE).join().size());
   }
 
   /** A new token stores one unclaimed system package for the recipient. */
@@ -118,6 +175,7 @@ class EventDeliveryRepositoryTest {
     assertFalse(repository.claim(id, recipient).join());
     assertTrue(repository.confirmDelivery(id, recipient).join());
     assertEquals(MailStatus.CLAIMED, repository.get(id).join().status());
+    assertEquals(id, repository.findEventDelivery(recipient, token).join().getAsLong());
   }
 
   /** Invalid deliveries are rejected before storage. */

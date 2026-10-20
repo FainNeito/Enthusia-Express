@@ -16,12 +16,20 @@ interface EventDelivery {
     /**
      * Mails [items] (1–27 stacks) to [recipient] as one shulker-box package from
      * [senderName] — no postage, outstanding limits or sender blocks — that is never
-     * returned, expired or purged. Call on the server thread; the future completes
-     * off-thread with the package's mail id.
+     * returned, expired or purged. Call on the server thread. Completion can run
+     * off-thread and returns the durable package's mail id, including an earlier delivery.
      *
-     * [token] makes retries idempotent: the same token always resolves to the first
-     * package and never stores a second one; reusing it for a different recipient fails.
-     * The caller keeps ownership of [items] until the future completes successfully.
+     * Use one [token] and recipient for one ownership transfer. Overlapping calls in this
+     * service instance join the same operation; a different recipient fails conservatively.
+     * A saved token resolves to its original package even if retry validation now fails.
+     * Cancelling or completing a caller's future does not stop or settle the storage operation.
+     *
+     * The caller retains [items] until normal completion confirms ownership has transferred.
+     * An IllegalArgumentException means this submission was rejected and token lookup proved
+     * no matching stored delivery. Other failures, cancellation and timeouts leave ownership
+     * uncertain: retain the cargo and reconcile with the same token and recipient. The caller
+     * must persist that token and prevent independent sends or manual release across restart;
+     * the in-flight guard is local to this service instance and cannot coordinate other senders.
      */
     fun deliverPackage(recipient: UUID, recipientName: String, senderName: String,
                        items: List<ItemStack>, token: UUID): CompletableFuture<Long>

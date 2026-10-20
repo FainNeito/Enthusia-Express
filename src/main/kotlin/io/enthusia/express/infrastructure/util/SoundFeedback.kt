@@ -9,11 +9,16 @@ import org.bukkit.plugin.java.JavaPlugin
 
 /** Cosmetic configuration failures never interrupt persisted mail operations. */
 class SoundFeedback(private val plugin: JavaPlugin) {
-    enum class Cue(val key: String, val defaultSound: String) {
-        PACKAGE_SEND("package-send", "minecraft:block.note_block.pling"),
-        PACKAGE_CLAIM("package-claim", "minecraft:entity.item.pickup"),
-        LETTER_SEND("letter-send", "minecraft:item.book.page_turn"),
-        LETTER_OPEN("letter-open", "minecraft:item.book.page_turn")
+    enum class Cue(
+        val key: String,
+        val defaultSound: String,
+        val defaultVolume: Double,
+        val defaultPitch: Double
+    ) {
+        PACKAGE_SEND("package-send", "minecraft:block.wooden_button.click_on", 0.6, 1.0),
+        PACKAGE_CLAIM("package-claim", "minecraft:entity.item.pickup", 0.5, 1.0),
+        LETTER_SEND("letter-send", "minecraft:item.book.put", 0.6, 1.1),
+        LETTER_OPEN("letter-open", "minecraft:item.book.page_turn", 0.5, 1.0)
     }
 
     private val warned = HashSet<String>()
@@ -40,8 +45,8 @@ class SoundFeedback(private val plugin: JavaPlugin) {
         val path = "sounds.${cue.key}"
         val config = plugin.config
         val sound = (config.get("$path.sound", cue.defaultSound) as? String)?.lowercase(Locale.ROOT) ?: ""
-        val volume = (config.get("$path.volume", 1.0) as? Number)?.toDouble() ?: Double.NaN
-        val pitch = (config.get("$path.pitch", 1.0) as? Number)?.toDouble() ?: Double.NaN
+        val volume = (config.get("$path.volume", cue.defaultVolume) as? Number)?.toDouble() ?: Double.NaN
+        val pitch = (config.get("$path.pitch", cue.defaultPitch) as? Number)?.toDouble() ?: Double.NaN
         if (!sound.matches(Regex("[a-z0-9._-]+:[a-z0-9/._-]+")) || !validVolume(volume) || !validPitch(pitch)) {
             warnOnce(path, "Invalid sound configuration at $path; feedback disabled for it.")
             return null

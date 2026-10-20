@@ -1,4 +1,16 @@
-# Paper 26 compatibility
+# Current 1.3.0-SNAPSHOT verification
+
+The 2026-10-19 branch verification uses Gradle9.7.1/Kotlin2.4.20. Java21 baseline clean build, 243 tests and all eleven older API compilation targets pass. The same baseline JAR passes 243 tests on final Paper26.3.build.205-stable / Java25. CI retains 26.2 and prerelease profiles and adds the final target. These are API/runtime-fixture checks, not live 26.3 server or client acceptance. A separate fresh local Paper26.2.129 probe exercises real dialog builders only; Geyser/Floodgate, currency and resource-pack client acceptance remain pending. See VERIFICATION.md and museum-dialogs.md for current evidence.
+
+Reproduce final-target verification after copying the Java21 shaded JAR outside build/: `sh ./gradlew clean build -PpaperVersion=26.3 -PbaselineJar=/absolute/path/baseline.jar`.
+
+---
+
+## Historical September verification
+
+The remainder is retained historical evidence; it does not describe the current final-target status.
+
+## Paper 26 compatibility
 
 Verified API artifacts (2026-09-13):
 

@@ -50,11 +50,13 @@ class MailCommand @JvmOverloads constructor(
     private val books: BookMailService,
     private val main: MainThread,
     private val blocking: MailBlockService? = null,
+    private val museum: io.enthusia.express.infrastructure.gui.MuseumMenus? = null,
 ) : CommandExecutor, TabCompleter {
     val recipientNames = RecipientNames()
     private val resolving = HashSet<UUID>()
     /** Validate the player command context and dispatch one supported mail action. */
     override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<String>): Boolean {
+        if (sender is Player) museum?.dismissPreview(sender)
         if (sender !is Player) sender.sendMessage("Players only.")
         else if (validateAccess(sender)) dispatch(sender, args)
         return true
@@ -74,6 +76,7 @@ class MailCommand @JvmOverloads constructor(
 
     /** Route an authorized command to inbox, package, letter or announcement handling. */
     private fun dispatch(sender: Player, args: Array<String>) {
+        if(args.isEmpty() && museum!=null) { museum.home(sender);return }
         val subcommand = args.firstOrNull()?.lowercase(Locale.ROOT) ?: INBOX
         if (subcommand == INBOX) mailbox.open(sender, inboxType(args.getOrNull(1)))
         else if (subcommand == MAPART) mapart(sender, args)
@@ -88,6 +91,7 @@ class MailCommand @JvmOverloads constructor(
 
     /** Route museum submissions to their dedicated sender and manager menus. */
     private fun mapart(sender: Player, args: Array<String>) {
+        if(museum!=null) { museum.command(sender,args);return }
         when (args.getOrNull(1)?.lowercase(Locale.ROOT)) {
             "submit" -> {
                 if (!plugin.config.getBoolean("mapart.enabled", true)) {
@@ -165,7 +169,7 @@ class MailCommand @JvmOverloads constructor(
     private fun argumentSuggestions(sender: CommandSender, args: Array<String>): List<String> {
         if (args[0].lowercase(Locale.ROOT) in listOf(INBOX, SENT)) return listOf("packages", "letters", "announcements")
             .filter { it.startsWith(args[1], ignoreCase = true) }
-        if (args[0].equals(MAPART, true)) return listOf("submit", "inbox", "processed")
+        if (args[0].equals(MAPART, true)) return listOf("submit", "mine", "inbox", "processed", "search", "assigned", "unassigned", "view", "preview")
             .filter { it.startsWith(args[1], ignoreCase = true) }
         val action = SendAction.entries.firstOrNull { it.key.equals(args[0], true) } ?: return emptyList()
         if (!sender.hasPermission(action.permission)) return emptyList()

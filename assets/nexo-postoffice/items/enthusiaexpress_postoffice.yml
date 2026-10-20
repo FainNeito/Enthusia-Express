@@ -1,0 +1,6 @@
+ee_postoffice_blank:
+  material: PAPER
+  excludeFromInventory: true
+  Pack:
+    parent_model: item/generated
+    texture: enthusiaexpress:postoffice/blank

@@ -1,0 +1,147 @@
+{
+  "repository": "https://github.com/FainNeito/Enthusia-Pack",
+  "commit": "6ff2abd3060228e0a94fd6e25173a48158d9392e",
+  "notice": "IDs and hashes only. Licensed icon artwork remains in the private pack; no redistribution here.",
+  "icons": {
+    "package": {
+      "id": "lg_vault",
+      "definition": "java/nexo/items/lg_economy.yml",
+      "texture": "lumaguilds:enthusia/vault",
+      "sha256": "85b6b8ec9691df47abb43842fe4fd1880072a63af3b74d997acf7e398db6fe80",
+      "dimensions": [
+        16,
+        16
+      ]
+    },
+    "letter": {
+      "id": "lg_requests_out",
+      "definition": "java/nexo/items/lg_enthusia_gui.yml",
+      "texture": "lumaguilds:enthusia/requests_out",
+      "sha256": "735b21063c2798e34acec92ec9543a6c9746f269a3beffc8de77f2cde2c8fd89",
+      "dimensions": [
+        16,
+        16
+      ]
+    },
+    "announcement": {
+      "id": "lg_nav_quests",
+      "definition": "java/nexo/items/lg_enthusia_gui.yml",
+      "texture": "lumaguilds:enthusia/quests",
+      "sha256": "e9513aa21054804131b04ab759549bd2ed0cb70aba806ee8f7829e4bd4810ae1",
+      "dimensions": [
+        16,
+        16
+      ]
+    },
+    "read": {
+      "id": "lg_requests_out_empty",
+      "definition": "java/nexo/items/lg_enthusia_gui.yml",
+      "texture": "lumaguilds:enthusia/requests_out_empty",
+      "sha256": "2e051df5b52561e77ec1f77df9439ffaf9db3071d53e9e020489785b4c5dc171",
+      "dimensions": [
+        16,
+        16
+      ]
+    },
+    "sent": {
+      "id": "lg_requests_in",
+      "definition": "java/nexo/items/lg_enthusia_gui.yml",
+      "texture": "lumaguilds:enthusia/requests_in",
+      "sha256": "4431efde0087436f9bbd8e9328b39aace436dea114ab422cea11a8437e23d350",
+      "dimensions": [
+        16,
+        16
+      ]
+    },
+    "map": {
+      "id": "lg_exploration",
+      "definition": "java/nexo/items/lg_enthusia_gui.yml",
+      "texture": "lumaguilds:enthusia/src_exploration",
+      "sha256": "5840d74f623fe5eacfd41f64b416fc976c886b344ae38434bfcad18792404f4f",
+      "dimensions": [
+        16,
+        16
+      ]
+    },
+    "museum": {
+      "id": "lg_exploration",
+      "definition": "java/nexo/items/lg_enthusia_gui.yml",
+      "texture": "lumaguilds:enthusia/src_exploration",
+      "sha256": "5840d74f623fe5eacfd41f64b416fc976c886b344ae38434bfcad18792404f4f",
+      "dimensions": [
+        16,
+        16
+      ]
+    },
+    "settings": {
+      "id": "lg_nav_settings",
+      "definition": "java/nexo/items/lg_nav.yml",
+      "texture": "lumaguilds:enthusia/settings",
+      "sha256": "889ed43c2a68ae6a6194e8999ef499faeede2b6089e5cc9981a1c901deeff61f",
+      "dimensions": [
+        16,
+        16
+      ]
+    },
+    "refresh": {
+      "id": "lg_stats_refresh",
+      "definition": "java/nexo/items/lg_enthusia_gui.yml",
+      "texture": "lumaguilds:enthusia/stats_refresh",
+      "sha256": "d2c2f67257a5b4e077ecc91851ad3d2595ad0a954b29e1b8cc3fe7f1f736d351",
+      "dimensions": [
+        16,
+        16
+      ]
+    },
+    "seal": {
+      "id": "lg_nav_info",
+      "definition": "java/nexo/items/lg_nav.yml",
+      "texture": "lumaguilds:enthusia/guild_info",
+      "sha256": "d707df3ff9d6dcfa13ad6ce4d4c11fe40adb0365c926862787eaffd2d8d2e81a",
+      "dimensions": [
+        16,
+        16
+      ]
+    },
+    "check": {
+      "id": "lg_confirm",
+      "definition": "java/nexo/items/lg_ui.yml",
+      "texture": "lumaguilds:enthusia/confirm",
+      "sha256": "ae58796252c5c97952e038519741388fd924da32a70fba007e9ad67f8863a8c9",
+      "dimensions": [
+        16,
+        16
+      ]
+    },
+    "close": {
+      "id": "lg_close",
+      "definition": "java/nexo/items/lg_ui.yml",
+      "texture": "lumaguilds:enthusia/close",
+      "sha256": "992b45c320927f2618736b7e6f4761ed7c20a67e47c9e7fd749ea4d7a6ce0083",
+      "dimensions": [
+        16,
+        16
+      ]
+    },
+    "back": {
+      "id": "lg_page_prev",
+      "definition": "java/nexo/items/lg_status.yml",
+      "texture": "lumaguilds:enthusia/prev",
+      "sha256": "e85eae3b5536eb09cae93fbf4e508db9d6b47401b9a1e28dfdc4e1345a2ac722",
+      "dimensions": [
+        16,
+        16
+      ]
+    },
+    "next": {
+      "id": "lg_page_next",
+      "definition": "java/nexo/items/lg_status.yml",
+      "texture": "lumaguilds:enthusia/next",
+      "sha256": "6c0b3f8ba5d9a2a18f0d8ddd673ae66eee8fa503a2f45f3d86b91f449f14880b",
+      "dimensions": [
+        16,
+        16
+      ]
+    }
+  }
+}

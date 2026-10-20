@@ -1,0 +1,189 @@
+@file:Suppress("CommentOverPrivateFunction")
+
+package io.enthusia.express.infrastructure.gui
+
+import io.enthusia.express.application.MailStore
+import io.enthusia.express.domain.MailType
+import io.enthusia.express.domain.MuseumFilter
+import io.enthusia.express.infrastructure.hook.CombatLogXHook
+import io.enthusia.express.infrastructure.util.MainThread
+import org.bukkit.Bukkit
+import org.bukkit.entity.Player
+import org.bukkit.event.Listener
+import org.bukkit.inventory.Inventory
+import org.bukkit.plugin.java.JavaPlugin
+import java.util.UUID
+
+/** Inventory/dialog presentation over the same repository and recoverable shipping/claim paths. */
+class MuseumMenus(
+    private val plugin: JavaPlugin,
+    private val store: MailStore,
+    private val main: MainThread,
+    private val combat: CombatLogXHook,
+    private val shipping: ShippingService,
+    private val mailbox: MailboxService,
+) {
+    private val requests = HashMap<UUID, UUID>()
+    private val preview = MuseumPreview(plugin) { allowed(it) }
+    private val previewEvents = MuseumPreviewEvents(preview) { requests.remove(it) }
+    val previewListener: Listener get() = previewEvents
+    val previewInteractionListener: Listener get() = previewEvents.interactions
+    private val view = MuseumView(plugin, { allowed(it) }, { requests.remove(it) })
+    internal val filters = MuseumFilters(view) { player, command -> run(player, command) }
+    private val input = MuseumInput(plugin, store, main, shipping, view) { allowed(it) }
+    private val commands = MuseumCommands(this, input, store, main, { player, manager -> allowed(player, manager) }, view)
+    val listener: Listener get() = view
+
+    private fun allowed(
+        player: Player,
+        manager: Boolean = false,
+    ): Boolean =
+        plugin.isEnabled && player.isOnline &&
+            Bukkit.getPlayer(player.uniqueId) === player && !player.isDead && player.hasPermission(USE_PERMISSION) &&
+            (!manager || player.hasPermission(MANAGE_PERMISSION)) && combat.mayUseMail(player)
+
+    fun home(player: Player) {
+        dismissPreview(player)
+        if (!allowed(player)) return
+        val choices =
+            listOf(
+                MenuChoice("Packages") { mailbox.open(player, MailType.PACKAGE) },
+                MenuChoice("Letters") { mailbox.open(player, MailType.LETTER) },
+                MenuChoice("Announcements") { mailbox.open(player, MailType.ANNOUNCEMENT) },
+                MenuChoice("Sent mail") { mailbox.openSent(player, MailType.PACKAGE) },
+                MenuChoice("Mail settings & help") { run(player, "mail mapart settings") },
+                MenuChoice("Submit museum artwork") { run(player, "mail mapart submit") },
+                MenuChoice("My submissions") { run(player, "mail mapart mine") },
+            ) +
+                if (player.hasPermission(MANAGE_PERMISSION)) {
+                    listOf(
+                        MenuChoice("Curator queue") {
+                            run(player, "mail mapart queue")
+                        },
+                    )
+                } else {
+                    emptyList()
+                }
+        view.navigation(player, "Enthusia Express", "Choose a mailbox or museum service. Packages still use your inventory.", choices, "home")
+    }
+
+    fun command(player: Player, args: Array<String>): Boolean {
+        dismissPreview(player)
+        return commands.command(player, args)
+    }
+
+    fun dismissPreview(player: Player) {
+        requests.remove(player.uniqueId)
+        preview.close(player)
+    }
+
+    @Suppress("LabeledExpression") // A delayed lookup cannot display another actor's artwork or replace newer navigation.
+    internal fun preview(player: Player, id: Long, page: Int) {
+        if (!allowed(player) || page !in 0..1023) return
+        val request = UUID.randomUUID()
+        requests[player.uniqueId] = request
+        val inventory = player.openInventory.topInventory
+        main.complete(store.artwork(id)) { entry, error ->
+            if (!allowed(player) || requests[player.uniqueId] != request || player.openInventory.topInventory !== inventory) return@complete
+            requests.remove(player.uniqueId)
+            if (error != null || entry == null || !canViewMuseum(player, entry)) {
+                player.sendMessage("§cArtwork is unavailable.")
+                return@complete
+            }
+            preview.show(player, entry, page)
+        }
+    }
+
+    @Suppress("LabeledExpression") // Ignore stale/unauthorized asynchronous results before presenting anything.
+    fun browse(
+        player: Player,
+        filter: MuseumFilter,
+        page: Int = 0,
+    ) {
+        dismissPreview(player)
+        if (!allowed(player)) return
+        val scoped = if (player.hasPermission(MANAGE_PERMISSION)) filter else filter.copy(owner = player.uniqueId)
+        val request = UUID.randomUUID()
+        requests[player.uniqueId] = request
+        main.complete(store.listArtwork(page, scoped)) { entries, error ->
+            if (!allowed(player) || requests[player.uniqueId] != request) return@complete
+            if (error != null || entries == null) {
+                player.sendMessage("§cMuseum records could not be loaded.")
+                return@complete
+            }
+            val actions = museumPageChoices(entries, scoped, page) { run(player, it) }
+            view.navigation(
+                player,
+                if (scoped.owner != null) "My museum submissions" else "Museum curator queue",
+                "Page ${page + 1} · ${entries.size} entries. ${if (entries.isEmpty()) "No matching artwork." else "Choose an artwork for credit, map IDs and review history."}",
+                actions,
+                "catalog",
+            )
+        }
+    }
+
+    @Suppress("LabeledExpression") // Ignore stale/unauthorized asynchronous results before presenting anything.
+    fun detail(
+        player: Player,
+        id: Long,
+    ) {
+        dismissPreview(player)
+        if (!allowed(player)) return
+        val request = UUID.randomUUID()
+        requests[player.uniqueId] = request
+        main.complete(store.artwork(id)) { entry, error ->
+            if (!allowed(player) || requests[player.uniqueId] != request) return@complete
+            if (error != null || entry == null || !canViewMuseum(player, entry)) {
+                player.sendMessage("§cArtwork is unavailable.")
+                return@complete
+            }
+            val choices = museumDetailChoices(player, entry, { run(player, it) }) {
+                if (allowed(player, true)) mailbox.claimMuseum(player, id)
+            }
+            view.show(player, entry.details.title, museumDetailText(entry), emptyList(), choices)
+        }
+    }
+
+    @Suppress("LabeledExpression") // Ignore stale/unauthorized asynchronous results before presenting anything.
+    internal fun manifest(
+        player: Player,
+        id: Long,
+        page: Int,
+    ) {
+        if (!allowed(player) || page !in 0..1000) return
+        main.complete(store.artwork(id)) { entry, error ->
+            if (!allowed(player)) return@complete
+            if (error != null || entry == null || !canViewMuseum(player, entry)) return@complete
+            val maps = entry.tiles.entries.toList()
+            val start = page * 20
+            val choices = mutableListOf(MenuChoice("Artwork details") { run(player, "mail mapart view $id") })
+            if (page > 0) choices.add(MenuChoice("Previous maps") { run(player, "mail mapart maps $id ${page - 1}") })
+            if (start + 20 < maps.size) choices.add(MenuChoice("More maps") { run(player, "mail mapart maps $id ${page + 1}") })
+            view.show(
+                player,
+                "Artwork map manifest",
+                "Page ${page + 1}\n" + 
+                    if (maps.isEmpty()) "Legacy tile IDs were not indexed. Use Preview artwork to inspect the retained maps."
+                    else maps.drop(start).take(20).joinToString("\n") {
+                        "Map ${it.key}: ${it.value} copies"
+                    },
+                emptyList(),
+                choices,
+            )
+        }
+    }
+
+    fun shutdown() {
+        preview.shutdown()
+        view.shutdown()
+        requests.clear()
+    }
+
+    private fun run(
+        player: Player,
+        command: String,
+    ) {
+        if (allowed(player)) player.performCommand(command)
+    }
+
+}

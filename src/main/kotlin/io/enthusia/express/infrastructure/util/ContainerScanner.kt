@@ -10,6 +10,26 @@ import org.bukkit.inventory.meta.BlockStateMeta
 import org.bukkit.inventory.meta.BundleMeta
 
 object ContainerScanner {
+    /** Snapshot every actual map ID and stack quantity without changing the submitted container. */
+    @JvmStatic
+    fun mapartManifest(stack: ItemStack, maxDepth: Int): Map<Int,Int> {
+        require(countMapartItems(stack,maxDepth)>0)
+        val pending=ArrayDeque<Pair<ItemStack,Int>>()
+        pending.add(stack to 0)
+        val maps=mutableMapOf<Int,Int>()
+        var visited=0
+        while(pending.isNotEmpty()) {
+            require(++visited<=8192)
+            val (item,depth)=pending.removeLast()
+            if(item.type.isAir) continue
+            if(item.type==org.bukkit.Material.FILLED_MAP) {
+                val id=(item.itemMeta as? org.bukkit.inventory.meta.MapMeta)?.mapView?.id
+                    ?: throw IllegalArgumentException("Every map must have a valid world map ID")
+                maps[id]=Math.addExact(maps[id] ?: 0,item.amount)
+            } else contents(item,depth,maxOf(1,maxDepth)).forEachRemaining { child -> if(child!=null) pending.add(child to depth+1) }
+        }
+        return maps.toMap()
+    }
     /** Validate museum cargo without unpacking or rewriting the original payload. */
     @JvmStatic
     fun countMapartItems(stack: ItemStack?, maxDepth: Int): Int {
