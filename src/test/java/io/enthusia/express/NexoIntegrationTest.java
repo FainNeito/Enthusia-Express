@@ -6,6 +6,7 @@ import static org.mockito.Mockito.*;
 
 import io.enthusia.express.infrastructure.gui.GuiTheme;
 import io.enthusia.express.infrastructure.gui.NexoItemSource;
+import io.enthusia.express.infrastructure.gui.NexoGlyphSource;
 import io.enthusia.express.infrastructure.gui.ReflectiveNexoItems;
 import java.util.logging.Logger;
 import org.bukkit.Bukkit;
@@ -18,6 +19,71 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.junit.jupiter.api.Test;
 
 public class NexoIntegrationTest {
+  @Test void selectedSharedIconGlintsOnlyOnTheViewerCopy() {
+    try(var bukkit=mockStatic(Bukkit.class)) {
+      JavaPlugin plugin=configuredPlugin();Plugin nexo=install(bukkit);
+      plugin.getConfig().set("gui.nexo.post-office",true);
+      plugin.getConfig().set("gui.nexo.icons.chrome.blank","ee_blank");
+      plugin.getConfig().set("gui.nexo.icons.mailbox.packages-selected","lg_vault");
+      var player=mock(org.bukkit.entity.Player.class);when(player.hasResourcePack()).thenReturn(true);
+      var source=mock(NexoItemSource.class);
+      var template=mock(ItemStack.class);var copy=mock(ItemStack.class);
+      var meta=mock(org.bukkit.inventory.meta.ItemMeta.class);
+      when(template.getType()).thenReturn(mock(Material.class));when(template.clone()).thenReturn(copy);
+      when(copy.getItemMeta()).thenReturn(meta);
+      when(source.build(eq(nexo),anyString())).thenReturn(template);
+      var glyphs=mock(NexoGlyphSource.class);
+      when(glyphs.component(eq(nexo),anyString())).thenReturn(net.kyori.adventure.text.Component.empty());
+      var theme=new GuiTheme(plugin,source,player,glyphs);
+      assertSame(copy,theme.item("mailbox.packages-selected",Material.CHEST));
+      verify(meta).setEnchantmentGlintOverride(true);
+      verify(template,never()).setItemMeta(any());
+      clearInvocations(meta);
+      theme.item("mailbox.packages",Material.CHEST);
+      verify(meta,never()).setEnchantmentGlintOverride(any());
+    }
+  }
+
+  /** A title glyph is never sent to a viewer who has not loaded the Java pack. */
+  @Test void declinedPackKeepsVanillaTitleAndControls() {
+    try (var bukkit=mockStatic(Bukkit.class);
+         var items=mockConstruction(ItemStack.class,(item,context)->
+             when(item.getType()).thenReturn((Material)context.arguments().getFirst()))) {
+      JavaPlugin plugin=configuredPlugin();install(bukkit);
+      plugin.getConfig().set("gui.nexo.post-office",true);
+      plugin.getConfig().set("gui.nexo.titles.home","<shift:-8><glyph:ee_postoffice_home>");
+      var source=mock(NexoItemSource.class);
+      var player=mock(org.bukkit.entity.Player.class);
+      var theme=new GuiTheme(plugin,source).forViewer(player);
+      assertFalse(theme.getPostOffice());
+      assertEquals("Enthusia Express",theme.title("home","Enthusia Express"));
+      assertEquals(Material.CHEST,theme.item("mailbox.packages",Material.CHEST).getType());
+      verifyNoInteractions(source);
+    }
+  }
+
+  /** Navigation needs the transparent hit-target asset as well as an accepted pack. */
+  @Test void acceptedPackAndLoadedChromeEnableOnlyTheOptInProfile() {
+    try(var bukkit=mockStatic(Bukkit.class)) {
+      JavaPlugin plugin=configuredPlugin();Plugin nexo=install(bukkit);
+      plugin.getConfig().set("gui.nexo.post-office",true);
+      plugin.getConfig().set("gui.nexo.icons.chrome.blank","ee_blank");
+      var player=mock(org.bukkit.entity.Player.class);when(player.hasResourcePack()).thenReturn(true);
+      var source=mock(NexoItemSource.class);
+      var template=mock(ItemStack.class);when(template.getType()).thenReturn(mock(Material.class));
+      when(source.build(nexo,"ee_blank")).thenReturn(template);
+      var glyphs=mock(NexoGlyphSource.class);
+      when(glyphs.component(eq(nexo),anyString())).thenReturn(net.kyori.adventure.text.Component.empty());
+      assertTrue(new GuiTheme(plugin,source,player,glyphs).getPostOffice());
+      when(glyphs.component(nexo,"ee_postoffice_shipping")).thenReturn(null);
+      assertFalse(new GuiTheme(plugin,source,player,glyphs).getPostOffice());
+      when(glyphs.component(eq(nexo),anyString())).thenReturn(net.kyori.adventure.text.Component.empty());
+      when(source.build(nexo,"ee_blank")).thenReturn(null);
+      assertFalse(new GuiTheme(plugin,source,player,glyphs).getPostOffice());
+      plugin.getConfig().set("gui.nexo.post-office",false);
+      assertFalse(new GuiTheme(plugin,source,player,glyphs).getPostOffice());
+    }
+  }
   /** Custom icons are copies, so GUI metadata changes cannot mutate the Nexo registry template. */
   @Test
   void customIconsAreClonedAndResolvedAgainAfterReload() {

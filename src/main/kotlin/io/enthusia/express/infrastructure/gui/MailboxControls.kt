@@ -25,9 +25,9 @@ object MailboxControls {
 
     /** Build the fixed header, quiet context strip and bottom toolbar. */
     fun render(inventory: Inventory, type: MailType, page: Int, sent: Boolean, theme: GuiTheme) {
-        fill(inventory, 0..8, Material.BLACK_STAINED_GLASS_PANE)
-        fill(inventory, 9..17, Material.GRAY_STAINED_GLASS_PANE)
-        fill(inventory, 45..53, Material.BLACK_STAINED_GLASS_PANE)
+        fill(inventory, 0..8, Material.BLACK_STAINED_GLASS_PANE, theme)
+        fill(inventory, 9..17, Material.GRAY_STAINED_GLASS_PANE, theme)
+        fill(inventory, 45..53, Material.BLACK_STAINED_GLASS_PANE, theme)
         val location = if (sent) "Sent Mail" else "Inbox"
         inventory.setItem(1, category(Material.CHEST, "Packages", type == MailType.PACKAGE, theme))
         inventory.setItem(4, category(Material.WRITABLE_BOOK, "Letters", type == MailType.LETTER, theme))
@@ -54,7 +54,7 @@ object MailboxControls {
         inventory.setItem(13, summary(state.copy(loading = false), theme))
         if (state.count == MAIL_PAGE_SIZE) inventory.setItem(NEXT_SLOT,
             item(theme, "mailbox.next", Material.ARROW, "§eNext Page", listOf("§7Go to page ${state.page + 2}.")))
-        else inventory.setItem(NEXT_SLOT, quiet(Material.BLACK_STAINED_GLASS_PANE))
+        else inventory.setItem(NEXT_SLOT, theme.quiet(Material.BLACK_STAINED_GLASS_PANE))
     }
     /** Place a centered empty-state card in the content area instead of sending chat noise. */
     fun emptyState(inventory: Inventory, type: MailType, page: Int, sent: Boolean) {
@@ -90,11 +90,9 @@ object MailboxControls {
             MailType.ANNOUNCEMENT -> Material.BELL
         }, "§6$name", lore)
     }
-    private fun fill(inventory: Inventory, range: IntRange, material: Material) {
-        for (slot in range) inventory.setItem(slot, quiet(material))
+    private fun fill(inventory: Inventory, range: IntRange, material: Material, theme: GuiTheme) {
+        for (slot in range) inventory.setItem(slot, theme.quiet(material))
     }
-
-    private fun quiet(material: Material): ItemStack = plain(material, " ")
 
     private fun item(theme: GuiTheme, key: String, material: Material, name: String,
                      lore: List<String> = emptyList()): ItemStack {

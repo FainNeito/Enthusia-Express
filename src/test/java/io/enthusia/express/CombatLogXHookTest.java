@@ -172,7 +172,7 @@ class CombatLogXHookTest {
               new InputStreamReader(stream, StandardCharsets.UTF_8));
       assertDoesNotThrow(() -> ConfigValidation.validate(shipped));
       assertEquals(
-          "minecraft:block.note_block.pling",
+          "minecraft:block.wooden_button.click_on",
           shipped.getString("sounds.package-send.sound"));
     }
     config.set("notifications.join-mail.enabled", "yes");

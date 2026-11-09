@@ -1,22 +1,23 @@
-# Enthusia Express 1.2.1
+# Enthusia Express 1.3.0-SNAPSHOT
 
-Version 1.2.1 fixes reentrant shipping duplication and durable claim restoration, adds resource limits, and updates SQLite. Read the [production safety and staging guide](docs/production-safety.md) before upgrading. Live integration acceptance is required before production deployment.
+This unmerged testing version adds a reviewed museum catalog, artist submissions and updates, hybrid dialog/form navigation with chest fallbacks, and configurable cosmetic mail messages. Read the [museum workflow and acceptance guide](docs/museum-dialogs.md) and [production safety and staging guide](docs/production-safety.md). Live integration and client acceptance remain required before deployment.
 
-A Kotlin plugin targeting Paper 1.21.x on Java 21, with Paper 26.2 / Java 25 compatibility verification and experimental 26.3 prerelease checks. Packages and letters go to offline players; administrators can publish announcements to online or offline players.
+A Kotlin plugin targeting Paper 1.21.x on Java 21, with pinned Paper 26.2 and final 26.3 API verification on Java 25. Packages and letters go to offline players; administrators can publish announcements to online or offline players.
 
 ## Commands
 
 | Command | Behavior | Permission (in addition to `enthusiaexpress.use`) |
 | --- | --- | --- |
-| `/mail` or `/mail inbox [packages\|letters\|announcements]` | Open the mailbox. Arrows change pages; tabs change categories. | `enthusiaexpress.inbox` |
+| `/mail` | Open Express navigation; each service retains its own permission checks. | `enthusiaexpress.use` |
+| `/mail inbox [packages\|letters\|announcements]` | Open the mailbox. Arrows change pages; tabs change categories. | `enthusiaexpress.inbox` |
 | `/mail sent [packages\|letters\|announcements]` | View your sent history, recipients, dates and status. Sent books open without changing the recipient's unread state. | `enthusiaexpress.sent` |
 | `/mail send <player>` | Open a shipping inventory for a known offline player. Put one packed shulker box or bundle in the center and confirm. | `enthusiaexpress.packages.send` |
 | Click a package | Claim it into an empty inventory slot. | `enthusiaexpress.packages.claim` |
 | `/mail letter <player>` | Send a copy of the signed book in your main hand to a known offline player. | `enthusiaexpress.letters.send` |
 | `/mail announce <player>` | Send a signed-book announcement to one known player, including online players. | `enthusiaexpress.admin.announce` |
 | `/mail announce all` | Send an announcement to a snapshot of all known players, including those currently online. | `enthusiaexpress.admin.announce` |
-| `/mail mapart submit` | Submit filled maps, or a shulker box/bundle containing only filled maps, to the shared museum intake. | `enthusiaexpress.mapart.submit` |
-| `/mail mapart inbox` or `/mail mapart processed` | Claim museum submissions and view or mark delivered maps processed. | `enthusiaexpress.mapart.manage` |
+| `/mail mapart submit` | Enter artwork credit/dimensions, then deposit filled maps or packed mapart for museum review. | `enthusiaexpress.mapart.submit` |
+| `/mail mapart inbox` or `/mail mapart processed` | Review the curator queue or displayed catalog; accept, collect and mark displayed separately. | `enthusiaexpress.mapart.manage` |
 
 Write and sign a book with Minecraft's normal book editor, hold it in your main hand, then send it. The original remains yours; text mail has no item fee. Click a letter or announcement to open the book. Reading clears its unread flag, and it can be read again until text retention expires. In either the Letters or Announcements inbox, click **Mark All Text Read** to clear all unread letters and announcements across every page; packages are unaffected. Broadcast unread state is independent for every recipient. Future first-time players are not included in past broadcasts. `all` is reserved as the broadcast target.
 
@@ -24,7 +25,7 @@ The general use, inbox, package and letter permissions default to everyone. Anno
 
 The selected category is marked in green with an arrow and a Selected tooltip. The compact Inbox/Sent indicator shows the page number; a separate button switches between received and sent mail without reopening the window. History cannot be used to claim packages. It includes retained expired metadata, but expired content cannot be reopened. Existing returned packages whose original destination was overwritten before this upgrade show an unknown recipient. New sends preserve the destination through returns. The `enthusiaexpress.sent` permission defaults to everyone.
 
-Museum intake is separate from personal mail and has no automatic return/expiration. Any authorized manager can claim a submission once; delivery must be acknowledged before it can be marked processed. `mapart.enabled` pauses new submissions, and `mapart.raw-gold-postage` sets the fee per submission. The configured payment route supports EnthusiaCurrency's combined bank and inventory balance.
+Museum intake is separate from personal mail and has no automatic return/expiration. After acceptance, any authorized manager can claim a submission once; delivery must be acknowledged before it can be marked displayed. Owners can use `/mail mapart mine` to follow reviews and correct requested metadata. `mapart.enabled` pauses new submissions, and `mapart.raw-gold-postage` sets the fee per submission. The configured payment route supports EnthusiaCurrency's combined bank and inventory balance.
 
 `notifications.toast.enabled` enables transient native advancement toasts for pending mail on join and new arrivals. Single arrivals identify the sender and mail type; grouped arrivals show a total mail count. `notifications.toast.chat-fallback` controls chat fallback when native server bindings are incompatible. The vanilla advancement heading is controlled by the client; a custom mail-only heading and Bedrock toast parity are not implemented or verified.
 
@@ -37,7 +38,7 @@ sh ./gradlew clean build
 sh ./gradlew verifyPaperCompatibility
 ```
 
-On Windows, use `gradlew.bat`. Install **`build/libs/EnthusiaExpress-1.2.1.jar`**, the shaded JAR. The `-plain.jar` is not the installable artifact. Kotlin standard library, SQLite and its native libraries are included; Paper, Vault and CombatLogX are not bundled.
+On Windows, use `gradlew.bat`. Install **`build/libs/EnthusiaExpress-1.3.0-SNAPSHOT.jar`**, the shaded JAR. The `-plain.jar` is not the installable artifact. Kotlin standard library, SQLite and its native libraries are included; Paper, Vault and CombatLogX are not bundled.
 
 The default compile API is Paper 1.21, with Java bytecode level 21. To run the tests with a later API classpath:
 
@@ -51,12 +52,12 @@ For Java 25 verification, install both JDK 21 and JDK 25. The target automatical
 
 ```sh
 sh ./gradlew clean build
-cp build/libs/EnthusiaExpress-1.2.1.jar /tmp/enthusia-baseline.jar
+cp build/libs/EnthusiaExpress-1.3.0-SNAPSHOT.jar /tmp/enthusia-baseline.jar
 sh ./gradlew clean build -PpaperVersion=26.2 -PbaselineJar=/tmp/enthusia-baseline.jar
 sh ./gradlew clean build -PpaperVersion=26.3-pre-2 -PbaselineJar=/tmp/enthusia-baseline.jar
 ```
 
-`26.2` pins API `26.2.build.123-stable`; `26.3-pre-2` pins `26.3-pre-2.build.0-alpha`. There is no final 26.3 verification target yet. Newer-API build outputs carry a `-verify-<target>` classifier and are not the universal distribution. The descriptor remains `api-version: '1.21'`, the minimum supported API. See [version compatibility and staging limits](docs/paper-26-compatibility.md).
+`26.2` pins API `26.2.build.123-stable`; `26.3-pre-2` pins `26.3-pre-2.build.0-alpha`. `26.3` pins the final API `26.3.build.205-stable`. Newer-API build outputs carry a `-verify-<target>` classifier and are not the universal distribution. The descriptor remains `api-version: '1.21'`, the minimum supported API. See [version compatibility and staging limits](docs/paper-26-compatibility.md).
 
 ## Installation and configuration
 
@@ -116,7 +117,7 @@ A claimed package retains its sending allowance until inventory delivery is ackn
 
 ## Pull request checks
 
-GitHub Actions runs Java 21 builds and tests on Paper API classpaths 1.21, 1.21.8 and 1.21.11, plus compilation against all eleven 1.21 APIs. Separate Java 25 jobs compile against pinned Paper 26.2 and 26.3-pre-2 APIs and run the tests against the baseline JAR. The prerelease job does not establish support for final 26.3. The successful baseline job publishes a testing JAR; every job publishes available test reports. CodeRabbit and Codacy remain separate review services. Local success does not imply their remote checks have finished.
+GitHub Actions runs Java 21 builds and tests on Paper API classpaths 1.21, 1.21.8 and 1.21.11, plus compilation against all eleven 1.21 APIs. Separate Java 25 jobs compile against pinned Paper 26.2, final 26.3 and 26.3-pre-2 APIs and run the tests against the baseline JAR. Final 26.3 is a separate pinned API job; live/client acceptance is still required. The successful baseline job publishes a testing JAR; every job publishes available test reports. CodeRabbit and Codacy remain separate review services. Local success does not imply their remote checks have finished.
 
 Player-name suggestions use online players to avoid scanning offline player files during typing. Fully typed names use Paper's cached lookup first, then resolve a missing UUID on a scheduler worker. The result must still belong to a player who has joined this server, and the sender session is rechecked before opening mail.
 

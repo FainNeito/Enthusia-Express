@@ -1,0 +1,554 @@
+{
+  "schema": 1,
+  "task": "TDD-073",
+  "requirement": "REQ-067",
+  "baseline_commit": "ddb27dc69a9efd5eaa1fa3c5c6e9a256411bd08f",
+  "source_commit": "e7bc6109e66a89c08f40c9e3aa6bbe48bb1322f1",
+  "source_tree": "0ac7f8076071f4b52c5ca4e27455224506288ee8",
+  "scope": "Isolated native Java 21 / Paper 1.21 provider build; not live TEST acceptance.",
+  "baseline_build_inputs_verified": 145,
+  "toolchain": {
+    "java": "21.0.8",
+    "gradle": "9.7.1",
+    "workers": 1,
+    "gradle_heap_mib": 768,
+    "test_heap_mib": 256,
+    "offline": true
+  },
+  "phases": {
+    "red": {
+      "state": "behavioral_red",
+      "started_at": "2026-10-20T21:47:51.329134+00:00",
+      "completed_at": "2026-10-20T21:50:31.394708+00:00",
+      "exit_code": 1,
+      "totals": {
+        "tests": 20,
+        "failures": 10,
+        "errors": 0,
+        "skipped": 0
+      },
+      "suites": [
+        {
+          "name": "io.enthusia.express.EventDeliveryRecoveryTest",
+          "tests": 9,
+          "failures": 7,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.EventDeliveryRepositoryTest",
+          "tests": 11,
+          "failures": 3,
+          "errors": 0,
+          "skipped": 0
+        }
+      ],
+      "failures": [
+        {
+          "class": "io.enthusia.express.EventDeliveryRecoveryTest",
+          "name": "rejectingRetryObservesEarlierQueuedCommit()",
+          "type": "org.opentest4j.AssertionFailedError"
+        },
+        {
+          "class": "io.enthusia.express.EventDeliveryRecoveryTest",
+          "name": "overlappingCallersCannotCancelOrCompleteInternalDelivery()",
+          "type": "org.mockito.exceptions.verification.TooManyActualInvocations"
+        },
+        {
+          "class": "io.enthusia.express.EventDeliveryRecoveryTest",
+          "name": "storedTokenSurvivesChangedInvalidMetadata()",
+          "type": "java.util.concurrent.CompletionException"
+        },
+        {
+          "class": "io.enthusia.express.EventDeliveryRecoveryTest",
+          "name": "committedTokenSurvivesUnknownReplyRestartAndChangedPackingPolicy()",
+          "type": "java.util.concurrent.CompletionException"
+        },
+        {
+          "class": "io.enthusia.express.EventDeliveryRecoveryTest",
+          "name": "closedLookupNeverDowngradesUncertaintyToPackingRejection()",
+          "type": "org.opentest4j.AssertionFailedError"
+        },
+        {
+          "class": "io.enthusia.express.EventDeliveryRecoveryTest",
+          "name": "storedTokenConflictKeepsOriginalDeliveryHeld()",
+          "type": "org.opentest4j.AssertionFailedError"
+        },
+        {
+          "class": "io.enthusia.express.EventDeliveryRecoveryTest",
+          "name": "overlappingRecipientConflictDoesNotDisturbOwner()",
+          "type": "org.opentest4j.AssertionFailedError"
+        },
+        {
+          "class": "io.enthusia.express.EventDeliveryRepositoryTest",
+          "name": "oversizedNewEventPackageFailsBeforeStorage()",
+          "type": "org.opentest4j.AssertionFailedError"
+        },
+        {
+          "class": "io.enthusia.express.EventDeliveryRepositoryTest",
+          "name": "existingEventTokenSurvivesLoweredPayloadLimit()",
+          "type": "org.opentest4j.AssertionFailedError"
+        },
+        {
+          "class": "io.enthusia.express.EventDeliveryRepositoryTest",
+          "name": "configuredPayloadLimitIsInclusiveForNewTokens()",
+          "type": "org.opentest4j.AssertionFailedError"
+        }
+      ]
+    },
+    "green": {
+      "state": "passed",
+      "started_at": "2026-10-20T21:51:46.152368+00:00",
+      "completed_at": "2026-10-20T21:52:40.538192+00:00",
+      "exit_code": 0,
+      "totals": {
+        "tests": 30,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "suites": [
+        {
+          "name": "io.enthusia.express.EventDeliveryRecoveryTest",
+          "tests": 9,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.EventDeliveryRepositoryTest",
+          "tests": 11,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.EventDeliveryServiceTest",
+          "tests": 10,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      ],
+      "failures": []
+    },
+    "refine": {
+      "state": "passed",
+      "started_at": "2026-10-20T21:53:42.103405+00:00",
+      "completed_at": "2026-10-20T21:55:22.406465+00:00",
+      "exit_code": 0,
+      "totals": {
+        "tests": 285,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "suites": [
+        {
+          "name": "io.enthusia.express.application.MailBlockApiTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.architecture.LayerRulesTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.BookMailServiceTest",
+          "tests": 11,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.ClaimReservationTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.CombatLogXHookTest",
+          "tests": 9,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.CurrencyShippingTest",
+          "tests": 20,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.DeliveryAcknowledgmentsTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.DialogReflectionTest",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.DialogSessionTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.EnthusiaCurrencyMovementLocksTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.EventDeliveryRecoveryTest",
+          "tests": 9,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.EventDeliveryRepositoryTest",
+          "tests": 11,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.EventDeliveryServiceTest",
+          "tests": 10,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.InventorySafetyTest",
+          "tests": 11,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.KotlinMigrationTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.MailBlockServiceTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.MailboxServiceTest",
+          "tests": 35,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.MailCommandTest",
+          "tests": 7,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.MailRepositoryTest",
+          "tests": 27,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.MailToastTest",
+          "tests": 7,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.MainThreadTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.MapartCargoTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.MapartPostageTest",
+          "tests": 6,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.MapartRepositoryTest",
+          "tests": 8,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.MuseumMenusTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.MuseumPreviewTest",
+          "tests": 13,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.MuseumWorkflowTest",
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.NativeToastIconTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.NexoIntegrationTest",
+          "tests": 6,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.NonRecursiveBytecodeTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.NotificationAndSoundTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.PostOfficeAssetsTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.PostOfficeLayoutTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.ProductionSafetyTest",
+          "tests": 7,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.SentMailDisplayTest",
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.ShadedJarTest",
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.ShippingPlaceholderTest",
+          "tests": 8,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.ShippingRecoveryTest",
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.ShippingServiceTest",
+          "tests": 20,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        {
+          "name": "io.enthusia.express.TransactionRecoveryTest",
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      ],
+      "failures": []
+    }
+  },
+  "helpers": {
+    "ears": "passed",
+    "spear_helper_tests": 12,
+    "result": "passed",
+    "completed_at": "2026-10-20T21:53:35.413870+00:00"
+  },
+  "artifacts": [
+    {
+      "name": "EnthusiaExpress-1.3.0-SNAPSHOT-plain.jar",
+      "bytes": 460889,
+      "sha256": "35606000b93d4d267fc4e1d182ef61f73c3d3a7a7a127e3257009ea6347d6c13"
+    },
+    {
+      "name": "EnthusiaExpress-1.3.0-SNAPSHOT.jar",
+      "bytes": 16783743,
+      "sha256": "d0a20f4eb2c22ff13dd09ce2536f8f4ef76a62ff344eee4d1d80cd3b13b8bf5d"
+    }
+  ],
+  "source_files": [
+    {
+      "path": "src/main/kotlin/io/enthusia/express/api/EventDelivery.kt",
+      "git_blob_sha": "b21d668d03ab7c91733545e049d515ba6e37ad6f",
+      "native_input_sha256": "6ccb29ae1948a4ecb9985c40f2419ee3b2f60cdb0371f8c5ebeac2fc2cdc08f8"
+    },
+    {
+      "path": "src/main/kotlin/io/enthusia/express/application/MailStore.kt",
+      "git_blob_sha": "6fd72765632e5a252ed21f0d45b5f98526fff602",
+      "native_input_sha256": "f9bbdba1e7d620cbd79a29ba3cd9efd44570fff761f20c493ad1f11a699f668c"
+    },
+    {
+      "path": "src/main/kotlin/io/enthusia/express/infrastructure/api/EventDeliveryService.kt",
+      "git_blob_sha": "84c1fd8fc4f47e59d24107c25bab5c4c8e418a83",
+      "native_input_sha256": "929a0a042e9349db70d8e53422739e7e93a42805936721a36ce44ec849488e39"
+    },
+    {
+      "path": "src/main/kotlin/io/enthusia/express/infrastructure/db/MailRepository.kt",
+      "git_blob_sha": "79e69f47320895f3596fc8e3f52e950ca48d2883",
+      "native_input_sha256": "e10f9cd19aebe652635def27aca4f5bed0e82a87a5828b050f627786910539f5"
+    },
+    {
+      "path": "src/test/java/io/enthusia/express/EventDeliveryRepositoryTest.java",
+      "git_blob_sha": "63c088e3989ab8de3f94fa09e4786fbb8125ba2d",
+      "native_input_sha256": "d11196e6baa6517a87a900af015f772829bc7f7a80719ec4659d7b9ad28fb3c7"
+    },
+    {
+      "path": "src/test/java/io/enthusia/express/EventDeliveryServiceTest.java",
+      "git_blob_sha": "e364a1eff0e0b090f11cea64d69934340843849a",
+      "native_input_sha256": "ad1a1379f0135f401c7ba97ac1ff6385196f1b0faec8d4de2a7153ac70d3d90d"
+    },
+    {
+      "path": "src/test/java/io/enthusia/express/EventDeliveryRecoveryTest.java",
+      "git_blob_sha": "c5801a05bf79fc2bbf86452925cf4026c5b2dcc8",
+      "native_input_sha256": "e9773e4b340d293ca3b3d782d9317d8ada2ecc5dcccdfdb0931625d84727473e"
+    }
+  ],
+  "roundtable": {
+    "native_compute_claim": 644,
+    "explicit_release": 659,
+    "released_at": "2026-10-20T22:01:38.827005+00:00"
+  },
+  "spear_phase": "idle",
+  "candidate_installed": false,
+  "hosted_checks": {
+    "commit": "e7bc6109e66a89c08f40c9e3aa6bbe48bb1322f1",
+    "run_id": 39505007021,
+    "status": "completed",
+    "conclusion": "success",
+    "verified_at": "2026-10-20T22:05:42Z",
+    "jobs": [
+      {
+        "id": 118911621864,
+        "name": "Paper 1.21.11 / Java 21",
+        "conclusion": "success"
+      },
+      {
+        "id": 118911622095,
+        "name": "Paper 1.21 / Java 21",
+        "conclusion": "success"
+      },
+      {
+        "id": 118911622096,
+        "name": "Paper 26.3-pre-2 / Java 25",
+        "conclusion": "success"
+      },
+      {
+        "id": 118911622240,
+        "name": "Paper 26.2 / Java 25",
+        "conclusion": "success"
+      },
+      {
+        "id": 118911622280,
+        "name": "Paper 1.21.8 / Java 21",
+        "conclusion": "success"
+      },
+      {
+        "id": 118911622658,
+        "name": "Paper 26.3 / Java 25",
+        "conclusion": "success"
+      }
+    ],
+    "supported_paper_api_targets": 11,
+    "codacy": {
+      "check_id": 118912063119,
+      "conclusion": "success",
+      "annotations": 0
+    },
+    "url": "https://github.com/FainNeito/Enthusia-Express/actions/runs/39505007021",
+    "test_merge_checkout": "05205843ac87c94b691029efbb05cf7e47077037",
+    "verified_checkout_tree": "0ac7f8076071f4b52c5ca4e27455224506288ee8",
+    "checkout_tree_matches_source": true,
+    "completed_at": "2026-10-20T22:05:13Z",
+    "testing_artifact": {
+      "id": 12302593526,
+      "name": "EnthusiaExpress-testing-jar",
+      "zip_sha256": "d0186b25c855173f1bc69a8375069a3434e5bca4eeb7af516f212ef28bcac111",
+      "contained_jar_independently_rehashed": false
+    }
+  },
+  "remaining": [
+    "Combined final Express/Holidays restart and unknown-confirmation recovery acceptance",
+    "Controlled TEST activation and actual letter/package sound workflows"
+  ],
+  "bedrock": "deferred_by_user"
+}

@@ -44,6 +44,7 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
     private val movementLocks: MovementLocks = MovementLocks.NOOP,
 ) {
     private val theme = GuiTheme(plugin)
+    var museumDetails: ((Player,Long) -> Unit)? = null
     private val sessions = HashMap<UUID, Session>()
     private val claiming = HashSet<UUID>()
     private val loading = HashSet<UUID>()
@@ -51,7 +52,7 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
     private var stopping = false
 
     private class Session(val inventory: Inventory, val type: MailType, val page: Int, val sent: Boolean,
-                          val mapart: Boolean = false, val processed: Boolean = false) {
+                          val mapart: Boolean = false, val processed: Boolean = false, val skin: GuiTheme) {
         val records = HashMap<Int, MailRecord>()
         var loaded = false
     }
@@ -70,6 +71,17 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
     /** Any permission holder can access the shared intake and processed-history views. */
     fun openMapart(player: Player, processed: Boolean = false) { openMapartPage(player, 0, processed) }
 
+    /** Claim only an explicitly selected eligible artwork; never interpret a repeated collect as display approval. */
+    fun claimMuseum(player: Player,id: Long) {
+        if(!managerAccess(player) || player.uniqueId in claiming) return
+        openMapartPage(player,0,false)
+        val session=sessions[player.uniqueId] ?: return
+        claiming.add(player.uniqueId)
+        main.complete(repository.getMapart(id)) { entry,error ->
+            completeLookup(player,session,entry?.mail,error)
+        }
+    }
+
     private fun managerAccess(player: Player): Boolean {
         return player.hasPermission("enthusiaexpress.mapart.manage") &&
             !stopping && player.isOnline && !player.isDead && player.hasPermission("enthusiaexpress.use") &&
@@ -83,7 +95,7 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
         }
         if (page !in 0..1_000_000) return
         val inv = Bukkit.createInventory(null, 54, if (processed) "§6Mapart • Processed" else "§6Mapart • Intake")
-        val session = Session(inv, MailType.PACKAGE, page, false, true, processed)
+        val session = Session(inv, MailType.PACKAGE, page, false, true, processed, theme.forViewer(player))
         sessions[player.uniqueId] = session
         player.openInventory(inv)
         requested[player.uniqueId] = player to session
@@ -91,8 +103,9 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
     }
 
     /** Keep the current mailbox location visible even when no control is hovered. */
-    private fun mailboxTitle(sent: Boolean): String {
-        val base = theme.title("mailbox", "§6Enthusia Express")
+    private fun mailboxTitle(sent: Boolean, skin: GuiTheme): String {
+        val base = skin.title(if (skin.postOffice && sent) "sent" else "mailbox", "§6Enthusia Express")
+        if (skin.postOffice) return base
         return base + " §8• §f" + if (sent) "Sent Mail" else "Inbox"
     }
 
@@ -104,14 +117,15 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
         }
         if (page < 0 || page > 1_000_000) return
         val current = sessions[player.uniqueId]
+        val skin = theme.forViewer(player)
         val existing = current?.inventory?.takeIf {
-            !current.mapart && current.sent == sent && player.openInventory.topInventory === it
+            !current.mapart && current.sent == sent && current.skin.postOffice == skin.postOffice && player.openInventory.topInventory === it
         }
-        val inv = existing ?: Bukkit.createInventory(null, 54, mailboxTitle(sent))
+        val inv = existing ?: Bukkit.createInventory(null, 54, mailboxTitle(sent, skin))
         if (existing != null) inv.clear()
-        val session = Session(inv, type, page, sent)
+        val session = Session(inv, type, page, sent, skin = skin)
         sessions[player.uniqueId] = session
-        MailboxControls.render(inv, type, page, sent, theme)
+        MailboxControls.render(inv, type, page, sent, skin)
         if (existing == null) player.openInventory(inv)
         requested[player.uniqueId] = player to session
         loadPendingPages()
@@ -199,13 +213,13 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
         val inboxRecords = checkNotNull(records)
         var slot = MailboxControls.CONTENT_START
         for (record in inboxRecords) {
-            val item = mailIcon(record)
+            val item = mailIcon(record, session.skin)
             inv.setItem(slot, item)
             session.records[slot++] = record
         }
         session.loaded = true
         MailboxControls.renderLoaded(inv, MailboxControls.SummaryState(session.type, session.page, false,
-            inboxRecords.size, inboxRecords.count { it.unread }, false), theme)
+            inboxRecords.size, inboxRecords.count { it.unread }, false), session.skin)
         if (inboxRecords.isEmpty()) MailboxControls.emptyState(inv, session.type, session.page, sent = false)
     }
 
@@ -219,24 +233,27 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
         val entries = checkNotNull(records).filter { it.mail.sender == player.uniqueId }
         entries.forEachIndexed { index, entry ->
             val slot = MailboxControls.CONTENT_START + index
-            session.inventory.setItem(slot, SentMailDisplay.icon(entry))
+            session.inventory.setItem(slot, SentMailDisplay.icon(entry, session.skin))
             session.records[slot] = entry.mail
         }
         session.loaded = true
         MailboxControls.renderLoaded(session.inventory, MailboxControls.SummaryState(session.type, session.page, true,
-            entries.size, 0, false), theme)
+            entries.size, 0, false), session.skin)
         if (entries.isEmpty()) MailboxControls.emptyState(session.inventory, session.type, session.page, sent = true)
     }
 
     /** Create a readable mail card without decoding persisted payloads on the main thread. */
     @Suppress("TooGenericExceptionCaught")
-    private fun mailIcon(record: MailRecord): ItemStack = try {
+    private fun mailIcon(record: MailRecord, skin: GuiTheme): ItemStack = try {
         val material = when (record.type) {
             MailType.PACKAGE -> Material.CHEST
             MailType.LETTER -> Material.WRITTEN_BOOK
             MailType.ANNOUNCEMENT -> Material.BELL
         }
-        val item = theme.item("mailbox.entry." + record.type.name.lowercase(Locale.ROOT), material)
+        val key = "mailbox.entry." + record.type.name.lowercase(Locale.ROOT)
+        val readKey = "$key-read"
+        val selectedKey = if (!record.unread && !plugin.config.getString("gui.nexo.icons.$readKey").isNullOrBlank()) readKey else key
+        val item = skin.item(selectedKey, material)
         val meta = item.itemMeta!!
         val label = when (record.type) {
             MailType.PACKAGE -> "Package from ${record.senderName}"
@@ -322,6 +339,7 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
         if (!markAsRead && navigate(player, session, slot)) return
         val visible = session.records[slot] ?: return
         if (session.mapart) {
+            if(museumDetails!=null) { museumDetails?.invoke(player,visible.id);return }
             if (session.processed || !claiming.add(player.uniqueId)) return
             main.complete(repository.getMapart(visible.id)) { entry, error ->
                 completeMapartLookup(player, session, entry, error)
@@ -459,7 +477,7 @@ class MailboxService @JvmOverloads @Suppress("LongParameterList") constructor(
             }
             return true
         }
-        when (slot) {
+        when (if (session.skin.postOffice) PostOfficeLayout.categorySlot(slot) else slot) {
             1 -> { openPage(player, MailType.PACKAGE, 0, session.sent) }
             4 -> { openPage(player, MailType.LETTER, 0, session.sent) }
             7 -> { openPage(player, MailType.ANNOUNCEMENT, 0, session.sent) }

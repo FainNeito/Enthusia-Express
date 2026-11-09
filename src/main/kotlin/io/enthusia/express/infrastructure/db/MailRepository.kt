@@ -42,12 +42,14 @@ class MailRepository(
     private val PAGE_COLUMNS = "id,sender_uuid,sender_name,recipient_uuid,recipient_name,type,status," +
         "X'' AS payload,packed_item_count,created_at,updated_at,unread,return_delivery,claim_generation," +
         "delivery_pending,original_recipient_name"
+    private val maxPackagePayloadBytes = plugin?.config?.getInt("mail.max-package-payload-bytes", 262144) ?: 262144
     private val executor = ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS,
         ArrayBlockingQueue<Runnable>(plugin?.config?.getInt("database.max-queued-operations", 256) ?: 256),
         { runnable -> Thread(runnable, "EnthusiaExpress-SQLite").apply { isDaemon = true } },
         ThreadPoolExecutor.AbortPolicy())
     private val logger = plugin?.logger ?: java.util.logging.Logger.getLogger(MailRepository::class.java.name)
     private lateinit var connection: Connection
+    private val museum = MuseumCatalog { connection }
     private var closed = false
 
     /** Create or migrate storage before accepting asynchronous mail operations. */
@@ -119,6 +121,7 @@ class MailRepository(
                     "original_recipient_name='${MapartQueue.NAME}' WHERE status='UNCLAIMED' AND delivery_pending=0" +
                     " AND id IN (SELECT mail_id FROM mapart_submissions)")
             }
+            museum.initialize()
         }
     }
 
@@ -157,7 +160,72 @@ class MailRepository(
                         ps.setLong(5, System.currentTimeMillis())
                         ps.executeUpdate()
                     }
+                    museum.insert(id, io.enthusia.express.domain.MuseumDetails.legacy(mapName,senderName),
+                        if(mapId == null) emptyMap() else mapOf(mapId to 1), io.enthusia.express.domain.MuseumState.ACCEPTED)
                     id
+                }
+            }
+        }
+    }
+
+    override fun submitArtwork(sender: UUID, senderName: String, payload: ByteArray,
+        details: io.enthusia.express.domain.MuseumDetails, tiles: Map<Int,Int>, token: UUID, duplicateOverride: Boolean): CompletableFuture<Long> {
+        require(payload.isNotEmpty() && payload.size <= 1048576 && tiles.isNotEmpty() && tiles.size <= 1024)
+        require(tiles.all { (id,copies) -> id >= 0 && copies in 1..1024 } && tiles.values.sum() == details.width * details.height)
+        val bytes=payload.copyOf(); val manifest=tiles.toMap()
+        return supply { inTransaction {
+            val old=connection.prepareStatement("SELECT s.mail_id,m.sender_uuid FROM mapart_submissions s JOIN mail m ON m.id=s.mail_id WHERE s.token=?").use { ps ->
+                ps.setString(1,token.toString());ps.executeQuery().use { rs -> if(rs.next()) rs.getLong(1) to rs.getString(2) else null }
+            }
+            if(old!=null) { require(old.second==sender.toString()) { "Submission token belongs to another sender" }; old.first }
+            else {
+                val duplicates=museum.duplicates(manifest.keys)
+                if(duplicates.isNotEmpty() && !duplicateOverride) throw io.enthusia.express.domain.DuplicateMuseumMaps(duplicates)
+                val id=insert(InsertData(sender,senderName,MapartQueue.ID,MapartQueue.NAME,MailType.PACKAGE,bytes,manifest.values.sum(),false),false)
+                connection.prepareStatement("INSERT INTO mapart_submissions(mail_id,token,map_id,map_name,submitted_at) VALUES(?,?,?,?,?)").use { ps ->
+                    ps.setLong(1,id);ps.setString(2,token.toString());ps.setInt(3,manifest.keys.first());ps.setString(4,details.title);ps.setLong(5,System.currentTimeMillis());ps.executeUpdate()
+                }
+                museum.insert(id,details,manifest,io.enthusia.express.domain.MuseumState.AWAITING_REVIEW)
+                id
+            }
+        } }
+    }
+
+    override fun listArtwork(page: Int, filter: io.enthusia.express.domain.MuseumFilter) = supply {
+        museum.ids(page,filter).mapNotNull { artworkNow(it,true) }
+    }
+
+    override fun artwork(id: Long) = supply { artworkNow(id) }
+
+    private fun artworkNow(id: Long, light: Boolean = false): io.enthusia.express.domain.MuseumEntry? = connection.prepareStatement("SELECT ${if(light) PAGE_COLUMNS else "m.*"},s.map_id,s.map_name,s.submitted_at,s.processed_at,s.processed_by FROM mapart_submissions s JOIN mail m ON m.id=s.mail_id WHERE m.id=?").use { ps ->
+        ps.setLong(1,id);ps.executeQuery().use { rs -> if(rs.next()) museum.metadata(id,readMapart(rs)) else null }
+    }
+
+    override fun duplicateMaps(ids: Set<Int>): CompletableFuture<Set<Int>> { val copy=ids.toSet(); return supply { museum.duplicates(copy) } }
+
+    override fun reviewArtwork(id: Long, revision: Long, state: io.enthusia.express.domain.MuseumState, manager: UUID, managerName: String, feedback: String) = supply {
+        inTransaction { artworkNow(id)?.let { museum.review(it,revision,state,manager,managerName,feedback) } ?: false }
+    }
+
+    override fun assignArtwork(id: Long, revision: Long, manager: UUID, managerName: String) = supply {
+        inTransaction { artworkNow(id)?.let { museum.assign(it,revision,manager,managerName) } ?: false }
+    }
+
+    override fun reviseArtwork(id: Long, revision: Long, sender: UUID, details: io.enthusia.express.domain.MuseumDetails) = supply {
+        inTransaction { artworkNow(id)?.let { museum.revise(it,revision,sender,details) } ?: false }
+    }
+
+    override fun museumNotices(recipient: UUID) = supply { museum.audit.notices(recipient) }
+    override fun acknowledgeMuseumNotice(id: Long, recipient: UUID) = supply { museum.audit.acknowledge(id,recipient) }
+
+    /** Read after earlier queued operations; a recipient conflict never proves absence of stored cargo. */
+    override fun findEventDelivery(recipient: UUID, token: UUID): CompletableFuture<OptionalLong> = supply {
+        connection.prepareStatement("SELECT mail_id,recipient_uuid FROM event_deliveries WHERE token=?").use { ps ->
+            ps.setString(1, token.toString())
+            ps.executeQuery().use { rs ->
+                if (!rs.next()) OptionalLong.empty() else {
+                    check(rs.getString(2) == recipient.toString()) { "Event delivery token belongs to another recipient" }
+                    OptionalLong.of(rs.getLong(1))
                 }
             }
         }
@@ -180,6 +248,10 @@ class MailRepository(
                     require(existing.second == recipient.toString()) { "Event delivery token already used for another recipient" }
                     io.enthusia.express.domain.EventDeliveryRecord(existing.first, false)
                 } else {
+                    // A stored token remains authoritative even if the payload limit was later reduced.
+                    require(copy.size <= maxPackagePayloadBytes) {
+                        "Event package exceeds the mailbox payload limit of $maxPackagePayloadBytes bytes"
+                    }
                     val id = insert(InsertData(null, senderName, recipient, recipientName, MailType.PACKAGE, copy, packedCount, false), false)
                     connection.prepareStatement("INSERT INTO event_deliveries(token,mail_id,recipient_uuid,delivered_at) VALUES(?,?,?,?)").use { ps ->
                         ps.setString(1, token.toString())
@@ -219,24 +291,17 @@ class MailRepository(
     }
 
     /** Require a confirmed inventory delivery before the manager can mark a map processed. */
-    override fun markMapartProcessed(id: Long, manager: UUID): CompletableFuture<Boolean> = supply {
-        connection.prepareStatement("UPDATE mapart_submissions SET processed_at=?,processed_by=? WHERE mail_id=?" +
-            " AND processed_at IS NULL AND EXISTS" +
-            " (SELECT 1 FROM mail WHERE id=? AND status='CLAIMED' AND delivery_pending=0)").use { ps ->
-            ps.setLong(1, System.currentTimeMillis())
-            ps.setString(2, manager.toString())
-            ps.setLong(3, id)
-            ps.setLong(4, id)
-            ps.executeUpdate() == 1
-        }
-    }
+    override fun markMapartProcessed(id: Long, manager: UUID): CompletableFuture<Boolean> = supply { inTransaction {
+        artworkNow(id)?.let { museum.review(it,it.revision,io.enthusia.express.domain.MuseumState.DISPLAYED,manager,manager.toString(),"") } ?: false
+    } }
 
     /** Reserve one shared-queue map for one manager, preventing a second manager from claiming it. */
     override fun claimMapart(record: MailRecord, manager: UUID, managerName: String): CompletableFuture<Boolean> = supply {
         if (record.type != MailType.PACKAGE || record.status != MailStatus.UNCLAIMED || record.recipient != MapartQueue.ID) false
         else connection.prepareStatement("UPDATE mail SET recipient_uuid=?,recipient_name=?,status='CLAIMED'," +
             "unread=0,delivery_pending=1,updated_at=? WHERE id=? AND recipient_uuid=? AND status='UNCLAIMED'" +
-            " AND claim_generation=? AND id IN (SELECT mail_id FROM mapart_submissions WHERE processed_at IS NULL)").use { ps ->
+            " AND claim_generation=? AND id IN (SELECT mail_id FROM mapart_submissions WHERE processed_at IS NULL)" +
+            " AND id IN (SELECT mail_id FROM museum_artworks WHERE state='ACCEPTED')").use { ps ->
             ps.setString(1, manager.toString())
             ps.setString(2, managerName)
             ps.setLong(3, System.currentTimeMillis())
@@ -429,8 +494,8 @@ class MailRepository(
     }
 
     /** Release the sending allowance only after the server has delivered the package. */
-    override fun confirmDelivery(id: Long, recipient: UUID): CompletableFuture<Boolean> = supply {
-        connection.prepareStatement(
+    override fun confirmDelivery(id: Long, recipient: UUID): CompletableFuture<Boolean> = supply { inTransaction {
+        val changed=connection.prepareStatement(
             "UPDATE mail SET delivery_pending=0 WHERE id=? AND recipient_uuid=?" +
                 " AND type='PACKAGE' AND status IN ('CLAIMED','RETURN_CLAIMED') AND delivery_pending=1"
         ).use { ps ->
@@ -438,7 +503,9 @@ class MailRepository(
             ps.setString(2, recipient.toString())
             ps.executeUpdate() == 1
         }
-    }
+        if(changed) artworkNow(id,true)?.let { museum.collected(it) }
+        changed
+    } }
 
     /** Clear unread state only for eligible text mail owned by the recipient. */
     override fun markRead(id: Long, recipient: UUID): CompletableFuture<Boolean> = supply {

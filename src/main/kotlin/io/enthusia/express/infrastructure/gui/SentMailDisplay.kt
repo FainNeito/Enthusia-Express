@@ -20,13 +20,15 @@ object SentMailDisplay {
     private val dateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm 'UTC'").withZone(ZoneOffset.UTC)
 
     /** Show destination, type, date, retained content and current delivery state as a readable card. */
-    fun icon(entry: SentMailRecord): ItemStack {
+    @JvmOverloads
+    fun icon(entry: SentMailRecord, theme: GuiTheme? = null): ItemStack {
         val mail = entry.mail
-        val item = ItemStack(when (mail.type) {
+        val material = when (mail.type) {
             MailType.PACKAGE -> Material.CHEST
             MailType.LETTER -> Material.WRITTEN_BOOK
             MailType.ANNOUNCEMENT -> Material.BELL
-        })
+        }
+        val item = theme?.item("mailbox.entry." + mail.type.name.lowercase(java.util.Locale.ROOT), material) ?: ItemStack(material)
         val meta = item.itemMeta!!
         val recipient = entry.recipientName ?: "Unknown (legacy return)"
         val typeName = mail.type.name.lowercase().replaceFirstChar { it.uppercase() }
