@@ -100,6 +100,7 @@ class MailboxServiceTest {
   /** Optional Nexo title glyphs can replace the plain mailbox title. */
   @Test
   void configuredNexoTitleIsUsedWhenAvailable() {
+    when(player.hasResourcePack()).thenReturn(true);
     plugin.getConfig().set("gui.nexo.enabled", true);
     plugin.getConfig().set("gui.nexo.titles.mailbox", "<glyph:mail_menu>");
     PluginManager manager = mock(PluginManager.class);

@@ -1,0 +1,48 @@
+ee_postoffice_banner:
+  texture: enthusiaexpress:postoffice/bg-banner
+  font: enthusiaexpress:menus
+  height: 42
+  ascent: 7
+  is_emoji: false
+
+ee_postoffice_home:
+  texture: enthusiaexpress:postoffice/bg-home
+  font: enthusiaexpress:menus
+  height: 256
+  ascent: 13
+  is_emoji: false
+
+ee_postoffice_mailbox:
+  texture: enthusiaexpress:postoffice/bg-mailbox
+  font: enthusiaexpress:menus
+  height: 256
+  ascent: 13
+  is_emoji: false
+
+ee_postoffice_sent:
+  texture: enthusiaexpress:postoffice/bg-sent
+  font: enthusiaexpress:menus
+  height: 256
+  ascent: 13
+  is_emoji: false
+
+ee_postoffice_catalog:
+  texture: enthusiaexpress:postoffice/bg-catalog
+  font: enthusiaexpress:menus
+  height: 256
+  ascent: 13
+  is_emoji: false
+
+ee_postoffice_museum:
+  texture: enthusiaexpress:postoffice/bg-museum
+  font: enthusiaexpress:menus
+  height: 256
+  ascent: 13
+  is_emoji: false
+
+ee_postoffice_shipping:
+  texture: enthusiaexpress:postoffice/bg-shipping
+  font: enthusiaexpress:menus
+  height: 256
+  ascent: 13
+  is_emoji: false
