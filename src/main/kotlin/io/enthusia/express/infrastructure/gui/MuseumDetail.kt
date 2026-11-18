@@ -68,16 +68,20 @@ internal fun museumDetailText(entry: MuseumEntry, builder: Boolean): String {
     val dimensions = if (entry.tiles.isEmpty()) "Legacy submission" else "${details.width} × ${details.height} maps"
     val maps = if (entry.tiles.isEmpty()) "Legacy map cargo · preview to inspect tiles"
         else "${entry.tiles.size} unique map IDs · ${entry.tiles.values.sum()} physical maps"
-    val next = when {
-        entry.submission.deliveryPending -> "Collection is being confirmed."
-        entry.state == MuseumState.AWAITING_REVIEW -> if (builder) "Preview the art, then accept it or request changes." else "Waiting for a builder to review your art."
-        entry.state == MuseumState.NEEDS_CHANGES -> if (builder) "Waiting for the artist to update the details." else "Read the feedback below and correct your details."
-        entry.state == MuseumState.ACCEPTED -> if (builder) "Collect the maps for display." else "Accepted. A builder will collect your maps."
-        entry.state == MuseumState.COLLECTED -> if (builder) "Place the maps in the museum, then mark them displayed." else "The builder has collected your maps."
-        else -> "On display in the museum."
-    }
+    val next = museumNextStep(entry, builder)
     return "$next\n${details.title}\nArtist: ${details.artist}\nSubmitted by: ${entry.submission.mail.senderName}\n" +
         "$dimensions · ${label(entry.state)}\nCurator: ${entry.curatorName ?: "Unassigned"}\n" +
         "${details.description}\n$maps\n" +
         "${entry.feedback}\nRecent history:\n$history\n$pending"
+}
+
+private fun museumNextStep(entry: MuseumEntry, builder: Boolean): String {
+    if (entry.submission.deliveryPending) return "Collection is being confirmed."
+    return when (entry.state) {
+        MuseumState.AWAITING_REVIEW -> if (builder) "Preview the art, then accept it or request changes." else "Waiting for a builder to review your art."
+        MuseumState.NEEDS_CHANGES -> if (builder) "Waiting for the submitter to update the details." else "Read the feedback below and correct your details."
+        MuseumState.ACCEPTED -> if (builder) "Collect the maps for display." else "Accepted. A builder will collect your maps."
+        MuseumState.COLLECTED -> if (builder) "Place the maps in the museum, then mark them displayed." else "The builder has collected your maps."
+        MuseumState.DISPLAYED -> "On display in the museum."
+    }
 }
