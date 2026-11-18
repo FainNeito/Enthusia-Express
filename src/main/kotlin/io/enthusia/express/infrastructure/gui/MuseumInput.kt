@@ -34,18 +34,19 @@ internal class MuseumInput(private val plugin: JavaPlugin, private val store: Ma
             return
         }
         val old = entry?.details
-        val fields = fields(player, old)
+        val fields = fields(player, old, entry == null)
         val choices =
             listOf(
-                MenuChoice(if (entry == null) "Continue to cargo" else "Resubmit details") { input ->
+                MenuChoice(if (entry == null) "Next: add maps" else "Resubmit details") { input ->
                     submitted(player, entry, input)
                 },
                 MenuChoice("Cancel") { run(player, "mail") },
             )
         if (!view.dialogs.show(
                 player,
-                "Museum artwork",
-                "You are donating physical maps. Credit may name someone other than the submitter. Map quantity must match width × height; tile ordering is not inferred.",
+                if (entry == null) "Submit museum art" else "Edit artwork details",
+                if (entry == null) "Name the artwork and artist. Enter its size in maps. Next, add that many physical maps for the museum."
+                else "Update the details requested by the builder. The museum already holds your maps.",
                 fields,
                 choices,
             )
@@ -59,15 +60,16 @@ internal class MuseumInput(private val plugin: JavaPlugin, private val store: Ma
         }
     }
 
-    private fun fields(player: Player, old: MuseumDetails?): List<MenuField> {
+    private fun fields(player: Player, old: MuseumDetails?, newSubmission: Boolean): List<MenuField> {
         return listOf(
                 MenuField("title", "Artwork title", old?.title.orEmpty()),
                 MenuField("artist", "Credited artist", old?.artist ?: player.name, 64),
                 MenuField("width", "Width in maps", (old?.width ?: 1).toString(), 2),
                 MenuField("height", "Height in maps", (old?.height ?: 1).toString(), 2),
                 MenuField("description", "Description (optional)", old?.description.orEmpty(), 500),
-                MenuField("override", "Duplicate override (staff: type CONFIRM)", "", 7),
-            )
+            ) + if (newSubmission && player.hasPermission(DUPLICATE_PERMISSION)) {
+                listOf(MenuField("override", "Duplicate override (staff: type CONFIRM)", "", 7))
+            } else emptyList()
     }
 
     private fun submitted(player: Player, entry: MuseumEntry?, input: Map<String, String>) {
@@ -91,9 +93,10 @@ internal class MuseumInput(private val plugin: JavaPlugin, private val store: Ma
                 )
             }
         } catch (
-            error: IllegalArgumentException,
+            _: IllegalArgumentException,
         ) {
-            player.sendMessage("§c${error.message}. Reopen /mail mapart submit to correct it.")
+            val retry = if (entry == null) "/mail mapart submit" else "/mail mapart edit ${entry.submission.mail.id}"
+            player.sendMessage(Component.text("Check your artwork details. [Edit details]").clickEvent(ClickEvent.runCommand(retry)))
         }
     }
 

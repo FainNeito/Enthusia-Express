@@ -37,7 +37,7 @@ object PostOfficeLayout {
         "Announcements" -> "announcements"
         "Sent mail" -> "sent"
         "Mail settings & help", "Filters & search" -> "settings"
-        "Submit museum artwork", "Full map manifest" -> "map"
+        "Submit museum artwork", "Map list" -> "map"
         "My submissions" -> "museum"
         "Curator queue", "Assign to me" -> "seal"
         "Accept artwork", "Mark displayed", "Collect physical maps" -> "check"

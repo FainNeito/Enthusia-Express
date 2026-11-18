@@ -248,3 +248,7 @@ WHEN a recipient is hidden from the sender by Paper visibility THE SYSTEM SHALL 
 
 WHEN an integrating plugin (EnthusiaHolidays) requests an event delivery through the public `EventDelivery` service THE SYSTEM SHALL wrap the supplied items (1–27 non-empty stacks within the configured nesting limit) in one shulker-box package from the given display sender and store it for the recipient without postage, outstanding-mail limits or sender blocks. Event packages SHALL never be returned, expired or purged by retention, and SHALL be claimed through the normal mailbox with the existing claim/acknowledgment safety. A caller-supplied delivery token SHALL make retries idempotent: the same token always resolves to the first package without storing another, and a token reused for a different recipient SHALL be rejected. The service SHALL use only JDK and Bukkit types and SHALL be registered in Bukkit's ServicesManager.
 
+
+## REQ-070 — Guided museum review
+
+WHEN a player views an artwork record THE SYSTEM SHALL describe the next step for the review state and provide a route from preview back to the artwork.

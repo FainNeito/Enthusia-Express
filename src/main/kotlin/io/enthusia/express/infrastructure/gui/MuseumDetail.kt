@@ -30,12 +30,12 @@ internal fun museumDetailChoices(player: Player, entry: MuseumEntry, run: (Strin
     val id = entry.submission.mail.id
     val choices = mutableListOf(
         MenuChoice("Preview artwork") { run("mail mapart preview $id") },
-        MenuChoice("Full map manifest") { run("mail mapart maps $id") },
     )
     if (player.hasPermission(MANAGE_PERMISSION)) choices.addAll(curatorChoices(entry, run, collect))
     if (entry.submission.mail.sender == player.uniqueId && entry.state == MuseumState.NEEDS_CHANGES) {
         choices.add(MenuChoice("Correct submission details") { run("mail mapart edit $id") })
     }
+    choices.add(MenuChoice("Map list") { run("mail mapart maps $id") })
     choices.add(MenuChoice("Back to submissions") {
         run("mail mapart ${if (player.hasPermission(MANAGE_PERMISSION)) "queue" else "mine"}")
     })
@@ -61,14 +61,22 @@ private fun curatorChoices(entry: MuseumEntry, run: (String) -> Unit, collect: (
     return choices
 }
 
-internal fun museumDetailText(entry: MuseumEntry): String {
+internal fun museumDetailText(entry: MuseumEntry, builder: Boolean): String {
     val details = entry.details
     val history = entry.history.takeLast(6).joinToString("\n") { "${it.event}: ${it.actor}" }
     val pending = if (entry.submission.deliveryPending) "Inventory delivery acknowledgment is pending." else ""
     val dimensions = if (entry.tiles.isEmpty()) "Legacy submission" else "${details.width} × ${details.height} maps"
     val maps = if (entry.tiles.isEmpty()) "Legacy map cargo · preview to inspect tiles"
         else "${entry.tiles.size} unique map IDs · ${entry.tiles.values.sum()} physical maps"
-    return "${details.title}\nArtist: ${details.artist}\nSubmitted by: ${entry.submission.mail.senderName}\n" +
+    val next = when {
+        entry.submission.deliveryPending -> "Collection is being confirmed."
+        entry.state == MuseumState.AWAITING_REVIEW -> if (builder) "Preview the art, then accept it or request changes." else "Waiting for a builder to review your art."
+        entry.state == MuseumState.NEEDS_CHANGES -> if (builder) "Waiting for the artist to update the details." else "Read the feedback below and correct your details."
+        entry.state == MuseumState.ACCEPTED -> if (builder) "Collect the maps for display." else "Accepted. A builder will collect your maps."
+        entry.state == MuseumState.COLLECTED -> if (builder) "Place the maps in the museum, then mark them displayed." else "The builder has collected your maps."
+        else -> "On display in the museum."
+    }
+    return "$next\n${details.title}\nArtist: ${details.artist}\nSubmitted by: ${entry.submission.mail.senderName}\n" +
         "$dimensions · ${label(entry.state)}\nCurator: ${entry.curatorName ?: "Unassigned"}\n" +
         "${details.description}\n$maps\n" +
         "${entry.feedback}\nRecent history:\n$history\n$pending"

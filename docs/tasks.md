@@ -583,3 +583,7 @@ INFRA-060 local refinement: menu ownership/input/commands and audit SQL separate
 
 INFRA-060 final local evidence: final Paper26.3 baseline-JAR run repeats243 passing tests; isolated Paper26.2 probe20261019T042649Z-3ac98eeb1c passes at19332f9 with artifact SHA256 f51db8c287afa96e9d662db9f29532247e3a36fb773987d427e472ffa257b55b. Codacy reduced100 findings to2 style-only findings; the misplaced constant comment and missing heading spacing are corrected. Final exact-head status must be verified after push. No real client, production or network-pin acceptance is inferred.
 
+
+## Guided museum submission and review (REQ-070)
+
+Base 3c3003cf showed a staff duplicate field to ordinary donors and put the map manifest before review actions. The revised form and record guide submission, feedback, collection and manual placement. Existing revision, permission, preview and custody handlers own every action. Local baseline Gradle build passed 285 tests on Java 21. Walkthrough anchors resolve. Native submitter and builder acceptance is pending.
