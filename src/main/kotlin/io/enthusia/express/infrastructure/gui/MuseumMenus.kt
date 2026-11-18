@@ -140,7 +140,7 @@ class MuseumMenus(
             val choices = museumDetailChoices(player, entry, { run(player, it) }) {
                 if (allowed(player, true)) mailbox.claimMuseum(player, id)
             }
-            view.show(player, entry.details.title, museumDetailText(entry), emptyList(), choices)
+            view.show(player, entry.details.title, museumDetailText(entry, player.hasPermission(MANAGE_PERMISSION)), emptyList(), choices)
         }
     }
 
