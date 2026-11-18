@@ -252,3 +252,7 @@ WHEN an integrating plugin (EnthusiaHolidays) requests an event delivery through
 ## REQ-070 — Guided museum review
 
 WHEN a player views an artwork record THE SYSTEM SHALL describe the next step for the review state and provide a route from preview back to the artwork.
+
+## REQ-071 — Event package pickup lookup
+
+WHEN a caller checks a recipient and event token THE SYSTEM SHALL distinguish a waiting package from acknowledged pickup and return unknown for unmatched or recovering deliveries without reading cargo.

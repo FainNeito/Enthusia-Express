@@ -218,6 +218,22 @@ class MailRepository(
     override fun museumNotices(recipient: UUID) = supply { museum.audit.notices(recipient) }
     override fun acknowledgeMuseumNotice(id: Long, recipient: UUID) = supply { museum.audit.acknowledge(id,recipient) }
 
+    override fun eventPackageAwaitingPickup(recipient: UUID, token: UUID): CompletableFuture<Boolean?> = supply {
+        val sql = """SELECT m.status FROM event_deliveries e JOIN mail m ON m.id=e.mail_id
+            WHERE e.token=? AND e.recipient_uuid=? AND m.recipient_uuid=e.recipient_uuid AND m.delivery_pending=0"""
+        connection.prepareStatement(sql).use { ps ->
+            ps.setString(1, token.toString())
+            ps.setString(2, recipient.toString())
+            ps.executeQuery().use { rows ->
+                when (if (rows.next()) rows.getString(1) else null) {
+                    "UNCLAIMED" -> true
+                    "CLAIMED" -> false
+                    else -> null
+                }
+            }
+        }
+    }
+
     /** Read after earlier queued operations; a recipient conflict never proves absence of stored cargo. */
     override fun findEventDelivery(recipient: UUID, token: UUID): CompletableFuture<OptionalLong> = supply {
         connection.prepareStatement("SELECT mail_id,recipient_uuid FROM event_deliveries WHERE token=?").use { ps ->

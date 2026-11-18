@@ -35,6 +35,8 @@ interface EventDeliveries {
      * Return empty only after a successful lookup; conflicts and unavailable storage must fail.
      * Alternate stores without durable lookup support conservatively retain caller ownership.
      */
+    fun eventPackageAwaitingPickup(recipient: UUID, token: UUID): CompletableFuture<Boolean?>
+
     fun findEventDelivery(recipient: UUID, token: UUID): CompletableFuture<OptionalLong> =
         CompletableFuture.failedFuture(IllegalStateException("Event delivery reconciliation is unavailable"))
 

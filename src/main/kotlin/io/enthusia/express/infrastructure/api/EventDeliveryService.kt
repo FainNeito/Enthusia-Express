@@ -12,7 +12,9 @@ import java.util.concurrent.CompletionException
 import java.util.concurrent.ConcurrentHashMap
 
 /** [EventDelivery] backed by durable tokens and private, cancellation-isolated in-flight outcomes. */
-class EventDeliveryService(private val store: MailStore, private val packager: EventPackager) : EventDelivery {
+class EventDeliveryService(private val store: MailStore, private val packager: EventPackager) : EventDelivery, io.enthusia.express.api.EventPackagePickup {
+    override fun isAwaitingPickup(recipient: UUID, token: UUID) = store.eventPackageAwaitingPickup(recipient, token)
+
     private val inFlight = ConcurrentHashMap<UUID, PendingDelivery>()
 
     override fun deliverPackage(recipient: UUID, recipientName: String, senderName: String,
