@@ -90,6 +90,18 @@ class EventDeliveryRepositoryTest {
     assertEquals(1, repository.listInbox(recipient, MailType.PACKAGE).join().size());
   }
 
+  @Test
+  void pickupStatusTracksOnlyTheMatchingAcknowledgedDelivery() {
+    assertNull(repository.eventPackageAwaitingPickup(recipient, token).join());
+    long id = deliver(recipient, token).mailId();
+    assertEquals(Boolean.TRUE, repository.eventPackageAwaitingPickup(recipient, token).join());
+    assertNull(repository.eventPackageAwaitingPickup(UUID.randomUUID(), token).join());
+    assertTrue(repository.claim(id, recipient).join());
+    assertNull(repository.eventPackageAwaitingPickup(recipient, token).join());
+    assertTrue(repository.confirmDelivery(id, recipient).join());
+    assertEquals(Boolean.FALSE, repository.eventPackageAwaitingPickup(recipient, token).join());
+  }
+
   /** A new token stores one unclaimed system package for the recipient. */
   @Test
   void deliveryCreatesClaimablePackage() {

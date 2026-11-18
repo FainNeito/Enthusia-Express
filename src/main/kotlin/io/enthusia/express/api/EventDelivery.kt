@@ -34,3 +34,9 @@ interface EventDelivery {
     fun deliverPackage(recipient: UUID, recipientName: String, senderName: String,
                        items: List<ItemStack>, token: UUID): CompletableFuture<Long>
 }
+
+/** Optional read-only capability of the registered EventDelivery provider. */
+interface EventPackagePickup {
+    /** True while available in the inbox, false after acknowledged pickup, null when unknown or recovering. */
+    fun isAwaitingPickup(recipient: UUID, token: UUID): CompletableFuture<Boolean?>
+}

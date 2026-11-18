@@ -587,3 +587,5 @@ INFRA-060 final local evidence: final Paper26.3 baseline-JAR run repeats243 pass
 ## Guided museum submission and review (REQ-070)
 
 Base 3c3003cf showed a staff duplicate field to ordinary donors and put the map manifest before review actions. The revised form and record guide submission, feedback, collection and manual placement. Existing revision, permission, preview and custody handlers own every action. Local baseline Gradle build passed 285 tests on Java 21. Walkthrough anchors resolve. Native submitter and builder acceptance is pending.
+
+REQ-071. The previous EventDelivery API confirmed storage only. The optional pickup capability reads one recipient-bound token and its persisted claim receipt. EventDeliveryRepositoryTest covers missing, wrong recipient, waiting, recovery and completed pickup.
